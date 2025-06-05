@@ -1,6 +1,6 @@
 # BVEX Ground Station
 
-Professional ground station software for the Balloon-borne VLBI Experiment (BVEX). This application provides real-time sky charts and GPS tracking for radio astronomy operations.
+ground station GUI software for the Balloon-borne VLBI Experiment (BVEX). This application provides real-time information for BVEX on a GUI.
 
 ## Features
 
