@@ -33,6 +33,7 @@ class BCPSpectrometerClient:
         self.last_request_time = 0.0
         self.logger = logging.getLogger(__name__)
         self.connected = False
+        self.active_spectrometer_type = 'STANDARD'  # Assume STANDARD initially
         
     def _send_request(self, request: str) -> Optional[str]:
         """Send UDP request and return response"""
@@ -62,21 +63,6 @@ class BCPSpectrometerClient:
             return None
         finally:
             sock.close()
-    
-    def get_active_spectrometer_type(self) -> str:
-        """Returns 'STANDARD', '120KHZ', 'NONE', or 'ERROR'"""
-        response = self._send_request("GET_SPECTRA")
-        if not response:
-            return "ERROR"
-        
-        if response.startswith("SPECTRA_STD:"):
-            return "STANDARD"
-        elif response.startswith("ERROR:WRONG_SPECTROMETER_TYPE:current=120KHZ"):
-            return "120KHZ"
-        elif response.startswith("ERROR:SPECTROMETER_NOT_RUNNING"):
-            return "NONE"
-        else:
-            return "ERROR"
     
     def parse_standard_response(self, response: str) -> Optional[SpectrumData]:
         """Parse standard spectrum response"""
@@ -220,62 +206,53 @@ class BCPSpectrometerClient:
             self.logger.error(f"Response was: {response[:200]}...")
             return None
     
-    def get_standard_spectrum(self) -> Optional[SpectrumData]:
-        """Get standard resolution spectrum (2048 points)"""
-        response = self._send_request("GET_SPECTRA")
-        if not response:
-            return SpectrumData(type='STANDARD', timestamp=time.time(), points=0, data=[], valid=False)
-        
-        if response.startswith("ERROR:"):
-            self.logger.warning(f"Server error: {response}")
-            return SpectrumData(type='STANDARD', timestamp=time.time(), points=0, data=[], valid=False)
-        
-        result = self.parse_standard_response(response)
-        if result is None:
-            return SpectrumData(type='STANDARD', timestamp=time.time(), points=0, data=[], valid=False)
-        
-        return result
-    
-    def get_120khz_spectrum(self) -> Optional[SpectrumData]:
-        """Get high-resolution water maser spectrum (~167 points)"""
-        response = self._send_request("GET_SPECTRA_120KHZ")
-        if not response:
-            return SpectrumData(type='120KHZ', timestamp=time.time(), points=0, data=[], valid=False)
-        
-        if response.startswith("ERROR:"):
-            self.logger.warning(f"Server error: {response}")
-            return SpectrumData(type='120KHZ', timestamp=time.time(), points=0, data=[], valid=False)
-        
-        result = self.parse_120khz_response(response)
-        if result is None:
-            return SpectrumData(type='120KHZ', timestamp=time.time(), points=0, data=[], valid=False)
-        
-        return result
-    
     def get_spectrum(self) -> Optional[SpectrumData]:
-        """Automatically get the appropriate spectrum based on a single request"""
-        response = self._send_request("GET_SPECTRA")
+        """
+        Get the appropriate spectrum based on the active spectrometer type.
+        This method is stateful and will switch between STANDARD and 120KHZ modes
+        to avoid sending multiple requests and hitting rate limits.
+        """
+        # Determine which command to send based on our current state
+        if self.active_spectrometer_type == '120KHZ':
+            request_cmd = "GET_SPECTRA_120KHZ"
+        else:  # 'STANDARD' or 'UNKNOWN'
+            request_cmd = "GET_SPECTRA"
+            
+        # Send the single request
+        response = self._send_request(request_cmd)
         
         if not response:
             return SpectrumData(type='ERROR', timestamp=time.time(), points=0, data=[], valid=False)
-            
-        if response.startswith("SPECTRA_STD:"):
-            return self.parse_standard_response(response)
-        elif response.startswith("ERROR:WRONG_SPECTROMETER_TYPE:current=120KHZ"):
-            return self.get_120khz_spectrum()
-        elif response.startswith("ERROR:SPECTROMETER_NOT_RUNNING"):
-            self.logger.info("No spectrometer is currently running")
-            return SpectrumData(type='NONE', timestamp=time.time(), points=0, data=[], valid=False)
-        else:
-            # Check for 120kHz data, as GET_SPECTRA might return it directly
-            # in some server versions
-            result_120 = self.parse_120khz_response(response)
-            if result_120:
-                return result_120
 
-            self.logger.error(f"Unknown or error response: {response[:100]}...")
-            return SpectrumData(type='ERROR', timestamp=time.time(), points=0, data=[], valid=False)
-    
+        # Handle successful responses and update state
+        if response.startswith("SPECTRA_STD:"):
+            self.active_spectrometer_type = 'STANDARD'
+            return self.parse_standard_response(response)
+        
+        if response.startswith("SPECTRA_120KHZ:"):
+            self.active_spectrometer_type = '120KHZ'
+            return self.parse_120khz_response(response)
+
+        # Handle errors that tell us to switch types for the *next* request
+        if "ERROR:WRONG_SPECTROMETER_TYPE" in response:
+            if "current=120KHZ" in response:
+                self.logger.warning("Wrong spectrometer type. Switching to 120KHZ for next cycle.")
+                self.active_spectrometer_type = '120KHZ'
+                return SpectrumData(type='120KHZ', timestamp=time.time(), points=0, data=[], valid=False)
+            else: # Assumes current=STANDARD
+                self.logger.warning("Wrong spectrometer type. Switching to STANDARD for next cycle.")
+                self.active_spectrometer_type = 'STANDARD'
+                return SpectrumData(type='STANDARD', timestamp=time.time(), points=0, data=[], valid=False)
+
+        if response.startswith("ERROR:SPECTROMETER_NOT_RUNNING"):
+            self.logger.info("No spectrometer is currently running")
+            self.active_spectrometer_type = 'NONE'
+            return SpectrumData(type='NONE', timestamp=time.time(), points=0, data=[], valid=False)
+            
+        # Handle other errors
+        self.logger.error(f"Unknown or error response: {response[:100]}...")
+        return SpectrumData(type='ERROR', timestamp=time.time(), points=0, data=[], valid=False)
+
     def is_connected(self) -> bool:
         """Check if client is connected to server"""
         return self.connected 

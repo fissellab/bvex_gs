@@ -12,6 +12,7 @@ from PyQt6.QtCore import QTimer, Qt, pyqtSignal, QObject, QThread
 from PyQt6.QtGui import QFont
 import datetime as dt
 from collections import deque
+import logging
 
 from src.data.bcp_spectrometer_client import BCPSpectrometerClient, SpectrumData
 
@@ -37,6 +38,7 @@ class SpectraDisplayWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         
+        self.logger = logging.getLogger(__name__)
         # Initialize spectrometer client (will be used in worker thread)
         self.spectrometer_client = BCPSpectrometerClient()
         
@@ -212,6 +214,11 @@ class SpectraDisplayWidget(QWidget):
         if not self.spectrum_data or not self.spectrum_data.valid:
             return
         
+        # Check for data length mismatch before plotting
+        if len(self.spectrum_data.data) != len(self.freq_ghz) and self.spectrum_data.type == 'STANDARD':
+             self.logger.warning("Mismatch between standard data length and frequency axis. Skipping plot.")
+             return
+        
         self.ax.clear()
         
         # Prepare data for plotting
@@ -236,7 +243,12 @@ class SpectraDisplayWidget(QWidget):
         spectrum_db = np.flip(spectrum_db)
         
         # Plot spectrum
-        self.ax.plot(self.freq_ghz, spectrum_db, 'b-', linewidth=1, alpha=0.8)
+        if self.spectrum_data.type == 'STANDARD':
+            if len(spectrum_db) == len(self.freq_ghz):
+                self.ax.plot(self.freq_ghz, spectrum_db, 'b-', linewidth=1, alpha=0.8)
+            else:
+                self.logger.warning("Mismatch in standard spectrum data length. Skipping plot.")
+                return
         
         # Configure plot based on spectrum type
         if self.spectrum_data.type == '120KHZ':
@@ -248,12 +260,16 @@ class SpectraDisplayWidget(QWidget):
             # Keep the original frequency range if available
             if self.spectrum_data.freq_start and self.spectrum_data.freq_end:
                 # Create frequency axis based on actual frequency range
-                freq_120k = np.linspace(self.spectrum_data.freq_start, 
-                                       self.spectrum_data.freq_end, 
-                                       len(spectrum_db))
-                self.ax.clear()
-                self.ax.plot(freq_120k, spectrum_db, 'b-', linewidth=1, alpha=0.8)
-                self.ax.set_xlabel("Frequency (GHz)", fontsize=11)
+                if len(spectrum_db) > 0:
+                    freq_120k = np.linspace(self.spectrum_data.freq_start, 
+                                           self.spectrum_data.freq_end, 
+                                           len(spectrum_db))
+                    self.ax.clear()
+                    self.ax.plot(freq_120k, spectrum_db, 'b-', linewidth=1, alpha=0.8)
+                    self.ax.set_xlabel("Frequency (GHz)", fontsize=11)
+                else:
+                    self.logger.warning("120kHz spectrum has no data points. Skipping plot.")
+                    return
             else:
                 self.ax.set_xlabel("Frequency (GHz)", fontsize=11)
             
