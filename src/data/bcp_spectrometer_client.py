@@ -36,12 +36,6 @@ class BCPSpectrometerClient:
         
     def _send_request(self, request: str) -> Optional[str]:
         """Send UDP request and return response"""
-        # Respect rate limiting (1 req/sec)
-        current_time = time.time()
-        time_since_last = current_time - self.last_request_time
-        if time_since_last < 1.0:
-            time.sleep(1.0 - time_since_last)
-        
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.settimeout(self.timeout)
         
@@ -259,18 +253,27 @@ class BCPSpectrometerClient:
         return result
     
     def get_spectrum(self) -> Optional[SpectrumData]:
-        """Automatically get the appropriate spectrum based on active spectrometer"""
-        spec_type = self.get_active_spectrometer_type()
+        """Automatically get the appropriate spectrum based on a single request"""
+        response = self._send_request("GET_SPECTRA")
         
-        if spec_type == "STANDARD":
-            return self.get_standard_spectrum()
-        elif spec_type == "120KHZ":
+        if not response:
+            return SpectrumData(type='ERROR', timestamp=time.time(), points=0, data=[], valid=False)
+            
+        if response.startswith("SPECTRA_STD:"):
+            return self.parse_standard_response(response)
+        elif response.startswith("ERROR:WRONG_SPECTROMETER_TYPE:current=120KHZ"):
             return self.get_120khz_spectrum()
-        elif spec_type == "NONE":
+        elif response.startswith("ERROR:SPECTROMETER_NOT_RUNNING"):
             self.logger.info("No spectrometer is currently running")
             return SpectrumData(type='NONE', timestamp=time.time(), points=0, data=[], valid=False)
         else:
-            self.logger.error("Error determining spectrometer type")
+            # Check for 120kHz data, as GET_SPECTRA might return it directly
+            # in some server versions
+            result_120 = self.parse_120khz_response(response)
+            if result_120:
+                return result_120
+
+            self.logger.error(f"Unknown or error response: {response[:100]}...")
             return SpectrumData(type='ERROR', timestamp=time.time(), points=0, data=[], valid=False)
     
     def is_connected(self) -> bool:

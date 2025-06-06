@@ -125,7 +125,7 @@ class MainWindow(QMainWindow):
         
         # Force refresh spectra
         refresh_spectra_action = QAction('&Refresh Spectra', self)
-        refresh_spectra_action.triggered.connect(self.spectra_widget.update_spectrum)
+        refresh_spectra_action.triggered.connect(self.spectra_widget.trigger_fetch)
         spectrometer_menu.addAction(refresh_spectra_action)
         
         # Help menu
@@ -250,8 +250,9 @@ class MainWindow(QMainWindow):
         QMessageBox.about(self, "About BVEX Ground Station", about_text)
     
     def closeEvent(self, event):
-        """Handle application shutdown"""
+        """Handle window close event"""
         self.gps_client.stop()
+        self.spectra_widget.stop_worker()  # Ensure worker thread is stopped
         self.logger.info("BVEX Ground Station shutdown")
         event.accept()
 

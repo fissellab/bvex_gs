@@ -7,8 +7,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame, QSizePolicy
-from PyQt6.QtCore import QTimer, Qt, pyqtSignal
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame, QSizePolicy, QComboBox
+from PyQt6.QtCore import QTimer, Qt, pyqtSignal, QObject, QThread
 from PyQt6.QtGui import QFont
 import datetime as dt
 from collections import deque
@@ -16,18 +16,33 @@ from collections import deque
 from src.data.bcp_spectrometer_client import BCPSpectrometerClient, SpectrumData
 
 
+class SpectrometerWorker(QObject):
+    """Worker to fetch spectrometer data in a separate thread"""
+    spectrum_updated = pyqtSignal(object)
+
+    def __init__(self, client):
+        super().__init__()
+        self.client = client
+
+    def fetch_spectrum(self):
+        """Fetch spectrum data"""
+        new_spectrum = self.client.get_spectrum()
+        self.spectrum_updated.emit(new_spectrum)
+
+
 class SpectraDisplayWidget(QWidget):
     """Widget displaying real-time spectrum data"""
-    
+    trigger_fetch_signal = pyqtSignal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         
-        # Initialize spectrometer client
+        # Initialize spectrometer client (will be used in worker thread)
         self.spectrometer_client = BCPSpectrometerClient()
         
         # Data storage for plotting
         self.spectrum_data = None
-        self.last_update_time = None
+        self.last_fetch_time = 0
         
         # History buffer for data rate calculation
         self.update_times = deque(maxlen=10)
@@ -44,8 +59,32 @@ class SpectraDisplayWidget(QWidget):
         print(f"Frequency axis: {self.freq_ghz[0]:.5f} to {self.freq_ghz[-1]:.5f} GHz")
         
         self.setup_ui()
+        self.setup_worker_thread()
         self.setup_update_timer()
     
+    def setup_worker_thread(self):
+        """Setup the worker thread for non-blocking data fetching"""
+        self.worker_thread = QThread()
+        self.worker = SpectrometerWorker(self.spectrometer_client)
+        self.worker.moveToThread(self.worker_thread)
+
+        self.worker.spectrum_updated.connect(self.handle_spectrum_update)
+        self.trigger_fetch_signal.connect(self.worker.fetch_spectrum)
+
+        self.worker_thread.start()
+
+    def trigger_fetch(self):
+        """Trigger a fetch, respecting a cooldown"""
+        current_time = dt.datetime.now().timestamp()
+        if current_time - self.last_fetch_time > 1.0: # 1 second cooldown
+            self.last_fetch_time = current_time
+            self.trigger_fetch_signal.emit()
+
+    def stop_worker(self):
+        """Stop the worker thread"""
+        self.worker_thread.quit()
+        self.worker_thread.wait()
+
     def setup_ui(self):
         """Initialize the matplotlib figure and canvas"""
         layout = QVBoxLayout()
@@ -110,15 +149,14 @@ class SpectraDisplayWidget(QWidget):
         self.canvas.draw()
     
     def setup_update_timer(self):
-        """Setup timer for regular spectrum updates at 1Hz"""
+        """Setup timer for regular spectrum updates at 0.5Hz"""
         self.timer = QTimer()
-        self.timer.timeout.connect(self.update_spectrum)
-        self.timer.start(1000)  # 1 second = 1 Hz
+        self.timer.timeout.connect(self.trigger_fetch)
+        self.timer.start(2000)  # 2000 ms = 0.5 Hz
     
-    def update_spectrum(self):
+    def handle_spectrum_update(self, new_spectrum):
         """Update spectrum display with new data"""
         # Get new spectrum data
-        new_spectrum = self.spectrometer_client.get_spectrum()
         
         if new_spectrum and new_spectrum.valid and len(new_spectrum.data) > 0:
             self.spectrum_data = new_spectrum
