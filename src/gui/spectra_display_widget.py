@@ -49,6 +49,10 @@ class SpectraDisplayWidget(QWidget):
         # History buffer for data rate calculation
         self.update_times = deque(maxlen=10)
         
+        # Data storage for integrated power plot
+        self.power_times = deque(maxlen=200) # Store ~20 seconds of data at 10Hz
+        self.power_values = deque(maxlen=200)
+        
         # Create frequency axis exactly matching read_latest_data.py
         fs = 3932.16 / 2
         Nfft = 2**11  # 2048 points
@@ -120,38 +124,43 @@ class SpectraDisplayWidget(QWidget):
         
         layout.addLayout(info_layout)
         
-        # Create matplotlib figure (more compact)
-        self.figure = Figure(figsize=(10, 6), tight_layout=True)  # Increased width, reasonable height
-        self.figure.patch.set_facecolor('white')  # Clean background
-        self.ax = self.figure.add_subplot(111)
-        self.canvas = FigureCanvas(self.figure)
-        self.canvas.setMinimumHeight(300)  # Minimum height
+        # Create matplotlib figure with two subplots
+        self.figure = Figure(figsize=(10, 8), tight_layout=True)
+        self.figure.patch.set_facecolor('white')
+        self.ax_spectrum, self.ax_power = self.figure.subplots(2, 1, gridspec_kw={'height_ratios': [3, 1]})
         
-        layout.addWidget(self.canvas, 1)  # Give canvas all remaining space
+        self.canvas = FigureCanvas(self.figure)
+        self.canvas.setMinimumHeight(400) # Increased height for two plots
+        
+        layout.addWidget(self.canvas, 1)
         self.setLayout(layout)
         
         # Initial plot setup
         self.setup_initial_plot()
     
     def setup_initial_plot(self):
-        """Setup initial empty plot"""
-        self.ax.clear()
-        self.ax.set_title("BCP Spectrometer - No Data", fontsize=14, fontweight='bold')
-        self.ax.set_xlabel("Channel", fontsize=12)
-        self.ax.set_ylabel("Power", fontsize=12)
-        self.ax.grid(True, alpha=0.3)
-        self.ax.set_xlim(0, 100)
-        self.ax.set_ylim(-1, 1)
-        
-        # Add placeholder text
-        self.ax.text(0.5, 0.5, 'Waiting for spectrum data...', 
-                    horizontalalignment='center', verticalalignment='center',
-                    transform=self.ax.transAxes, fontsize=14, color='gray')
+        """Setup initial empty plots for both spectrum and power"""
+        # Spectrum plot
+        self.ax_spectrum.clear()
+        self.ax_spectrum.set_title("BCP Spectrometer - No Data", fontsize=14, fontweight='bold')
+        self.ax_spectrum.set_xlabel("Frequency (GHz)", fontsize=12)
+        self.ax_spectrum.set_ylabel("Power (dB)", fontsize=12)
+        self.ax_spectrum.grid(True, alpha=0.3)
+        self.ax_spectrum.text(0.5, 0.5, 'Waiting for spectrum data...', 
+                              horizontalalignment='center', verticalalignment='center',
+                              transform=self.ax_spectrum.transAxes, fontsize=14, color='gray')
+
+        # Integrated power plot
+        self.ax_power.clear()
+        self.ax_power.set_title("Integrated Power", fontsize=12)
+        self.ax_power.set_xlabel("Time", fontsize=10)
+        self.ax_power.set_ylabel("Power (dB)", fontsize=10)
+        self.ax_power.grid(True, alpha=0.3)
         
         self.canvas.draw()
     
     def setup_update_timer(self):
-        """Setup timer for regular spectrum updates at 0.5Hz"""
+        """Setup timer for regular spectrum updates"""
         self.timer = QTimer()
         self.timer.timeout.connect(self.trigger_fetch)
         self.timer.start(2000)  # 2000 ms = 0.5 Hz
@@ -219,7 +228,7 @@ class SpectraDisplayWidget(QWidget):
              self.logger.warning("Mismatch between standard data length and frequency axis. Skipping plot.")
              return
         
-        self.ax.clear()
+        self.ax_spectrum.clear()
         
         # Prepare data for plotting
         raw_data = np.array(self.spectrum_data.data)
@@ -239,111 +248,82 @@ class SpectraDisplayWidget(QWidget):
         # Apply log10 with proper floor to avoid -inf
         spectrum_db = 10 * np.log10(np.maximum(raw_data, floor_value))
         
-        # Flip the spectrum (as done in read_latest_data.py)
-        spectrum_db = np.flip(spectrum_db)
+        # NOTE: The spectrum data is plotted directly without flipping,
+        # as the frequency axis is already aligned with the incoming data order.
         
-        # Plot spectrum
+        # --- Integrated Power Calculation ---
+        integrated_power = np.sum(raw_data)
+        integrated_power_db = 10 * np.log10(np.maximum(integrated_power, floor_value))
+        
+        current_time = dt.datetime.now()
+        self.power_times.append(current_time)
+        self.power_values.append(integrated_power_db)
+        
+        # --- Plotting ---
+        self.ax_spectrum.clear()
+        self.ax_power.clear()
+        
+        # Plot spectrum data
         if self.spectrum_data.type == 'STANDARD':
             if len(spectrum_db) == len(self.freq_ghz):
-                self.ax.plot(self.freq_ghz, spectrum_db, 'b-', linewidth=1, alpha=0.8)
+                self.ax_spectrum.plot(self.freq_ghz, spectrum_db, 'b-', linewidth=1, alpha=0.8)
+                self.ax_spectrum.set_xlim(self.freq_ghz[0], self.freq_ghz[-1])
             else:
                 self.logger.warning("Mismatch in standard spectrum data length. Skipping plot.")
-                return
-        
-        # Configure plot based on spectrum type
-        if self.spectrum_data.type == '120KHZ':
-            # High-resolution water maser spectrum
-            title = f"120kHz Water Maser Spectrum - {self.spectrum_data.freq_start:.3f}-{self.spectrum_data.freq_end:.3f} GHz"
-            ylabel = "Power (dB above baseline)"
-            
-            # For 120kHz data, we might need different frequency handling
-            # Keep the original frequency range if available
-            if self.spectrum_data.freq_start and self.spectrum_data.freq_end:
-                # Create frequency axis based on actual frequency range
-                if len(spectrum_db) > 0:
-                    freq_120k = np.linspace(self.spectrum_data.freq_start, 
-                                           self.spectrum_data.freq_end, 
-                                           len(spectrum_db))
-                    self.ax.clear()
-                    self.ax.plot(freq_120k, spectrum_db, 'b-', linewidth=1, alpha=0.8)
-                    self.ax.set_xlabel("Frequency (GHz)", fontsize=11)
-                else:
-                    self.logger.warning("120kHz spectrum has no data points. Skipping plot.")
-                    return
+                return 
+        elif self.spectrum_data.type == '120KHZ':
+            if self.spectrum_data.freq_start is not None and self.spectrum_data.freq_end is not None:
+                freq_120k = np.linspace(self.spectrum_data.freq_start, self.spectrum_data.freq_end, len(spectrum_db))
+                self.ax_spectrum.plot(freq_120k, spectrum_db, 'b-', linewidth=1, alpha=0.8)
+                self.ax_spectrum.set_xlim(self.spectrum_data.freq_start, self.spectrum_data.freq_end)
             else:
-                self.ax.set_xlabel("Frequency (GHz)", fontsize=11)
+                 self.logger.warning("120kHz spectrum missing frequency range. Skipping plot.")
+                 return
+        
+        # Set titles and labels for spectrum
+        title = f"{self.spectrum_data.type} Spectrum"
+        timestamp_str = self.last_update_time.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+        self.ax_spectrum.set_title(f"{title} - {timestamp_str}", fontsize=12, fontweight='bold')
+        self.ax_spectrum.set_xlabel("Frequency (GHz)", fontsize=11)
+        self.ax_spectrum.set_ylabel("Power (dB arb.)", fontsize=11)
+        self.ax_spectrum.grid(True, alpha=0.3, linestyle='--')
+        
+        # Dynamic Y-axis for spectrum
+        y_min, y_max = np.min(spectrum_db), np.max(spectrum_db)
+        y_range = y_max - y_min
+        padding = 0.05 * y_range if y_range > 0.1 else 0.5
+        self.ax_spectrum.set_ylim(y_min - padding, y_max + padding)
+
+        # Plot integrated power
+        if self.power_times:
+            self.ax_power.plot(list(self.power_times), list(self.power_values), 'r-', linewidth=1.5)
+        
+        self.ax_power.set_title("Integrated Power", fontsize=12)
+        self.ax_power.set_xlabel("Time", fontsize=10)
+        self.ax_power.set_ylabel("Power (dB)", fontsize=10)
+        self.ax_power.grid(True, alpha=0.5, linestyle='--')
+        self.figure.autofmt_xdate(rotation=15, ha='right')
+        
+        # Force the x-tick labels on the spectrum plot to be visible, as autofmt_xdate can hide them
+        self.ax_spectrum.tick_params(axis='x', labelbottom=True)
+        
+        # Dynamic Y-axis for power
+        if self.power_values:
+            p_min, p_max = np.min(list(self.power_values)), np.max(list(self.power_values))
+            p_range = p_max - p_min
+            padding = 0.1 * p_range if p_range > 0.1 else 0.5
+            self.ax_power.set_ylim(p_min - padding, p_max + padding)
             
-        elif self.spectrum_data.type == 'STANDARD':
-            # Standard spectrum
-            title = "Standard Spectrum (Full IF Bandwidth)"
-            ylabel = "Power (dB arb.)"
-            self.ax.set_xlabel("Frequency (GHz)", fontsize=11)
-        else:
-            title = f"{self.spectrum_data.type} Spectrum"
-            ylabel = "Power (dB arb.)"
-            self.ax.set_xlabel("Frequency (GHz)", fontsize=11)
-        
-        # Add timestamp to title
-        timestamp_str = dt.datetime.fromtimestamp(self.spectrum_data.timestamp).strftime("%H:%M:%S")
-        title += f" - {timestamp_str}"
-        
-        # Set labels and title
-        self.ax.set_title(title, fontsize=12, fontweight='bold')
-        self.ax.set_ylabel(ylabel, fontsize=11)
-        
-        # Configure grid and ticks
-        self.ax.grid(True, alpha=0.3, linestyle='--')
-        self.ax.tick_params(labelsize=9)
-        
-        # Auto-scale with some padding, handling the case of mostly uniform data
-        if len(spectrum_db) > 0 and not np.any(np.isnan(spectrum_db)) and not np.any(np.isinf(spectrum_db)):
-            y_min, y_max = np.min(spectrum_db), np.max(spectrum_db)
-            y_range = y_max - y_min
-            
-            if y_range > 0.1:  # If there's significant variation
-                padding = 0.05 * y_range
-                self.ax.set_ylim(y_min - padding, y_max + padding)
-            else:
-                # If the data is mostly flat, show a reasonable range around the mean
-                y_mean = np.mean(spectrum_db)
-                self.ax.set_ylim(y_mean - 1.0, y_mean + 1.0)
-            
-            # Set frequency axis limits
-            if self.spectrum_data.type == 'STANDARD':
-                self.ax.set_xlim(self.freq_ghz[0], self.freq_ghz[-1])
-            elif self.spectrum_data.type == '120KHZ' and self.spectrum_data.freq_start and self.spectrum_data.freq_end:
-                self.ax.set_xlim(self.spectrum_data.freq_start, self.spectrum_data.freq_end)
-        else:
-            # Fallback for problematic data
-            self.ax.set_ylim(-50, 10)  # Reasonable dB range
-            if self.spectrum_data.type == 'STANDARD':
-                self.ax.set_xlim(21, 23)  # 21-23 GHz range
-        
-        # Add data quality info
-        non_zero_count = np.sum(raw_data > 0)
-        total_count = len(raw_data)
-        
-        info_text = f"Active channels: {non_zero_count}/{total_count}"
-        if floor_value < 1e-6:
-            info_text += f" | Floor: {floor_value:.2e}"
-            
-        self.ax.text(0.02, 0.02, info_text, 
-                    transform=self.ax.transAxes, fontsize=9, 
-                    bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.8))
-        
-        # Add baseline info for 120kHz data
-        if self.spectrum_data.type == '120KHZ' and self.spectrum_data.baseline is not None:
-            self.ax.text(0.02, 0.98, f"Baseline: {self.spectrum_data.baseline:.2f} dB", 
-                        transform=self.ax.transAxes, fontsize=10, 
-                        verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
-        
-        # Refresh canvas
         self.canvas.draw()
     
     def get_spectrum_data(self):
-        """Get current spectrum data for external use"""
+        """Return the latest spectrum data"""
         return self.spectrum_data
     
     def is_connected(self):
         """Check if spectrometer client is connected"""
-        return self.spectrometer_client.is_connected() 
+        return self.spectrometer_client.is_connected()
+    
+    def set_request_rate(self, rate_hz):
+        """Set the spectrum data request rate."""
+        self.timer.setInterval(int(1000 / rate_hz)) 
