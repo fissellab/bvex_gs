@@ -200,9 +200,11 @@ class MainWindow(QMainWindow):
         # Update sky chart with GPS data for heading display
         self.sky_chart_widget.set_gps_data(gps_data)
         
-        # Update sky chart location if GPS data is valid
-        if gps_data.valid:
-            self.sky_chart_widget.update_location(gps_data.lat, gps_data.lon, gps_data.alt)
+        # # Update sky chart location if GPS data is valid
+        # # NOTE: This is disabled as per user request to always use the hardcoded
+        # # observatory location from the settings file.
+        # if gps_data.valid:
+        #     self.sky_chart_widget.update_location(gps_data.lat, gps_data.lon, gps_data.alt)
     
     def update_status(self):
         """Update status bar information"""

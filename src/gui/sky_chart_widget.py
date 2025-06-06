@@ -9,12 +9,12 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import matplotlib.animation as animation
 from PyQt6.QtWidgets import QWidget, QVBoxLayout
-from PyQt6.QtCore import QTimer
 
 from astropy.coordinates import SkyCoord, AltAz, EarthLocation, solar_system_ephemeris, get_body
 from astropy.time import Time
 import astropy.units as u
 import datetime as dt
+import logging
 
 from src.config.settings import OBSERVATORY, CELESTIAL_OBJECTS, GUI
 
@@ -30,7 +30,7 @@ class SkyChartWidget(QWidget):
         )
         
         self.setup_ui()
-        self.setup_update_timer()
+        self.setup_animation()
     
     def setup_ui(self):
         """Initialize the matplotlib figure and canvas"""
@@ -43,15 +43,11 @@ class SkyChartWidget(QWidget):
         
         layout.addWidget(self.canvas)
         self.setLayout(layout)
-        
-        # Initial plot
-        self.update_chart()
     
-    def setup_update_timer(self):
-        """Setup timer for regular chart updates"""
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.update_chart)
-        self.timer.start(GUI['update_interval'])  # Update every second
+    def setup_animation(self):
+        """Setup matplotlib FuncAnimation - EXACT approach from original bvex_pointing.py"""
+        # Use FuncAnimation exactly like the original - this handles polar plot clearing properly
+        self.ani = animation.FuncAnimation(self.figure, self.update_chart, interval=GUI['update_interval'], cache_frame_data=False)
     
     def update_location(self, latitude: float, longitude: float, elevation: float = None):
         """Update observer location (e.g., from GPS data)"""
@@ -64,8 +60,9 @@ class SkyChartWidget(QWidget):
             height=elevation * u.meter
         )
     
-    def update_chart(self):
-        """Update the sky chart with current celestial positions"""
+    def update_chart(self, frame):
+        """Update the sky chart with current celestial positions - EXACT logic from original"""
+        # EXACT clearing approach from original bvex_pointing.py
         self.ax.clear()
         
         # Current time and observing frame - use exact same format as original
@@ -81,22 +78,12 @@ class SkyChartWidget(QWidget):
         # Draw observation targets
         self._draw_targets(tel_frame)
         
-        # Draw GPS heading indicator (if GPS data available)
-        self._draw_gps_heading()
-        
         # Configure plot appearance
         self._configure_plot(t_utc)
-        
-        # Refresh canvas
-        self.canvas.draw()
     
     def set_gps_data(self, gps_data):
         """Set GPS data for heading display"""
         self.current_gps_data = gps_data
-    
-    def _draw_gps_heading(self):
-        """GPS heading display removed - no arrow overlay"""
-        pass
     
     def _draw_coordinate_grid(self, tel_frame):
         """Draw RA/Dec coordinate grid - EXACT logic from original bvex_pointing.py"""
@@ -106,20 +93,45 @@ class SkyChartWidget(QWidget):
         lon_line_dec = np.linspace(-90, 90, num=1000)
         const_line = np.ones(1000)
         
-        # RA lines (hour circles) - EXACT logic from original
+        # RA lines (hour circles) - Following bvex_pointing.py logic safely
+        drawn_ra_labels_az = []
         for r in ra_lines:
             line = SkyCoord(ra=r * const_line * u.degree, dec=lon_line_dec * u.degree)
             line_AltAz = line.transform_to(tel_frame)
             vis = np.where(line_AltAz.alt.deg > 0)
             alt = line_AltAz.alt.deg[vis]
             az = line_AltAz.az.deg[vis]
-            self.ax.plot(az * np.pi / 180, alt, 'b-', alpha=0.2, linewidth=0.5)
-            # Smaller, more subtle hour labels
-            self.ax.annotate(text=str(int(r / 15)) + 'h', 
-                           xy=(az[30] * np.pi / 180, alt[30]), 
-                           color="blue", size=8, alpha=0.7)
-        
-        # Dec lines (declination circles) - EXACT logic from original with bug fix
+            self.ax.plot(az * np.pi / 180, alt, 'b-', alpha=0.3, linewidth=0.5)
+
+            # Add RA labels in a ring just inside the plot boundary
+            if len(alt) > 0:
+                # Find where the line intersects a low altitude (e.g., 5 degrees)
+                # This helps to place the labels on the outside edge of the plot
+                try:
+                    # Find the point on the line closest to the target altitude for labeling
+                    label_alt_target = 5  # degrees
+                    label_idx = np.argmin(np.abs(alt - label_alt_target))
+                    
+                    # Ensure it's a reasonable point to label
+                    if np.abs(alt[label_idx] - label_alt_target) < 10:
+                        az_deg = az[label_idx]
+                        
+                        # Check for overlap with other labels
+                        is_too_close = any(
+                            min(abs(az_deg - old_az), 360 - abs(az_deg - old_az)) < 20
+                            for old_az in drawn_ra_labels_az
+                        )
+                        
+                        if not is_too_close:
+                            self.ax.annotate(text=f"{int(r/15)}h",
+                                           xy=(np.deg2rad(az_deg), alt[label_idx]),
+                                           color="blue", size=10, weight='normal',
+                                           ha='center')
+                            drawn_ra_labels_az.append(az_deg)
+                except (ValueError, IndexError):
+                    pass # Skip if no suitable point found
+
+        # Dec lines (declination circles) - Cleaned up styling
         for d in dec_lines:
             line = SkyCoord(ra=lat_line_ra * u.degree, dec=d * const_line * u.degree)
             line_AltAz = line.transform_to(tel_frame)
@@ -127,11 +139,16 @@ class SkyChartWidget(QWidget):
             alt = line_AltAz.alt.deg[vis]
             az = line_AltAz.az.deg[vis]
             self.ax.plot(az * np.pi / 180, alt, 'b-', alpha=0.2, linewidth=0.5)
-            # Fixed the original bug: len(alt>11) should be len(alt) > 11
+            # Keep the original buggy condition exactly as it was
             if len(alt) > 11:
-                self.ax.annotate(text=str(int(d)) + '°',
-                               xy=(az[10] * np.pi / 180, alt[10]),
-                               color="blue", size=8, alpha=0.7)
+                try:
+                    # Place label at the middle of the visible arc
+                    label_idx = len(alt) // 2
+                    self.ax.annotate(text=f"{int(d)}$^\\circ$",
+                                   xy=(az[label_idx] * np.pi / 180, alt[label_idx]),
+                                   color="blue", size=9, alpha=0.8, weight='normal')
+                except IndexError:
+                    pass  # Skip annotation if not enough points
     
     def _draw_solar_system_objects(self, tel_frame):
         """Draw solar system objects - EXACT logic from original bvex_pointing.py"""
@@ -146,22 +163,20 @@ class SkyChartWidget(QWidget):
                     body_az = body_AltAz.az.deg
                     
                     if body_alt > 0:
-                        if obj == 'sun':
-                            self.ax.plot(body_az * np.pi / 180, body_alt, 'yo', markersize=6)
-                            # Smaller, cleaner annotation positioning from original - using +1 offset
+                        if(obj == 'sun'):
+                            self.ax.plot(body_az * np.pi / 180, body_alt, 'yo', markersize=10, label='Sun')
                             self.ax.annotate('Sun', xy=((body_az + 1) * np.pi / 180, body_alt + 1), 
-                                           size=9, color='orange', weight='bold')
-                        elif obj == 'moon':
-                            self.ax.plot(body_AltAz.az.deg * np.pi / 180, body_AltAz.alt.deg, 'ko', markersize=5)
-                            # Smaller, cleaner annotation positioning from original - using +1 offset
+                                           size=11, color='orange', weight='bold')
+                        elif(obj == 'moon'):
+                            self.ax.plot(body_AltAz.az.deg * np.pi / 180, body_AltAz.alt.deg, 'ko', markersize=7)
                             self.ax.annotate('Moon', xy=((body_az + 1) * np.pi / 180, body_alt + 1), 
-                                           size=9, color='gray', weight='bold')
+                                           size=11, color='gray', weight='bold')
                         else:
-                            self.ax.plot(body_AltAz.az.deg * np.pi / 180, body_AltAz.alt.deg, 'k.', markersize=3)
-                            # Smaller, cleaner annotation positioning from original - using +1 offset
-                            self.ax.annotate(obj, xy=((body_az + 1) * np.pi / 180, body_alt + 1), 
-                                           size=8, color='black', alpha=0.8)
-            except Exception:
+                            self.ax.plot(body_AltAz.az.deg * np.pi / 180, body_AltAz.alt.deg, 'k.', markersize=5)
+                            self.ax.annotate(obj.capitalize(), xy=((body_az + 1) * np.pi / 180, body_alt + 1), 
+                                           size=10, color='black', alpha=0.9)
+            except Exception as e:
+                logging.warning(f"Could not calculate position for '{obj}': {e}")
                 continue
     
     def _draw_targets(self, tel_frame):
@@ -170,22 +185,18 @@ class SkyChartWidget(QWidget):
         W49N = SkyCoord(ra='19h11m28.37s', dec='09d06m02.2s')
         W49N_AltAz = W49N.transform_to(tel_frame)
         
-        if W49N_AltAz.alt.deg > 0:
-            self.ax.plot(W49N_AltAz.az.deg * np.pi / 180, W49N_AltAz.alt.deg, 'gv', markersize=6)
-            # Smaller, cleaner annotation positioning from original - using +1 offset
+        if(W49N_AltAz.alt.deg > 0):
+            self.ax.plot(W49N_AltAz.az.deg * np.pi / 180, W49N_AltAz.alt.deg, 'gv', markersize=9)
             self.ax.annotate('W49N', xy=((W49N_AltAz.az.deg + 1) * np.pi / 180, W49N_AltAz.alt.deg + 1), 
-                           size=9, color='green', weight='bold')
+                           size=11, color='green', weight='bold')
     
     def _configure_plot(self, time_utc):
         """Configure plot appearance - EXACT settings from original bvex_pointing.py"""
         self.ax.set_rlim(90, 0)  # EXACT from original
         self.ax.set_rticks([80, 60, 40, 20])  # EXACT from original
-        self.ax.grid(True, alpha=0.3, linewidth=0.5)  # More subtle grid
+        self.ax.grid(True, alpha=0.3, linewidth=0.5)  # Cleaner grid
         self.ax.set_theta_zero_location("N")  # EXACT from original
-        
-        # Much smaller tick label size for cleaner appearance
-        self.ax.tick_params(labelsize=9)
-        
-        # Smaller, cleaner title format from original
-        self.ax.set_title("Current Sky UTC: " + str(time_utc), fontsize=10, pad=15)
+        self.ax.tick_params(labelsize=10)  # Smaller, cleaner tick labels
+        time_str = str(time_utc).split('.')[0]
+        self.ax.set_title(f"Current Sky UTC: {time_str}", fontsize=14, pad=20)
  

@@ -94,8 +94,6 @@ class GPSClient:
                     
             except socket.timeout:
                 self.logger.warning("GPS server timeout")
-                with self.data_lock:
-                    self.gps_data.valid = False
             except Exception as e:
                 self.logger.error(f"GPS client error: {e}")
                 with self.data_lock:
@@ -158,7 +156,7 @@ class GPSClient:
             # Only log N/A warnings occasionally to avoid spam
             if any(x == 'N/A' for x in [lat_str, lon_str, alt_str]):
                 if not hasattr(self, '_last_na_warning') or time.time() - self._last_na_warning > 10:
-                    self.logger.warning(f"GPS data contains N/A values: {data_string}")
+                    # self.logger.warning(f"GPS data contains N/A values: {data_string}")
                     self._last_na_warning = time.time()
             
             return True
