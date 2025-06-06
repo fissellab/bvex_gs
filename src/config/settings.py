@@ -11,6 +11,14 @@ GPS_SERVER = {
     'update_interval': 0.05  # 50ms between requests
 }
 
+# BCP Spectrometer Configuration
+BCP_SPECTROMETER = {
+    'host': '100.70.234.8',  # Saggitarius system IP
+    'port': 8081,
+    'timeout': 5.0,
+    'update_interval': 1.0   # 1 second = 1 Hz updates
+}
+
 # GPS Data Processing
 GPS_PROCESSING = {
     'heading_offset': 90.0,  # degrees - constant offset to add to GPS heading
@@ -27,11 +35,12 @@ OBSERVATORY = {
 
 # GUI Configuration
 GUI = {
-    'window_title': 'BVEX Ground Station',
-    'window_size': (1400, 800),
+    'window_title': 'BVEX Ground Station with Spectrometer',
+    'window_size': (1600, 900),  # Increased window size to accommodate spectra
     'update_interval': 1000,  # ms for GUI updates
-    'sky_chart_size': (10, 10),  # inches
-    'gps_panel_width': 350
+    'sky_chart_size': (6, 6),  # inches - reduced from (10, 10)
+    'gps_panel_width': 280,    # reduced from 350
+    'spectra_panel_size': (8, 6)  # inches for spectra plot
 }
 
 # Celestial Objects to Display

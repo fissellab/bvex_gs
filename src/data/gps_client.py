@@ -107,28 +107,59 @@ class GPSClient:
         """Parse GPS data string in format: gps_lat:XX,gps_lon:XX,gps_alt:XX,gps_head:XX"""
         try:
             # Expected format: "gps_lat:44.224372,gps_lon:-76.498007,gps_alt:100.0,gps_head:270.0"
+            # But sometimes we get: "gps_lat:N/A,gps_lon:N/A,gps_alt:N/A,gps_head:52.0"
             parts = data_string.split(',')
             if len(parts) != 4:
                 return False
             
-            lat = float(parts[0].split(':')[1])
-            lon = float(parts[1].split(':')[1])
-            alt = float(parts[2].split(':')[1])
-            head = float(parts[3].split(':')[1])
+            # Extract values, handling N/A cases
+            lat_str = parts[0].split(':')[1]
+            lon_str = parts[1].split(':')[1]
+            alt_str = parts[2].split(':')[1]
+            head_str = parts[3].split(':')[1]
             
-            # Apply offsets from configuration
-            lat += GPS_PROCESSING['coordinate_offset_lat']
-            lon += GPS_PROCESSING['coordinate_offset_lon']
-            head += GPS_PROCESSING['heading_offset']
+            # Parse values, keeping current values if N/A
+            try:
+                lat = float(lat_str) if lat_str != 'N/A' else self.gps_data.lat
+            except ValueError:
+                lat = self.gps_data.lat
+                
+            try:
+                lon = float(lon_str) if lon_str != 'N/A' else self.gps_data.lon
+            except ValueError:
+                lon = self.gps_data.lon
+                
+            try:
+                alt = float(alt_str) if alt_str != 'N/A' else self.gps_data.alt
+            except ValueError:
+                alt = self.gps_data.alt
+                
+            try:
+                head = float(head_str) if head_str != 'N/A' else self.gps_data.head
+            except ValueError:
+                head = self.gps_data.head
             
-            # Normalize heading to 0-360 degrees
-            head = head % 360.0
+            # Only apply offsets if we got actual numeric values
+            if lat_str != 'N/A':
+                lat += GPS_PROCESSING['coordinate_offset_lat']
+            if lon_str != 'N/A':
+                lon += GPS_PROCESSING['coordinate_offset_lon']
+            if head_str != 'N/A':
+                head += GPS_PROCESSING['heading_offset']
+                # Normalize heading to 0-360 degrees
+                head = head % 360.0
             
             with self.data_lock:
                 self.gps_data.lat = lat
                 self.gps_data.lon = lon
                 self.gps_data.alt = alt
                 self.gps_data.head = head
+            
+            # Only log N/A warnings occasionally to avoid spam
+            if any(x == 'N/A' for x in [lat_str, lon_str, alt_str]):
+                if not hasattr(self, '_last_na_warning') or time.time() - self._last_na_warning > 10:
+                    self.logger.warning(f"GPS data contains N/A values: {data_string}")
+                    self._last_na_warning = time.time()
             
             return True
             

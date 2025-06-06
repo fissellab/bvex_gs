@@ -23,7 +23,8 @@ class GPSDisplayWidget(QWidget):
     def setup_ui(self):
         """Setup the GPS display interface"""
         layout = QVBoxLayout()
-        layout.setSpacing(5)
+        layout.setSpacing(8)  # Increased spacing for better visibility
+        layout.setContentsMargins(5, 5, 5, 5)  # Add some margins
         
         # Title
         title_label = QLabel("GPS DATA")
@@ -80,19 +81,24 @@ class GPSDisplayWidget(QWidget):
     def _create_coordinates_group(self):
         """Create latitude/longitude display group"""
         group = QGroupBox("Position")
+        group.setMinimumHeight(80)  # Set minimum height for proper display
         layout = QGridLayout()
+        layout.setSpacing(8)  # Increased spacing between elements
+        layout.setContentsMargins(15, 15, 15, 15)  # Increased margins for better padding
+        layout.setRowMinimumHeight(0, 25)  # Set minimum row height
+        layout.setRowMinimumHeight(1, 25)  # Set minimum row height
         
         # Latitude
         lat_label = QLabel("Latitude:")
         lat_label.setAlignment(Qt.AlignmentFlag.AlignRight)
         self.lat_value = QLabel("--°")
-        self.lat_value.setStyleSheet("font-family: monospace; font-weight: bold;")
+        self.lat_value.setStyleSheet("font-family: monospace; font-weight: bold; font-size: 11px;")
         
         # Longitude
         lon_label = QLabel("Longitude:")
         lon_label.setAlignment(Qt.AlignmentFlag.AlignRight)
         self.lon_value = QLabel("--°")
-        self.lon_value.setStyleSheet("font-family: monospace; font-weight: bold;")
+        self.lon_value.setStyleSheet("font-family: monospace; font-weight: bold; font-size: 11px;")
         
         layout.addWidget(lat_label, 0, 0)
         layout.addWidget(self.lat_value, 0, 1)
@@ -105,19 +111,24 @@ class GPSDisplayWidget(QWidget):
     def _create_altitude_heading_group(self):
         """Create altitude and heading display group"""
         group = QGroupBox("Orientation")
+        group.setMinimumHeight(80)  # Set minimum height for proper display
         layout = QGridLayout()
+        layout.setSpacing(8)  # Increased spacing between elements
+        layout.setContentsMargins(15, 15, 15, 15)  # Increased margins for better padding
+        layout.setRowMinimumHeight(0, 25)  # Set minimum row height
+        layout.setRowMinimumHeight(1, 25)  # Set minimum row height
         
         # Altitude
         alt_label = QLabel("Altitude:")
         alt_label.setAlignment(Qt.AlignmentFlag.AlignRight)
         self.alt_value = QLabel("-- m")
-        self.alt_value.setStyleSheet("font-family: monospace; font-weight: bold;")
+        self.alt_value.setStyleSheet("font-family: monospace; font-weight: bold; font-size: 11px;")
         
         # Heading
         head_label = QLabel("Heading:")
         head_label.setAlignment(Qt.AlignmentFlag.AlignRight)
         self.head_value = QLabel("--°")
-        self.head_value.setStyleSheet("font-family: monospace; font-weight: bold;")
+        self.head_value.setStyleSheet("font-family: monospace; font-weight: bold; font-size: 11px;")
         
         layout.addWidget(alt_label, 0, 0)
         layout.addWidget(self.alt_value, 0, 1)
@@ -140,7 +151,9 @@ class GPSDisplayWidget(QWidget):
     
     def _format_coordinate(self, value: float, is_longitude: bool = False) -> str:
         """Format coordinate values with appropriate precision"""
-        if value == 0.0:
+        # For GPS coordinates, 0.0 could be a valid coordinate (Gulf of Guinea)
+        # So we need to check if the GPS data itself is valid rather than the coordinate value
+        if not hasattr(self, 'last_gps_data') or not self.last_gps_data.valid:
             return "--°"
         
         direction = ""
@@ -153,13 +166,15 @@ class GPSDisplayWidget(QWidget):
     
     def _format_altitude(self, value: float) -> str:
         """Format altitude value"""
-        if value == 0.0:
+        # Check if GPS data is valid rather than altitude value
+        if not hasattr(self, 'last_gps_data') or not self.last_gps_data.valid:
             return "-- m"
         return f"{value:.1f} m"
     
     def _format_heading(self, value: float) -> str:
         """Format heading value with cardinal direction"""
-        if value == 0.0:
+        # Check if GPS data is valid rather than heading value
+        if not hasattr(self, 'last_gps_data') or not self.last_gps_data.valid:
             return "--°"
         
         # Convert to cardinal directions
@@ -198,6 +213,9 @@ class GPSDisplayWidget(QWidget):
         
         # Update timestamp
         self.timestamp_label.setText(self._format_timestamp(gps_data.timestamp))
+        
+        # Force widget refresh
+        self.update()
     
     def get_current_coordinates(self) -> tuple:
         """Return current coordinates for sky chart updates"""
