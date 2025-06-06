@@ -68,7 +68,7 @@ class SkyChartWidget(QWidget):
         """Update the sky chart with current celestial positions"""
         self.ax.clear()
         
-        # Current time and observing frame (compatible with Python 3.10)
+        # Current time and observing frame - use exact same format as original
         t_utc = Time(dt.datetime.now(dt.timezone.utc))
         tel_frame = AltAz(location=self.current_location, obstime=t_utc)
         
@@ -99,107 +99,93 @@ class SkyChartWidget(QWidget):
         pass
     
     def _draw_coordinate_grid(self, tel_frame):
-        """Draw RA/Dec coordinate grid with clean styling but correct logic"""
+        """Draw RA/Dec coordinate grid - EXACT logic from original bvex_pointing.py"""
         ra_lines = np.linspace(0, 345, num=24)
         dec_lines = np.linspace(-80, 80, num=9)
         lat_line_ra = np.linspace(0, 360, num=1000)
         lon_line_dec = np.linspace(-90, 90, num=1000)
         const_line = np.ones(1000)
         
-        # RA lines (hour circles) - correct logic, clean styling
+        # RA lines (hour circles) - EXACT logic from original
         for r in ra_lines:
             line = SkyCoord(ra=r * const_line * u.degree, dec=lon_line_dec * u.degree)
-            line_altaz = line.transform_to(tel_frame)
-            vis = np.where(line_altaz.alt.deg > 0)
-            
-            if len(vis[0]) > 0:
-                alt = line_altaz.alt.deg[vis]
-                az = line_altaz.az.deg[vis]
-                self.ax.plot(az * np.pi / 180, alt, 'b-', alpha=0.3, linewidth=0.5)
-                
-                # Clean hour labels
-                if len(alt) > 30:
-                    hour_label = str(int(r / 15)) + 'h'
-                    self.ax.annotate(hour_label, 
-                                   xy=(az[30] * np.pi / 180, alt[30]),
-                                   color="blue", size=8, alpha=0.7)
+            line_AltAz = line.transform_to(tel_frame)
+            vis = np.where(line_AltAz.alt.deg > 0)
+            alt = line_AltAz.alt.deg[vis]
+            az = line_AltAz.az.deg[vis]
+            self.ax.plot(az * np.pi / 180, alt, 'b-', alpha=0.2, linewidth=0.5)
+            # Smaller, more subtle hour labels
+            self.ax.annotate(text=str(int(r / 15)) + 'h', 
+                           xy=(az[30] * np.pi / 180, alt[30]), 
+                           color="blue", size=8, alpha=0.7)
         
-        # Dec lines (declination circles) - correct logic, clean styling
+        # Dec lines (declination circles) - EXACT logic from original with bug fix
         for d in dec_lines:
             line = SkyCoord(ra=lat_line_ra * u.degree, dec=d * const_line * u.degree)
-            line_altaz = line.transform_to(tel_frame)
-            vis = np.where(line_altaz.alt.deg > 0)
-            
-            if len(vis[0]) > 0:
-                alt = line_altaz.alt.deg[vis]
-                az = line_altaz.az.deg[vis]
-                self.ax.plot(az * np.pi / 180, alt, 'b-', alpha=0.3, linewidth=0.5)
-                
-                # Clean declination labels
-                if len(alt) > 10:
-                    dec_label = str(int(d)) + '°'
-                    self.ax.annotate(dec_label,
-                                   xy=(az[10] * np.pi / 180, alt[10]),
-                                   color="blue", size=8, alpha=0.7)
+            line_AltAz = line.transform_to(tel_frame)
+            vis = np.where(line_AltAz.alt.deg > 0)
+            alt = line_AltAz.alt.deg[vis]
+            az = line_AltAz.az.deg[vis]
+            self.ax.plot(az * np.pi / 180, alt, 'b-', alpha=0.2, linewidth=0.5)
+            # Fixed the original bug: len(alt>11) should be len(alt) > 11
+            if len(alt) > 11:
+                self.ax.annotate(text=str(int(d)) + '°',
+                               xy=(az[10] * np.pi / 180, alt[10]),
+                               color="blue", size=8, alpha=0.7)
     
     def _draw_solar_system_objects(self, tel_frame):
-        """Draw solar system objects with clean styling"""
-        solar_objects = ['sun','moon','mercury','venus', 'mars','jupiter','saturn', 'uranus','neptune']
+        """Draw solar system objects - EXACT logic from original bvex_pointing.py"""
+        sso = ['sun','moon','mercury','venus', 'mars','jupiter','saturn', 'uranus','neptune']
         
-        for obj in solar_objects:
+        for obj in sso:
             try:
                 with solar_system_ephemeris.set('builtin'):
                     body = get_body(obj, tel_frame.obstime, self.current_location)
-                    body_altaz = body.transform_to(tel_frame)
+                    body_AltAz = body.transform_to(tel_frame)
+                    body_alt = body_AltAz.alt.deg
+                    body_az = body_AltAz.az.deg
                     
-                    if body_altaz.alt.deg > 0:
-                        az_rad = body_altaz.az.deg * np.pi / 180
-                        alt_deg = body_altaz.alt.deg
-                        
+                    if body_alt > 0:
                         if obj == 'sun':
-                            self.ax.plot(az_rad, alt_deg, 'yo', markersize=8)
-                            self.ax.annotate('Sun', xy=(az_rad, alt_deg), 
-                                           xytext=(5, 5), textcoords='offset points',
-                                           fontsize=10, color='orange', weight='bold')
+                            self.ax.plot(body_az * np.pi / 180, body_alt, 'yo', markersize=6)
+                            # Smaller, cleaner annotation positioning from original - using +1 offset
+                            self.ax.annotate('Sun', xy=((body_az + 1) * np.pi / 180, body_alt + 1), 
+                                           size=9, color='orange', weight='bold')
                         elif obj == 'moon':
-                            self.ax.plot(az_rad, alt_deg, 'ko', markersize=6)
-                            self.ax.annotate('Moon', xy=(az_rad, alt_deg),
-                                           xytext=(5, 5), textcoords='offset points',
-                                           fontsize=10, color='gray', weight='bold')
+                            self.ax.plot(body_AltAz.az.deg * np.pi / 180, body_AltAz.alt.deg, 'ko', markersize=5)
+                            # Smaller, cleaner annotation positioning from original - using +1 offset
+                            self.ax.annotate('Moon', xy=((body_az + 1) * np.pi / 180, body_alt + 1), 
+                                           size=9, color='gray', weight='bold')
                         else:
-                            self.ax.plot(az_rad, alt_deg, 'k.', markersize=4)
-                            self.ax.annotate(obj, xy=(az_rad, alt_deg),
-                                           xytext=(3, 3), textcoords='offset points',
-                                           fontsize=8, color='black', alpha=0.8)
+                            self.ax.plot(body_AltAz.az.deg * np.pi / 180, body_AltAz.alt.deg, 'k.', markersize=3)
+                            # Smaller, cleaner annotation positioning from original - using +1 offset
+                            self.ax.annotate(obj, xy=((body_az + 1) * np.pi / 180, body_alt + 1), 
+                                           size=8, color='black', alpha=0.8)
             except Exception:
                 continue
     
     def _draw_targets(self, tel_frame):
-        """Draw observation targets with clean styling"""
-        # W49N target
+        """Draw observation targets - EXACT logic from original bvex_pointing.py"""
+        # W49N target - EXACT coordinates and logic from original
         W49N = SkyCoord(ra='19h11m28.37s', dec='09d06m02.2s')
-        W49N_altaz = W49N.transform_to(tel_frame)
+        W49N_AltAz = W49N.transform_to(tel_frame)
         
-        if W49N_altaz.alt.deg > 0:
-            az_rad = W49N_altaz.az.deg * np.pi / 180
-            alt_deg = W49N_altaz.alt.deg
-            
-            self.ax.plot(az_rad, alt_deg, 'gv', markersize=8)
-            self.ax.annotate('W49N', xy=(az_rad, alt_deg),
-                           xytext=(5, 5), textcoords='offset points',
-                           fontsize=10, color='green', weight='bold')
+        if W49N_AltAz.alt.deg > 0:
+            self.ax.plot(W49N_AltAz.az.deg * np.pi / 180, W49N_AltAz.alt.deg, 'gv', markersize=6)
+            # Smaller, cleaner annotation positioning from original - using +1 offset
+            self.ax.annotate('W49N', xy=((W49N_AltAz.az.deg + 1) * np.pi / 180, W49N_AltAz.alt.deg + 1), 
+                           size=9, color='green', weight='bold')
     
     def _configure_plot(self, time_utc):
-        """Configure plot appearance and labels"""
-        self.ax.set_rlim(90, 0)  # Altitude from horizon (0°) to zenith (90°)
-        self.ax.set_rticks([80, 60, 40, 20])
-        self.ax.grid(True, alpha=0.3)
-        self.ax.set_theta_zero_location("N")  # North at top
+        """Configure plot appearance - EXACT settings from original bvex_pointing.py"""
+        self.ax.set_rlim(90, 0)  # EXACT from original
+        self.ax.set_rticks([80, 60, 40, 20])  # EXACT from original
+        self.ax.grid(True, alpha=0.3, linewidth=0.5)  # More subtle grid
+        self.ax.set_theta_zero_location("N")  # EXACT from original
         
-        # Clean, smaller tick labels
-        self.ax.tick_params(labelsize=10)
+        # Much smaller tick label size for cleaner appearance
+        self.ax.tick_params(labelsize=9)
         
-        # Clean title with current time
-        title = f"Current Sky UTC: {time_utc.iso[:19]}"
-        self.ax.set_title(title, fontsize=12, pad=20)
+        # Smaller, cleaner title format from original
+        self.ax.set_title("Current Sky UTC: " + str(time_utc), fontsize=10, pad=15)
  
