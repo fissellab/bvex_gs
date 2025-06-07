@@ -46,6 +46,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("BVEX Ground Station with Spectrometer")
         
         central_widget = QWidget()
+        central_widget.setStyleSheet("QWidget { background-color: white; }")
         self.setCentralWidget(central_widget)
         
         # Main layout - horizontal split
