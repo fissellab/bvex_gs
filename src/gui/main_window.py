@@ -43,7 +43,7 @@ class MainWindow(QMainWindow):
     def setup_ui(self):
         """Setup the main UI layout"""
         # Set window properties first
-        self.setWindowTitle("BVEX Ground Station with Spectrometer")
+        self.setWindowTitle("BVEX Ground Station GUI")
         
         central_widget = QWidget()
         central_widget.setStyleSheet("QWidget { background-color: white; }")
