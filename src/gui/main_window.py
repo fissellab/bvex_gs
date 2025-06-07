@@ -117,7 +117,7 @@ class MainWindow(QMainWindow):
         
         # Refresh sky chart
         refresh_action = QAction('&Refresh Sky Chart', self)
-        refresh_action.triggered.connect(self.sky_chart_widget.update_chart)
+        refresh_action.triggered.connect(lambda: self.sky_chart_widget.update_chart(0) if self.sky_chart_widget.is_sky_chart_active() else None)
         view_menu.addAction(refresh_action)
         
         # Spectrometer menu
@@ -125,7 +125,7 @@ class MainWindow(QMainWindow):
         
         # Force refresh spectra
         refresh_spectra_action = QAction('&Refresh Spectra', self)
-        refresh_spectra_action.triggered.connect(self.spectra_widget.trigger_fetch)
+        refresh_spectra_action.triggered.connect(lambda: self.spectra_widget.trigger_fetch() if self.spectra_widget.is_spectrometer_active() else None)
         spectrometer_menu.addAction(refresh_spectra_action)
         
         # Help menu
@@ -192,6 +192,14 @@ class MainWindow(QMainWindow):
     
     def update_gps_data(self):
         """Update GPS data displays"""
+        # Control GPS client based on GPS widget state
+        if self.gps_widget.is_gps_active():
+            if self.gps_client.is_paused():
+                self.gps_client.resume()
+        else:
+            if not self.gps_client.is_paused():
+                self.gps_client.pause()
+        
         gps_data = self.gps_client.get_gps_data()
         
         # Update GPS display widget
@@ -209,15 +217,20 @@ class MainWindow(QMainWindow):
     def update_status(self):
         """Update status bar information"""
         # Update GPS status
-        gps_data = self.gps_client.get_gps_data()
-        if gps_data.valid:
-            gps_status_text = f"GPS: Connected ({gps_data.lat:.4f}, {gps_data.lon:.4f})"
+        if not self.gps_widget.is_gps_active():
+            gps_status_text = "GPS: Off"
         else:
-            gps_status_text = "GPS: Disconnected"
+            gps_data = self.gps_client.get_gps_data()
+            if gps_data.valid:
+                gps_status_text = f"GPS: Connected ({gps_data.lat:.4f}, {gps_data.lon:.4f})"
+            else:
+                gps_status_text = "GPS: Disconnected"
         self.gps_status_label.setText(gps_status_text)
         
         # Update spectrometer status
-        if self.spectra_widget.is_connected():
+        if not self.spectra_widget.is_spectrometer_active():
+            spec_status_text = "Spectrometer: Off"
+        elif self.spectra_widget.is_connected():
             spectrum_data = self.spectra_widget.get_spectrum_data()
             if spectrum_data and spectrum_data.valid:
                 spec_status_text = f"Spectrometer: {spectrum_data.type} ({spectrum_data.points} pts)"

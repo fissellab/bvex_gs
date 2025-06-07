@@ -8,7 +8,9 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import matplotlib.animation as animation
-from PyQt6.QtWidgets import QWidget, QVBoxLayout
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFont
 
 from astropy.coordinates import SkyCoord, AltAz, EarthLocation, solar_system_ephemeris, get_body
 from astropy.time import Time
@@ -29,12 +31,48 @@ class SkyChartWidget(QWidget):
             height=OBSERVATORY['elevation'] * u.meter
         )
         
+        # Control state
+        self.is_active = False
+        self.ani = None
+        
         self.setup_ui()
-        self.setup_animation()
+        self.setup_static_display()
     
     def setup_ui(self):
         """Initialize the matplotlib figure and canvas"""
         layout = QVBoxLayout()
+        
+        # Control panel
+        control_layout = QHBoxLayout()
+        
+        # Status label
+        self.status_label = QLabel("Sky Chart: OFF")
+        self.status_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+        self.status_label.setStyleSheet("QLabel { color: red; }")
+        
+        # Toggle button
+        self.toggle_button = QPushButton("Turn ON")
+        self.toggle_button.setMinimumWidth(100)
+        self.toggle_button.clicked.connect(self.toggle_state)
+        self.toggle_button.setStyleSheet("""
+            QPushButton {
+                background-color: #28a745;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #218838;
+            }
+        """)
+        
+        control_layout.addWidget(self.status_label)
+        control_layout.addStretch()
+        control_layout.addWidget(self.toggle_button)
+        
+        layout.addLayout(control_layout)
         
         # Create matplotlib figure with polar projection
         self.figure = Figure(figsize=GUI['sky_chart_size'], tight_layout=True)
@@ -44,10 +82,104 @@ class SkyChartWidget(QWidget):
         layout.addWidget(self.canvas)
         self.setLayout(layout)
     
+    def toggle_state(self):
+        """Toggle between active and inactive states"""
+        if self.is_active:
+            self.stop_animation()
+        else:
+            self.start_animation()
+    
+    def start_animation(self):
+        """Start the sky chart animation"""
+        if not self.is_active:
+            self.is_active = True
+            self.status_label.setText("Sky Chart: ON")
+            self.status_label.setStyleSheet("QLabel { color: green; }")
+            self.toggle_button.setText("Turn OFF")
+            self.toggle_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #dc3545;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #c82333;
+                }
+            """)
+            
+            # Start animation
+            self.setup_animation()
+    
+    def stop_animation(self):
+        """Stop the sky chart animation and show static display"""
+        if self.is_active:
+            self.is_active = False
+            self.status_label.setText("Sky Chart: OFF")
+            self.status_label.setStyleSheet("QLabel { color: red; }")
+            self.toggle_button.setText("Turn ON")
+            self.toggle_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #28a745;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #218838;
+                }
+            """)
+            
+            # Stop animation
+            if self.ani is not None:
+                try:
+                    self.ani.event_source.stop()
+                except Exception:
+                    pass  # Animation might already be stopped
+                self.ani = None
+            
+            # Show static display
+            self.setup_static_display()
+    
+    def setup_static_display(self):
+        """Show static 'waiting for user input' display"""
+        self.ax.clear()
+        self.ax.set_rlim(90, 0)
+        self.ax.set_theta_zero_location("N")
+        self.ax.grid(True, alpha=0.3, linewidth=0.5)
+        self.ax.set_title("Sky Chart - Waiting for User Input", fontsize=14, pad=20, color='gray')
+        
+        # Add centered text
+        self.ax.text(0, 45, 'Click "Turn ON" to start\nsky chart updates', 
+                    horizontalalignment='center', verticalalignment='center',
+                    fontsize=16, color='gray', weight='bold')
+        
+        self.canvas.draw()
+    
     def setup_animation(self):
         """Setup matplotlib FuncAnimation - EXACT approach from original bvex_pointing.py"""
-        # Use FuncAnimation exactly like the original - this handles polar plot clearing properly
-        self.ani = animation.FuncAnimation(self.figure, self.update_chart, interval=GUI['update_interval'], cache_frame_data=False)
+        if self.is_active:
+            # Stop any existing animation first
+            if self.ani is not None:
+                self.ani.event_source.stop()
+                self.ani = None
+            
+            # Use FuncAnimation exactly like the original - this handles polar plot clearing properly
+            self.ani = animation.FuncAnimation(
+                self.figure, 
+                self.update_chart, 
+                interval=GUI['update_interval'], 
+                cache_frame_data=False,
+                repeat=True,
+                blit=False
+            )
+            
+            # Force canvas to draw to ensure animation is properly initialized
+            self.canvas.draw_idle()
     
     def update_location(self, latitude: float, longitude: float, elevation: float = None):
         """Update observer location (e.g., from GPS data)"""
@@ -62,6 +194,9 @@ class SkyChartWidget(QWidget):
     
     def update_chart(self, frame):
         """Update the sky chart with current celestial positions - EXACT logic from original"""
+        if not self.is_active:
+            return
+            
         # EXACT clearing approach from original bvex_pointing.py
         self.ax.clear()
         
@@ -84,6 +219,10 @@ class SkyChartWidget(QWidget):
     def set_gps_data(self, gps_data):
         """Set GPS data for heading display"""
         self.current_gps_data = gps_data
+    
+    def is_sky_chart_active(self) -> bool:
+        """Return whether sky chart is currently active"""
+        return self.is_active
     
     def _draw_coordinate_grid(self, tel_frame):
         """Draw RA/Dec coordinate grid - EXACT logic from original bvex_pointing.py"""

@@ -29,6 +29,7 @@ class GPSClient:
         self.gps_data = GPSData()
         self.data_lock = threading.Lock()
         self.running = False
+        self.paused = True  # Start in paused state
         self.thread = None
         self.socket = None
         
@@ -58,6 +59,22 @@ class GPSClient:
             self.thread.join(timeout=2.0)
         self.logger.info("GPS client stopped")
     
+    def pause(self):
+        """Pause GPS data requests"""
+        self.paused = True
+        with self.data_lock:
+            self.gps_data.valid = False
+        self.logger.info("GPS client paused")
+    
+    def resume(self):
+        """Resume GPS data requests"""
+        self.paused = False
+        self.logger.info("GPS client resumed")
+    
+    def is_paused(self) -> bool:
+        """Check if GPS client is paused"""
+        return self.paused
+    
     def get_gps_data(self) -> GPSData:
         """Get the current GPS data (thread-safe)"""
         with self.data_lock:
@@ -77,25 +94,33 @@ class GPSClient:
         
         while self.running:
             try:
-                # Send GPS request
-                self.socket.sendto(request_msg, server_addr)
-                
-                # Receive response
-                data, addr = self.socket.recvfrom(1024)
-                response = data.decode('utf-8')
-                
-                # Parse GPS data
-                if self._parse_gps_data(response):
-                    with self.data_lock:
-                        self.gps_data.timestamp = time.time()
-                        self.gps_data.valid = True
-                else:
-                    self.logger.warning(f"Failed to parse GPS data: {response}")
+                # Only send requests if not paused
+                if not self.paused:
+                    # Send GPS request
+                    self.socket.sendto(request_msg, server_addr)
                     
+                    # Receive response
+                    data, addr = self.socket.recvfrom(1024)
+                    response = data.decode('utf-8')
+                    
+                    # Parse GPS data
+                    if self._parse_gps_data(response):
+                        with self.data_lock:
+                            self.gps_data.timestamp = time.time()
+                            self.gps_data.valid = True
+                    else:
+                        self.logger.warning(f"Failed to parse GPS data: {response}")
+                else:
+                    # When paused, mark data as invalid
+                    with self.data_lock:
+                        self.gps_data.valid = False
+                        
             except socket.timeout:
-                self.logger.warning("GPS server timeout")
+                if not self.paused:
+                    self.logger.warning("GPS server timeout")
             except Exception as e:
-                self.logger.error(f"GPS client error: {e}")
+                if not self.paused:
+                    self.logger.error(f"GPS client error: {e}")
                 with self.data_lock:
                     self.gps_data.valid = False
             

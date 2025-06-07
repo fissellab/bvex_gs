@@ -42,6 +42,9 @@ class SpectraDisplayWidget(QWidget):
         # Initialize spectrometer client (will be used in worker thread)
         self.spectrometer_client = BCPSpectrometerClient()
         
+        # Control state
+        self.is_active = False
+        
         # Data storage for plotting
         self.spectrum_data = None
         self.last_fetch_time = 0
@@ -66,7 +69,7 @@ class SpectraDisplayWidget(QWidget):
         
         self.setup_ui()
         self.setup_worker_thread()
-        self.setup_update_timer()
+        # Don't start timer initially - only when activated
     
     def setup_worker_thread(self):
         """Setup the worker thread for non-blocking data fetching"""
@@ -81,6 +84,9 @@ class SpectraDisplayWidget(QWidget):
 
     def trigger_fetch(self):
         """Trigger a fetch, respecting a cooldown"""
+        if not self.is_active:
+            return
+            
         current_time = dt.datetime.now().timestamp()
         if current_time - self.last_fetch_time > 1.0: # 1 second cooldown
             self.last_fetch_time = current_time
@@ -97,24 +103,59 @@ class SpectraDisplayWidget(QWidget):
         layout.setContentsMargins(5, 5, 5, 5)  # Reduced margins
         layout.setSpacing(5)  # Reduced spacing
         
+        # Control panel
+        control_layout = QHBoxLayout()
+        
+        # Status label
+        self.control_status_label = QLabel("Spectrometer: OFF")
+        self.control_status_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+        self.control_status_label.setStyleSheet("QLabel { color: red; }")
+        
+        # Toggle button
+        self.toggle_button = QPushButton("Turn ON")
+        self.toggle_button.setMinimumWidth(100)
+        self.toggle_button.clicked.connect(self.toggle_state)
+        self.toggle_button.setStyleSheet("""
+            QPushButton {
+                background-color: #28a745;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #218838;
+            }
+        """)
+        
+        control_layout.addWidget(self.control_status_label)
+        control_layout.addStretch()
+        control_layout.addWidget(self.toggle_button)
+        
+        layout.addLayout(control_layout)
+        
         # Create info panel
         info_layout = QHBoxLayout()
         info_layout.setContentsMargins(0, 0, 0, 0)
         info_layout.setSpacing(10)
         
         # Status labels
-        self.status_label = QLabel("Status: Disconnected")
+        self.status_label = QLabel("Status: Off")
         self.status_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        self.status_label.setStyleSheet("QLabel { color: red; }")
+        self.status_label.setStyleSheet("QLabel { color: gray; }")
         
-        self.spec_type_label = QLabel("Type: Unknown")
+        self.spec_type_label = QLabel("Type: N/A")
         self.spec_type_label.setFont(QFont("Arial", 10))
+        self.spec_type_label.setStyleSheet("QLabel { color: gray; }")
         
         self.data_rate_label = QLabel("Rate: 0.0 Hz")
         self.data_rate_label.setFont(QFont("Arial", 10))
+        self.data_rate_label.setStyleSheet("QLabel { color: gray; }")
         
         self.points_label = QLabel("Points: 0")
         self.points_label.setFont(QFont("Arial", 10))
+        self.points_label.setStyleSheet("QLabel { color: gray; }")
         
         info_layout.addWidget(self.status_label)
         info_layout.addWidget(self.spec_type_label)
@@ -136,10 +177,103 @@ class SpectraDisplayWidget(QWidget):
         self.setLayout(layout)
         
         # Initial plot setup
-        self.setup_initial_plot()
+        self.setup_static_display()
     
-    def setup_initial_plot(self):
-        """Setup initial empty plots for both spectrum and power"""
+    def toggle_state(self):
+        """Toggle between active and inactive states"""
+        if self.is_active:
+            self.stop_spectrometer()
+        else:
+            self.start_spectrometer()
+    
+    def start_spectrometer(self):
+        """Start spectrometer data fetching"""
+        if not self.is_active:
+            self.is_active = True
+            self.control_status_label.setText("Spectrometer: ON")
+            self.control_status_label.setStyleSheet("QLabel { color: green; }")
+            self.toggle_button.setText("Turn OFF")
+            self.toggle_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #dc3545;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #c82333;
+                }
+            """)
+            
+            # Setup active display and start timer
+            self.setup_active_display()
+            self.setup_update_timer()
+    
+    def stop_spectrometer(self):
+        """Stop spectrometer data fetching and show static display"""
+        if self.is_active:
+            self.is_active = False
+            self.control_status_label.setText("Spectrometer: OFF")
+            self.control_status_label.setStyleSheet("QLabel { color: red; }")
+            self.toggle_button.setText("Turn ON")
+            self.toggle_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #28a745;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #218838;
+                }
+            """)
+            
+            # Stop timer and show static display
+            if hasattr(self, 'timer'):
+                self.timer.stop()
+            self.setup_static_display()
+    
+    def setup_static_display(self):
+        """Show static 'waiting for user input' display"""
+        # Update status labels to show off state
+        self.status_label.setText("Status: Off")
+        self.status_label.setStyleSheet("QLabel { color: gray; }")
+        self.spec_type_label.setText("Type: N/A")
+        self.spec_type_label.setStyleSheet("QLabel { color: gray; }")
+        self.data_rate_label.setText("Rate: 0.0 Hz")
+        self.data_rate_label.setStyleSheet("QLabel { color: gray; }")
+        self.points_label.setText("Points: 0")
+        self.points_label.setStyleSheet("QLabel { color: gray; }")
+        
+        # Setup static plots
+        # Spectrum plot
+        self.ax_spectrum.clear()
+        self.ax_spectrum.set_title("Spectrometer - Waiting for User Input", fontsize=14, fontweight='bold', color='gray')
+        self.ax_spectrum.set_xlabel("Frequency (GHz)", fontsize=12)
+        self.ax_spectrum.set_ylabel("Power (dB)", fontsize=12)
+        self.ax_spectrum.grid(True, alpha=0.3)
+        self.ax_spectrum.text(0.5, 0.5, 'Click "Turn ON" to start\nspectrum data acquisition', 
+                              horizontalalignment='center', verticalalignment='center',
+                              transform=self.ax_spectrum.transAxes, fontsize=16, color='gray', weight='bold')
+
+        # Integrated power plot
+        self.ax_power.clear()
+        self.ax_power.set_title("Integrated Power - Waiting for User Input", fontsize=12, color='gray')
+        self.ax_power.set_xlabel("Time", fontsize=10)
+        self.ax_power.set_ylabel("Power (dB)", fontsize=10)
+        self.ax_power.grid(True, alpha=0.3)
+        self.ax_power.text(0.5, 0.5, 'Waiting for activation', 
+                          horizontalalignment='center', verticalalignment='center',
+                          transform=self.ax_power.transAxes, fontsize=12, color='gray')
+        
+        self.canvas.draw()
+    
+    def setup_active_display(self):
+        """Setup the active display with normal plot titles"""
         # Spectrum plot
         self.ax_spectrum.clear()
         self.ax_spectrum.set_title("BCP Spectrometer - No Data", fontsize=14, fontweight='bold')
@@ -161,14 +295,18 @@ class SpectraDisplayWidget(QWidget):
     
     def setup_update_timer(self):
         """Setup timer for regular spectrum updates"""
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.trigger_fetch)
+        if not hasattr(self, 'timer'):
+            self.timer = QTimer()
+            self.timer.timeout.connect(self.trigger_fetch)
         self.timer.start(2000)  # 2000 ms = 0.5 Hz
     
     def handle_spectrum_update(self, new_spectrum):
         """Update spectrum display with new data"""
+        # Only process updates if spectrometer is active
+        if not self.is_active:
+            return
+            
         # Get new spectrum data
-        
         if new_spectrum and new_spectrum.valid and len(new_spectrum.data) > 0:
             self.spectrum_data = new_spectrum
             self.last_update_time = dt.datetime.now()
@@ -326,4 +464,8 @@ class SpectraDisplayWidget(QWidget):
     
     def set_request_rate(self, rate_hz):
         """Set the spectrum data request rate."""
-        self.timer.setInterval(int(1000 / rate_hz)) 
+        self.timer.setInterval(int(1000 / rate_hz))
+    
+    def is_spectrometer_active(self) -> bool:
+        """Return whether spectrometer is currently active"""
+        return self.is_active 

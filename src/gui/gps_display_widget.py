@@ -4,7 +4,7 @@ Compact display of GPS coordinates and status
 """
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QGroupBox, QGridLayout, QFrame)
+                             QGroupBox, QGridLayout, QFrame, QPushButton)
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QPalette, QColor
 import time
@@ -18,18 +18,51 @@ class GPSDisplayWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.last_gps_data = GPSData()
+        self.is_active = False
         self.setup_ui()
         
     def setup_ui(self):
         """Setup the GPS display interface with clean, professional layout"""
         main_layout = QVBoxLayout()
-        main_layout.setSpacing(5)
-        main_layout.setContentsMargins(5, 5, 5, 5)
+        main_layout.setSpacing(2)
+        main_layout.setContentsMargins(2, 2, 2, 2)
+        
+        # Control panel
+        control_layout = QHBoxLayout()
+        
+        # Status label
+        self.control_status_label = QLabel("GPS Display: OFF")
+        self.control_status_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+        self.control_status_label.setStyleSheet("QLabel { color: red; }")
+        
+        # Toggle button
+        self.toggle_button = QPushButton("Turn ON")
+        self.toggle_button.setMinimumWidth(100)
+        self.toggle_button.clicked.connect(self.toggle_state)
+        self.toggle_button.setStyleSheet("""
+            QPushButton {
+                background-color: #28a745;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #218838;
+            }
+        """)
+        
+        control_layout.addWidget(self.control_status_label)
+        control_layout.addStretch()
+        control_layout.addWidget(self.toggle_button)
+        
+        main_layout.addLayout(control_layout)
         
         # Create the main container with clean styling
-        container = QFrame()
-        container.setFrameStyle(QFrame.Shape.StyledPanel)
-        container.setStyleSheet("""
+        self.container = QFrame()
+        self.container.setFrameStyle(QFrame.Shape.StyledPanel)
+        self.container.setStyleSheet("""
             QFrame {
                 border: 2px solid #333333;
                 border-radius: 8px;
@@ -38,24 +71,114 @@ class GPSDisplayWidget(QWidget):
             }
         """)
         
-        container_layout = QVBoxLayout(container)
-        container_layout.setSpacing(8)
-        container_layout.setContentsMargins(10, 10, 10, 10)
+        self.container_layout = QVBoxLayout(self.container)
+        self.container_layout.setSpacing(2)
+        self.container_layout.setContentsMargins(4, 4, 4, 4)
         
-        # Status header
-        self.status_header = self._create_status_header()
-        container_layout.addWidget(self.status_header)
+        # Initially show static display
+        self.setup_static_display()
         
-        # Main data section with Position and Orientation side by side
-        data_section = self._create_data_section()
-        container_layout.addWidget(data_section)
-        
-        main_layout.addWidget(container)
+        main_layout.addWidget(self.container)
         main_layout.addStretch()
         
         self.setLayout(main_layout)
-        self.setMinimumWidth(320)
-        self.setMaximumWidth(400)
+        self.setMinimumWidth(250)
+        self.setMaximumWidth(320)
+    
+    def toggle_state(self):
+        """Toggle between active and inactive states"""
+        if self.is_active:
+            self.stop_gps_display()
+        else:
+            self.start_gps_display()
+    
+    def start_gps_display(self):
+        """Start GPS display updates"""
+        if not self.is_active:
+            self.is_active = True
+            self.control_status_label.setText("GPS Display: ON")
+            self.control_status_label.setStyleSheet("QLabel { color: green; }")
+            self.toggle_button.setText("Turn OFF")
+            self.toggle_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #dc3545;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #c82333;
+                }
+            """)
+            
+            # Setup active GPS display
+            self.setup_active_display()
+    
+    def stop_gps_display(self):
+        """Stop GPS display updates and show static display"""
+        if self.is_active:
+            self.is_active = False
+            self.control_status_label.setText("GPS Display: OFF")
+            self.control_status_label.setStyleSheet("QLabel { color: red; }")
+            self.toggle_button.setText("Turn ON")
+            self.toggle_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #28a745;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #218838;
+                }
+            """)
+            
+            # Show static display
+            self.setup_static_display()
+    
+    def setup_static_display(self):
+        """Show static 'waiting for user input' display"""
+        # Clear existing widgets
+        for i in reversed(range(self.container_layout.count())):
+            child = self.container_layout.itemAt(i).widget()
+            if child:
+                child.setParent(None)
+        
+        # Add centered message
+        message_label = QLabel("GPS Display - Waiting for User Input")
+        message_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        message_label.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        message_label.setStyleSheet("QLabel { color: #6c757d; }")
+        
+        instruction_label = QLabel('Click "Turn ON" to start GPS updates')
+        instruction_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        instruction_label.setFont(QFont("Arial", 12))
+        instruction_label.setStyleSheet("QLabel { color: #6c757d; }")
+        
+        self.container_layout.addStretch()
+        self.container_layout.addWidget(message_label)
+        self.container_layout.addWidget(instruction_label)
+        self.container_layout.addStretch()
+    
+    def setup_active_display(self):
+        """Setup the active GPS display with all data fields"""
+        # Clear existing widgets
+        for i in reversed(range(self.container_layout.count())):
+            child = self.container_layout.itemAt(i).widget()
+            if child:
+                child.setParent(None)
+        
+        # Status header
+        self.status_header = self._create_status_header()
+        self.container_layout.addWidget(self.status_header)
+        
+        # Main data section with Position and Orientation side by side
+        data_section = self._create_data_section()
+        self.container_layout.addWidget(data_section)
     
     def _create_status_header(self):
         """Create clean GPS connection status header"""
@@ -66,8 +189,8 @@ class GPSDisplayWidget(QWidget):
                 border: none;
                 background-color: transparent;
                 border-bottom: 1px solid #dee2e6;
-                padding-bottom: 8px;
-                margin-bottom: 8px;
+                padding-bottom: 2px;
+                margin-bottom: 2px;
             }
         """)
         
@@ -108,7 +231,7 @@ class GPSDisplayWidget(QWidget):
         
         # Main horizontal layout for Position | Orientation
         main_layout = QHBoxLayout(data_frame)
-        main_layout.setSpacing(15)
+        main_layout.setSpacing(6)
         main_layout.setContentsMargins(0, 0, 0, 0)
         
         # Position section (left side)
@@ -135,7 +258,7 @@ class GPSDisplayWidget(QWidget):
         section.setStyleSheet("QFrame { border: none; background-color: transparent; }")
         
         layout = QVBoxLayout(section)
-        layout.setSpacing(8)
+        layout.setSpacing(2)
         layout.setContentsMargins(0, 0, 0, 0)
         
         # Section header
@@ -150,15 +273,15 @@ class GPSDisplayWidget(QWidget):
                 color: #495057;
                 border: none;
                 border-bottom: 1px solid #dee2e6;
-                padding-bottom: 4px;
-                margin-bottom: 8px;
+                padding-bottom: 1px;
+                margin-bottom: 2px;
             }
         """)
         layout.addWidget(header)
         
         # Latitude
         lat_layout = QVBoxLayout()
-        lat_layout.setSpacing(2)
+        lat_layout.setSpacing(1)
         
         lat_label = QLabel("Latitude:")
         lat_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -181,7 +304,7 @@ class GPSDisplayWidget(QWidget):
         
         # Longitude
         lon_layout = QVBoxLayout()
-        lon_layout.setSpacing(2)
+        lon_layout.setSpacing(1)
         
         lon_label = QLabel("Longitude:")
         lon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -211,7 +334,7 @@ class GPSDisplayWidget(QWidget):
         section.setStyleSheet("QFrame { border: none; background-color: transparent; }")
         
         layout = QVBoxLayout(section)
-        layout.setSpacing(8)
+        layout.setSpacing(2)
         layout.setContentsMargins(0, 0, 0, 0)
         
         # Section header
@@ -226,15 +349,15 @@ class GPSDisplayWidget(QWidget):
                 color: #495057;
                 border: none;
                 border-bottom: 1px solid #dee2e6;
-                padding-bottom: 4px;
-                margin-bottom: 8px;
+                padding-bottom: 1px;
+                margin-bottom: 2px;
             }
         """)
         layout.addWidget(header)
         
         # Altitude
         alt_layout = QVBoxLayout()
-        alt_layout.setSpacing(2)
+        alt_layout.setSpacing(1)
         
         alt_label = QLabel("Altitude:")
         alt_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -257,7 +380,7 @@ class GPSDisplayWidget(QWidget):
         
         # Heading
         head_layout = QVBoxLayout()
-        head_layout.setSpacing(2)
+        head_layout.setSpacing(1)
         
         head_label = QLabel("Heading:")
         head_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -322,6 +445,10 @@ class GPSDisplayWidget(QWidget):
         """Update the display with new GPS data"""
         self.last_gps_data = gps_data
         
+        # Only update display if GPS display is active
+        if not self.is_active:
+            return
+        
         # Update status
         self._update_status_display(gps_data.valid)
         
@@ -338,5 +465,9 @@ class GPSDisplayWidget(QWidget):
         """Return current coordinates for sky chart updates"""
         if self.last_gps_data.valid:
             return (self.last_gps_data.lat, self.last_gps_data.lon, self.last_gps_data.alt)
-        return None 
+        return None
+    
+    def is_gps_active(self) -> bool:
+        """Return whether GPS display is currently active"""
+        return self.is_active 
  
