@@ -96,6 +96,24 @@ class SpectraDisplayWidget(QWidget):
         """Stop the worker thread"""
         self.worker_thread.quit()
         self.worker_thread.wait()
+    
+    def cleanup(self):
+        """Clean up resources when shutting down"""
+        # Stop spectrometer and worker thread
+        self.stop_spectrometer()
+        self.stop_worker()
+        
+        # Clean up spectrometer client
+        if hasattr(self, 'spectrometer_client'):
+            self.spectrometer_client.cleanup()
+        
+        # Clear data buffers
+        self.spectrum_data = None
+        self.update_times.clear()
+        self.power_times.clear()
+        self.power_values.clear()
+        
+        self.logger.info("Spectra display widget cleaned up")
 
     def setup_ui(self):
         """Initialize the matplotlib figure and canvas"""

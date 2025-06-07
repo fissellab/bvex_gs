@@ -8,7 +8,7 @@ GPS_SERVER = {
     'port': 8080,  # You'll need to verify this port
     'request_message': 'GET_GPS',
     'timeout': 5.0,
-    'update_interval': 0.05  # 50ms between requests
+    'update_interval': 1.0  # 1 second between requests (1 Hz)
 }
 
 # BCP Spectrometer Configuration

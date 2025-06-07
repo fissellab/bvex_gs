@@ -34,11 +34,80 @@ class MainWindow(QMainWindow):
     
     def setup_logging(self):
         """Setup application logging"""
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        import os
+        from datetime import datetime
+        from logging.handlers import RotatingFileHandler
+        
+        # Create logs directory if it doesn't exist
+        log_dir = 'logs'
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+        
+        # Generate log filename with timestamp
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        log_filename = os.path.join(log_dir, f'bvex_ground_station_{timestamp}.log')
+        
+        # Create rotating file handler (max 10MB per file, keep 5 files)
+        file_handler = RotatingFileHandler(
+            log_filename, 
+            maxBytes=10*1024*1024,  # 10MB
+            backupCount=5
         )
+        file_handler.setLevel(logging.DEBUG)
+        
+        # Create console handler for warnings and errors only
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.WARNING)
+        
+        # Create formatters
+        detailed_formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        simple_formatter = logging.Formatter(
+            '%(levelname)s: %(message)s'
+        )
+        
+        file_handler.setFormatter(detailed_formatter)
+        console_handler.setFormatter(simple_formatter)
+        
+        # Configure root logger
+        root_logger = logging.getLogger()
+        root_logger.setLevel(logging.DEBUG)
+        root_logger.addHandler(file_handler)
+        root_logger.addHandler(console_handler)
+        
+        # Reduce verbosity of third-party libraries
+        logging.getLogger('matplotlib').setLevel(logging.WARNING)
+        logging.getLogger('PIL').setLevel(logging.WARNING)
+        logging.getLogger('urllib3').setLevel(logging.WARNING)
+        
         self.logger = logging.getLogger(__name__)
+        self.logger.info(f"BVEX Ground Station logging started - Log file: {log_filename}")
+        print(f"BVEX Ground Station started - Logs written to: {log_filename}")
+        print("Console will only show warnings and errors. All detailed logs are in the file.")
+        
+        # Clean up old log files (keep last 30 days)
+        self._cleanup_old_logs(log_dir)
+    
+    def _cleanup_old_logs(self, log_dir):
+        """Clean up log files older than 30 days"""
+        try:
+            import os
+            import time
+            
+            current_time = time.time()
+            thirty_days_ago = current_time - (30 * 24 * 60 * 60)  # 30 days in seconds
+            
+            for filename in os.listdir(log_dir):
+                if filename.startswith('bvex_ground_station_') and filename.endswith('.log'):
+                    file_path = os.path.join(log_dir, filename)
+                    if os.path.isfile(file_path):
+                        file_time = os.path.getmtime(file_path)
+                        if file_time < thirty_days_ago:
+                            os.remove(file_path)
+                            print(f"Cleaned up old log file: {filename}")
+        except Exception as e:
+            print(f"Warning: Failed to clean up old logs: {e}")
     
     def setup_ui(self):
         """Setup the main UI layout"""
@@ -167,6 +236,11 @@ class MainWindow(QMainWindow):
         self.status_update_timer = QTimer()
         self.status_update_timer.timeout.connect(self.update_status)
         self.status_update_timer.start(5000)  # Update every 5 seconds
+        
+        # Periodic cleanup timer (every hour)
+        self.cleanup_timer = QTimer()
+        self.cleanup_timer.timeout.connect(self.periodic_cleanup)
+        self.cleanup_timer.start(3600000)  # 1 hour = 3600000 ms
     
     def connect_gps(self):
         """Connect to GPS server"""
@@ -241,6 +315,30 @@ class MainWindow(QMainWindow):
             spec_status_text = "Spectrometer: Disconnected"
         self.spectrometer_status_label.setText(spec_status_text)
     
+    def periodic_cleanup(self):
+        """Perform periodic cleanup to prevent memory buildup during long sessions"""
+        try:
+            # Trim old data from spectra widget buffers
+            if hasattr(self, 'spectra_widget'):
+                # Keep only last hour of power data (3600 points at 1Hz)
+                max_power_points = 3600
+                while len(self.spectra_widget.power_times) > max_power_points:
+                    self.spectra_widget.power_times.popleft()
+                    self.spectra_widget.power_values.popleft()
+                
+                # Trim update times buffer
+                while len(self.spectra_widget.update_times) > 60:  # Keep last minute
+                    self.spectra_widget.update_times.popleft()
+            
+            # Force garbage collection
+            import gc
+            gc.collect()
+            
+            self.logger.info("Periodic cleanup completed")
+            
+        except Exception as e:
+            self.logger.error(f"Error during periodic cleanup: {e}")
+    
     def show_about(self):
         """Show about dialog"""
         about_text = """
@@ -265,8 +363,35 @@ class MainWindow(QMainWindow):
     
     def closeEvent(self, event):
         """Handle window close event"""
-        self.gps_client.stop()
-        self.spectra_widget.stop_worker()  # Ensure worker thread is stopped
+        self.logger.info("Application shutting down - cleaning up resources...")
+        
+        # Stop timers
+        if hasattr(self, 'gps_update_timer'):
+            self.gps_update_timer.stop()
+        if hasattr(self, 'status_update_timer'):
+            self.status_update_timer.stop()
+        if hasattr(self, 'cleanup_timer'):
+            self.cleanup_timer.stop()
+        
+        # Cleanup all components
+        try:
+            # GPS cleanup
+            if hasattr(self, 'gps_client'):
+                self.gps_client.cleanup()
+            
+            # Spectra widget cleanup
+            if hasattr(self, 'spectra_widget'):
+                self.spectra_widget.cleanup()
+            
+            # Sky chart cleanup (minimal - just stop animation if running)
+            if hasattr(self, 'sky_chart_widget') and self.sky_chart_widget.is_sky_chart_active():
+                self.sky_chart_widget.stop_animation()
+            
+            self.logger.info("Application cleanup completed successfully")
+            
+        except Exception as e:
+            self.logger.error(f"Error during cleanup: {e}")
+        
         self.logger.info("BVEX Ground Station shutdown")
         event.accept()
 

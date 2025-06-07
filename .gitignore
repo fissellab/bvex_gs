@@ -144,7 +144,9 @@ Thumbs.db
 
 # BVEX specific
 *.log
+*.log.*
 logs/
+bvex_ground_station_*.log
 data/
 temp/
 tmp/

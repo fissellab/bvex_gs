@@ -59,6 +59,14 @@ class GPSClient:
             self.thread.join(timeout=2.0)
         self.logger.info("GPS client stopped")
     
+    def cleanup(self):
+        """Clean up resources when shutting down"""
+        self.stop()
+        # Clear GPS data
+        with self.data_lock:
+            self.gps_data = GPSData()
+        self.logger.info("GPS client cleaned up")
+    
     def pause(self):
         """Pause GPS data requests"""
         self.paused = True

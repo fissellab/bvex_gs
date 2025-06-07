@@ -34,15 +34,23 @@ class BCPSpectrometerClient:
         self.logger = logging.getLogger(__name__)
         self.connected = False
         self.active_spectrometer_type = 'STANDARD'  # Assume STANDARD initially
+        self.socket = None  # Persistent socket for reuse
         
     def _send_request(self, request: str) -> Optional[str]:
         """Send UDP request and return response"""
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.settimeout(self.timeout)
+        # Create socket if not exists or if previous connection failed
+        if self.socket is None:
+            try:
+                self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                self.socket.settimeout(self.timeout)
+            except Exception as e:
+                self.logger.error(f"Failed to create socket: {e}")
+                self.connected = False
+                return None
         
         try:
-            sock.sendto(request.encode('utf-8'), (self.server_ip, self.server_port))
-            response = sock.recv(32768).decode('utf-8')
+            self.socket.sendto(request.encode('utf-8'), (self.server_ip, self.server_port))
+            response = self.socket.recv(32768).decode('utf-8')
             self.last_request_time = time.time()
             self.connected = True
             
@@ -56,13 +64,15 @@ class BCPSpectrometerClient:
         except socket.timeout:
             self.logger.warning(f"Request timeout after {self.timeout}s")
             self.connected = False
+            # Close and reset socket on timeout
+            self._close_socket()
             return None
         except Exception as e:
             self.logger.error(f"Request failed: {e}")
             self.connected = False
+            # Close and reset socket on error
+            self._close_socket()
             return None
-        finally:
-            sock.close()
     
     def parse_standard_response(self, response: str) -> Optional[SpectrumData]:
         """Parse standard spectrum response"""
@@ -253,6 +263,21 @@ class BCPSpectrometerClient:
         self.logger.error(f"Unknown or error response: {response[:100]}...")
         return SpectrumData(type='ERROR', timestamp=time.time(), points=0, data=[], valid=False)
 
+    def _close_socket(self):
+        """Close and reset the socket"""
+        if self.socket:
+            try:
+                self.socket.close()
+            except Exception:
+                pass  # Ignore errors when closing
+            self.socket = None
+    
+    def cleanup(self):
+        """Clean up resources when shutting down"""
+        self._close_socket()
+        self.connected = False
+        self.logger.info("BCP Spectrometer client cleaned up")
+    
     def is_connected(self) -> bool:
         """Check if client is connected to server"""
         return self.connected 
