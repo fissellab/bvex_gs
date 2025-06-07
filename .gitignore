@@ -2,6 +2,8 @@
 
 # Legacy/Reference files that should not be uploaded
 bvex_pointing.py
+gps_server.c
+gps_server.h
 
 # Python
 __pycache__/
