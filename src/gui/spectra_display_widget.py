@@ -456,18 +456,25 @@ class SpectraDisplayWidget(QWidget):
             x_indices = list(range(len(self.power_times)))
             self.ax_power.plot(x_indices, list(self.power_values), 'r-', linewidth=1.5)
             
-            # Show only a few time labels to avoid clutter
+            # Show evenly spaced time labels across the entire visible data range
             if len(self.power_times) > 1:
+                # Determine the number of ticks to show (max 5)
                 num_ticks = min(5, len(self.power_times))
-                tick_indices = np.linspace(0, len(self.power_times)-1, num_ticks, dtype=int)
-                tick_labels = [self.power_times[i].strftime('%H:%M:%S') for i in tick_indices]
-                self.ax_power.set_xticks(tick_indices)
+                
+                # Calculate evenly spaced indices across the entire data length
+                indices = np.linspace(0, len(self.power_times) - 1, num_ticks, dtype=int)
+                
+                tick_labels = [self.power_times[i].strftime('%H:%M:%S') for i in indices]
+                self.ax_power.set_xticks(indices)
                 self.ax_power.set_xticklabels(tick_labels, rotation=45, ha='right')
         
         self.ax_power.set_title("Integrated Power", fontsize=12)
         self.ax_power.set_xlabel("Time", fontsize=10)
         self.ax_power.set_ylabel("Power (dB)", fontsize=10)
         self.ax_power.grid(True, alpha=0.3)
+        
+        # Disable the scientific notation offset on y-axis for better readability
+        self.ax_power.ticklabel_format(useOffset=False, axis='y')
         
         # Dynamic Y-axis for power - make changes more visible
         if self.power_values:
