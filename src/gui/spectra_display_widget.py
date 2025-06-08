@@ -502,4 +502,10 @@ class SpectraDisplayWidget(QWidget):
     
     def is_spectrometer_active(self) -> bool:
         """Return whether spectrometer is currently active"""
-        return self.is_active 
+        return self.is_active
+    
+    def get_data_rate_kbps(self) -> float:
+        """Get current data rate from spectrometer client in kB/s"""
+        if not self.is_active:
+            return 0.0
+        return self.spectrometer_client.get_data_rate_kbps() 

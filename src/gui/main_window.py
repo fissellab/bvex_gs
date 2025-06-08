@@ -210,6 +210,10 @@ class MainWindow(QMainWindow):
         self.status_bar = self.statusBar()
         self.status_bar.showMessage("BVEX Ground Station - Initializing...")
         
+        # Add data rate status to status bar
+        self.data_rate_label = self.create_status_label("Data Rate: 0.0 kB/s")
+        self.status_bar.addPermanentWidget(self.data_rate_label)
+        
         # Add GPS connection status to status bar
         self.gps_status_label = self.create_status_label("GPS: Disconnected")
         self.status_bar.addPermanentWidget(self.gps_status_label)
@@ -278,7 +282,7 @@ class MainWindow(QMainWindow):
         gps_data = self.gps_client.get_gps_data()
         
         # Update GPS display widget
-        self.gps_widget.update_gps_data(gps_data)
+        self.gps_widget.update_gps_data(gps_data, self.gps_client)
         
         # Update sky chart with GPS data for heading display
         self.sky_chart_widget.set_gps_data(gps_data)
@@ -291,6 +295,25 @@ class MainWindow(QMainWindow):
     
     def update_status(self):
         """Update status bar information"""
+        # Calculate combined data rate
+        total_rate_kbps = 0.0
+        
+        # Add GPS data rate if active
+        if self.gps_widget.is_gps_active():
+            gps_rate = self.gps_client.get_data_rate_kbps()
+            total_rate_kbps += gps_rate
+        
+        # Add spectrometer data rate if active
+        if self.spectra_widget.is_spectrometer_active():
+            spec_rate = self.spectra_widget.get_data_rate_kbps()
+            total_rate_kbps += spec_rate
+        
+        # Update data rate display
+        if total_rate_kbps >= 1000:
+            self.data_rate_label.setText(f"Data Rate: {total_rate_kbps/1000:.1f} MB/s")
+        else:
+            self.data_rate_label.setText(f"Data Rate: {total_rate_kbps:.1f} kB/s")
+        
         # Update GPS status
         if not self.gps_widget.is_gps_active():
             gps_status_text = "GPS: Off"

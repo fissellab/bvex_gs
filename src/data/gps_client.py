@@ -10,6 +10,7 @@ import logging
 from dataclasses import dataclass
 from typing import Optional
 from src.config.settings import GPS_SERVER, GPS_PROCESSING
+from src.data import DataRateTracker
 
 @dataclass
 class GPSData:
@@ -32,6 +33,10 @@ class GPSClient:
         self.paused = True  # Start in paused state
         self.thread = None
         self.socket = None
+        
+        # Data rate tracking
+        self.data_rate_tracker = DataRateTracker(window_seconds=30)
+        self.total_bytes_received = 0
         
     def start(self) -> bool:
         """Start the GPS client thread"""
@@ -65,6 +70,9 @@ class GPSClient:
         # Clear GPS data
         with self.data_lock:
             self.gps_data = GPSData()
+        # Reset data rate tracking
+        self.data_rate_tracker.reset()
+        self.total_bytes_received = 0
         self.logger.info("GPS client cleaned up")
     
     def pause(self):
@@ -82,6 +90,16 @@ class GPSClient:
     def is_paused(self) -> bool:
         """Check if GPS client is paused"""
         return self.paused
+    
+    def get_data_rate_kbps(self) -> float:
+        """Get current data rate in KB/s"""
+        if self.paused or not self.running:
+            return 0.0
+        return self.data_rate_tracker.get_rate_kbps()
+    
+    def get_total_bytes_received(self) -> int:
+        """Get total bytes received since start"""
+        return self.total_bytes_received
     
     def get_gps_data(self) -> GPSData:
         """Get the current GPS data (thread-safe)"""
@@ -110,6 +128,11 @@ class GPSClient:
                     # Receive response
                     data, addr = self.socket.recvfrom(1024)
                     response = data.decode('utf-8')
+                    
+                    # Track data rate
+                    bytes_received = len(data)
+                    self.data_rate_tracker.add_data(bytes_received)
+                    self.total_bytes_received += bytes_received
                     
                     # Parse GPS data
                     if self._parse_gps_data(response):

@@ -8,6 +8,7 @@ import time
 import logging
 from typing import Optional, Dict
 from dataclasses import dataclass
+from src.data import DataRateTracker
 
 
 @dataclass
@@ -36,6 +37,10 @@ class BCPSpectrometerClient:
         self.active_spectrometer_type = 'STANDARD'  # Assume STANDARD initially
         self.socket = None  # Persistent socket for reuse
         
+        # Data rate tracking
+        self.data_rate_tracker = DataRateTracker(window_seconds=30)
+        self.total_bytes_received = 0
+        
     def _send_request(self, request: str) -> Optional[str]:
         """Send UDP request and return response"""
         # Create socket if not exists or if previous connection failed
@@ -50,9 +55,15 @@ class BCPSpectrometerClient:
         
         try:
             self.socket.sendto(request.encode('utf-8'), (self.server_ip, self.server_port))
-            response = self.socket.recv(32768).decode('utf-8')
+            response_data = self.socket.recv(32768)
+            response = response_data.decode('utf-8')
             self.last_request_time = time.time()
             self.connected = True
+            
+            # Track data rate
+            bytes_received = len(response_data)
+            self.data_rate_tracker.add_data(bytes_received)
+            self.total_bytes_received += bytes_received
             
             # Debug logging to see actual response format
             if len(response) > 200:
@@ -276,8 +287,21 @@ class BCPSpectrometerClient:
         """Clean up resources when shutting down"""
         self._close_socket()
         self.connected = False
+        # Reset data rate tracking
+        self.data_rate_tracker.reset()
+        self.total_bytes_received = 0
         self.logger.info("BCP Spectrometer client cleaned up")
     
     def is_connected(self) -> bool:
         """Check if client is connected to server"""
-        return self.connected 
+        return self.connected
+    
+    def get_data_rate_kbps(self) -> float:
+        """Get current data rate in KB/s"""
+        if not self.connected:
+            return 0.0
+        return self.data_rate_tracker.get_rate_kbps()
+    
+    def get_total_bytes_received(self) -> int:
+        """Get total bytes received since start"""
+        return self.total_bytes_received 

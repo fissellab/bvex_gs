@@ -441,7 +441,7 @@ class GPSDisplayWidget(QWidget):
         
         return f"{value:.2f} ({cardinal})"
     
-    def update_gps_data(self, gps_data: GPSData):
+    def update_gps_data(self, gps_data: GPSData, gps_client=None):
         """Update the display with new GPS data"""
         self.last_gps_data = gps_data
         
