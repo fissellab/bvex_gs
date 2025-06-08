@@ -450,24 +450,33 @@ class SpectraDisplayWidget(QWidget):
         padding = 0.05 * y_range if y_range > 0.1 else 0.5
         self.ax_spectrum.set_ylim(y_min - padding, y_max + padding)
 
-        # Plot integrated power
+        # Plot integrated power - simplified approach for better visibility
         if self.power_times:
-            self.ax_power.plot(list(self.power_times), list(self.power_values), 'r-', linewidth=1.5)
+            # Use simple x-axis indexing instead of datetime for clearer visualization
+            x_indices = list(range(len(self.power_times)))
+            self.ax_power.plot(x_indices, list(self.power_values), 'r-', linewidth=1.5)
+            
+            # Show only a few time labels to avoid clutter
+            if len(self.power_times) > 1:
+                num_ticks = min(5, len(self.power_times))
+                tick_indices = np.linspace(0, len(self.power_times)-1, num_ticks, dtype=int)
+                tick_labels = [self.power_times[i].strftime('%H:%M:%S') for i in tick_indices]
+                self.ax_power.set_xticks(tick_indices)
+                self.ax_power.set_xticklabels(tick_labels, rotation=45, ha='right')
         
         self.ax_power.set_title("Integrated Power", fontsize=12)
         self.ax_power.set_xlabel("Time", fontsize=10)
         self.ax_power.set_ylabel("Power (dB)", fontsize=10)
-        self.ax_power.grid(True, alpha=0.5, linestyle='--')
-        self.figure.autofmt_xdate(rotation=15, ha='right')
+        self.ax_power.grid(True, alpha=0.3)
         
-        # Force the x-tick labels on the spectrum plot to be visible, as autofmt_xdate can hide them
-        self.ax_spectrum.tick_params(axis='x', labelbottom=True)
-        
-        # Dynamic Y-axis for power
+        # Dynamic Y-axis for power - make changes more visible
         if self.power_values:
             p_min, p_max = np.min(list(self.power_values)), np.max(list(self.power_values))
             p_range = p_max - p_min
-            padding = 0.1 * p_range if p_range > 0.1 else 0.5
+            if p_range > 0.01:  # If there's meaningful variation
+                padding = 0.05 * p_range  # Smaller padding to show changes better
+            else:
+                padding = 0.1  # Minimal padding for flat signals
             self.ax_power.set_ylim(p_min - padding, p_max + padding)
             
         self.canvas.draw()
