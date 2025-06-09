@@ -21,7 +21,7 @@ BCP_SPECTROMETER = {
 
 # GPS Data Processing
 GPS_PROCESSING = {
-    'heading_offset': 90.0,  # degrees - constant offset to add to GPS heading
+    'heading_offset': 0.0,  # degrees - constant offset to add to GPS heading
     'coordinate_offset_lat': 0.0,  # degrees - offset for latitude if needed
     'coordinate_offset_lon': 0.0   # degrees - offset for longitude if needed
 }
