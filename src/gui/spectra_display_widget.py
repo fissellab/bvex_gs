@@ -389,28 +389,45 @@ class SpectraDisplayWidget(QWidget):
         # Prepare data for plotting
         raw_data = np.array(self.spectrum_data.data)
         
-        # Apply the same processing as in read_latest_data.py
-        # Convert to dB scale with better handling of zeros
-        # Find minimum non-zero value for proper scaling
-        non_zero_mask = raw_data > 0
-        if np.any(non_zero_mask):
-            min_positive = np.min(raw_data[non_zero_mask])
-            # Use a floor value that's 1000x smaller than the minimum positive value
-            floor_value = min_positive / 1000.0
-        else:
-            # If all values are zero, use a very small default
-            floor_value = 1e-12
+        # Handle data processing based on spectrum type
+        if self.spectrum_data.type == 'STANDARD':
+            # STANDARD data comes as linear power values - convert to dB
+            # Find minimum non-zero value for proper scaling
+            non_zero_mask = raw_data > 0
+            if np.any(non_zero_mask):
+                min_positive = np.min(raw_data[non_zero_mask])
+                # Use a floor value that's 1000x smaller than the minimum positive value
+                floor_value = min_positive / 1000.0
+            else:
+                # If all values are zero, use a very small default
+                floor_value = 1e-12
+                
+            # Apply log10 with proper floor to avoid -inf
+            spectrum_db = 10 * np.log10(np.maximum(raw_data, floor_value))
             
-        # Apply log10 with proper floor to avoid -inf
-        spectrum_db = 10 * np.log10(np.maximum(raw_data, floor_value))
+            # Integrated power calculation for STANDARD data
+            integrated_power = np.sum(raw_data)
+            integrated_power_db = 10 * np.log10(np.maximum(integrated_power, floor_value))
+            
+        elif self.spectrum_data.type == '120KHZ':
+            # 120KHZ data is already in dB format (baseline-subtracted) - use directly
+            spectrum_db = raw_data.copy()
+            
+            # For integrated power, we need to convert back to linear, sum, then convert to dB
+            # Since data is baseline-subtracted dB, we need to add back the baseline first
+            if self.spectrum_data.baseline is not None:
+                linear_data = 10**((raw_data + self.spectrum_data.baseline) / 10.0)
+                integrated_power = np.sum(linear_data)
+                integrated_power_db = 10 * np.log10(np.maximum(integrated_power, 1e-12))
+            else:
+                # Fallback if no baseline info
+                integrated_power_db = np.sum(raw_data)  # Simple sum of dB values
+                
+        else:
+            self.logger.warning(f"Unknown spectrum type: {self.spectrum_data.type}")
+            return
         
-        # NOTE: The spectrum data is plotted directly without flipping,
-        # as the frequency axis is already aligned with the incoming data order.
-        
-        # --- Integrated Power Calculation ---
-        integrated_power = np.sum(raw_data)
-        integrated_power_db = 10 * np.log10(np.maximum(integrated_power, floor_value))
-        
+        # Update power tracking
         current_time = dt.datetime.now()
         self.power_times.append(current_time)
         self.power_values.append(integrated_power_db)

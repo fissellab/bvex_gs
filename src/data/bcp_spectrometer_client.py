@@ -210,7 +210,7 @@ class BCPSpectrometerClient:
             data_str = metadata_and_data[data_start + 5:]  # Skip 'data:'
             data = [float(x) for x in data_str.split(',') if x.strip()]
             
-            self.logger.debug(f"Successfully parsed 120kHz: timestamp={timestamp}, points={points}, data_len={len(data)}")
+            self.logger.debug(f"Successfully parsed 120kHz: timestamp={timestamp}, points={points}, data_len={len(data)}, baseline={baseline:.6f}")
             
             return SpectrumData(
                 type='120KHZ',
