@@ -461,11 +461,45 @@ class SpectraDisplayWidget(QWidget):
         self.ax_spectrum.set_ylabel("Power (dB arb.)", fontsize=11)
         self.ax_spectrum.grid(True, alpha=0.3, linestyle='--')
         
-        # Dynamic Y-axis for spectrum
-        y_min, y_max = np.min(spectrum_db), np.max(spectrum_db)
-        y_range = y_max - y_min
-        padding = 0.05 * y_range if y_range > 0.1 else 0.5
-        self.ax_spectrum.set_ylim(y_min - padding, y_max + padding)
+        # Dynamic Y-axis for spectrum - different logic for STANDARD vs 120KHZ
+        if self.spectrum_data.type == 'STANDARD':
+            # For STANDARD spectra: Focus on interesting spectral features, not noise floor
+            y_min_data, y_max_data = np.min(spectrum_db), np.max(spectrum_db)
+            
+            # Use more aggressive percentiles to focus on spectral features
+            y_20th = np.percentile(spectrum_db, 20)  # Cut off bottom 20% (noise floor)
+            y_95th = np.percentile(spectrum_db, 95)  # Keep most peaks but avoid extreme outliers
+            
+            # Use a fixed 12 dB window, positioned to capture the interesting range
+            target_range = 12.0  # dB - good detail level
+            
+            # Center the window on the 75th percentile (biased toward peaks)
+            y_center = np.percentile(spectrum_db, 75)
+            y_min = y_center - target_range * 0.4  # 40% below center
+            y_max = y_center + target_range * 0.6  # 60% above center
+            
+            # Ensure we don't cut off the 95th percentile peak
+            if y_95th > y_max:
+                # Shift window up to include important peaks
+                shift = y_95th - y_max + 1.0
+                y_min += shift
+                y_max += shift
+                
+            # Ensure we show at least down to the 20th percentile 
+            if y_20th < y_min:
+                # Only shift down if the range is reasonable
+                shift_down = y_min - y_20th
+                if shift_down <= 3.0:  # Only minor adjustment
+                    y_min = y_20th - 0.5
+            
+            self.ax_spectrum.set_ylim(y_min, y_max)
+            
+        elif self.spectrum_data.type == '120KHZ':
+            # For 120KHZ spectra: Use full range since it's baseline-subtracted (should be small range already)
+            y_min, y_max = np.min(spectrum_db), np.max(spectrum_db)
+            y_range = y_max - y_min
+            padding = 0.05 * y_range if y_range > 0.1 else 0.5
+            self.ax_spectrum.set_ylim(y_min - padding, y_max + padding)
 
         # Plot integrated power - simplified approach for better visibility
         if self.power_times:
