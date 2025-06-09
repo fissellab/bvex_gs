@@ -43,6 +43,15 @@ GUI = {
     'spectra_panel_size': (8, 6)  # inches for spectra plot
 }
 
+# GPS Map Configuration
+GPS_MAP = {
+    'default_zoom': 16,        # Good detail level for balloon tracking
+    'trail_length': 20,        # Number of trail points to keep
+    'bounds_margin': 0.005,    # Degrees margin for map updates
+    'tile_layer': 'OpenStreetMap',  # Map tile layer
+    'compact_mode': True       # Optimized for small display
+}
+
 # Celestial Objects to Display
 CELESTIAL_OBJECTS = {
     'solar_system': ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune'],

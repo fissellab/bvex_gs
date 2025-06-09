@@ -1,6 +1,6 @@
 """
 GPS Display Widget for BVEX Ground Station
-Compact display of GPS coordinates and status
+Compact display of GPS coordinates and status with optional map view
 """
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
@@ -12,13 +12,25 @@ import time
 from src.data.gps_client import GPSData
 from src.config.settings import GPS_PROCESSING
 
+# Import map widget (with fallback if dependencies not available)
+try:
+    from src.gui.gps_map_widget import GPSMapWidget
+    MAP_AVAILABLE = True
+except ImportError:
+    MAP_AVAILABLE = False
+
 class GPSDisplayWidget(QWidget):
-    """Compact widget for displaying GPS data"""
+    """Compact widget for displaying GPS data with optional map view"""
     
     def __init__(self, parent=None):
         super().__init__(parent)
         self.last_gps_data = GPSData()
         self.is_active = False
+        self.view_mode = "data"  # "data" or "map"
+        
+        # Map widget (created only when needed)
+        self.map_widget = None
+        
         self.setup_ui()
         
     def setup_ui(self):
@@ -59,6 +71,41 @@ class GPSDisplayWidget(QWidget):
         
         main_layout.addLayout(control_layout)
         
+        # View mode control (only show if map is available)
+        if MAP_AVAILABLE:
+            view_control_layout = QHBoxLayout()
+            
+            view_label = QLabel("View:")
+            view_label.setFont(QFont("Arial", 10))
+            
+            self.view_mode_button = QPushButton("Switch to Map")
+            self.view_mode_button.setMinimumWidth(120)
+            self.view_mode_button.clicked.connect(self.toggle_view_mode)
+            self.view_mode_button.setEnabled(False)  # Disabled until GPS is active
+            self.view_mode_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #6c757d;
+                    color: white;
+                    border: none;
+                    padding: 6px 12px;
+                    border-radius: 4px;
+                    font-size: 10px;
+                }
+                QPushButton:hover {
+                    background-color: #5a6268;
+                }
+                QPushButton:disabled {
+                    background-color: #e9ecef;
+                    color: #6c757d;
+                }
+            """)
+            
+            view_control_layout.addWidget(view_label)
+            view_control_layout.addStretch()
+            view_control_layout.addWidget(self.view_mode_button)
+            
+            main_layout.addLayout(view_control_layout)
+        
         # Create the main container with clean styling
         self.container = QFrame()
         self.container.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -92,6 +139,20 @@ class GPSDisplayWidget(QWidget):
         else:
             self.start_gps_display()
     
+    def toggle_view_mode(self):
+        """Toggle between data and map view"""
+        if not self.is_active:
+            return
+            
+        if self.view_mode == "data":
+            self.view_mode = "map"
+            self.view_mode_button.setText("Switch to Data")
+            self.setup_map_display()
+        else:
+            self.view_mode = "data"
+            self.view_mode_button.setText("Switch to Map")
+            self.setup_active_display()
+    
     def start_gps_display(self):
         """Start GPS display updates"""
         if not self.is_active:
@@ -113,8 +174,15 @@ class GPSDisplayWidget(QWidget):
                 }
             """)
             
-            # Setup active GPS display
-            self.setup_active_display()
+            # Enable view mode button if map is available
+            if MAP_AVAILABLE:
+                self.view_mode_button.setEnabled(True)
+            
+            # Setup active display based on current view mode
+            if self.view_mode == "data":
+                self.setup_active_display()
+            else:
+                self.setup_map_display()
     
     def stop_gps_display(self):
         """Stop GPS display updates and show static display"""
@@ -136,6 +204,14 @@ class GPSDisplayWidget(QWidget):
                     background-color: #218838;
                 }
             """)
+            
+            # Disable view mode button
+            if MAP_AVAILABLE:
+                self.view_mode_button.setEnabled(False)
+            
+            # Cleanup map widget if it exists
+            if self.map_widget:
+                self.map_widget.cleanup()
             
             # Show static display
             self.setup_static_display()
@@ -162,8 +238,38 @@ class GPSDisplayWidget(QWidget):
         self.container_layout.addStretch()
         self.container_layout.addWidget(message_label)
         self.container_layout.addWidget(instruction_label)
+        
+        if MAP_AVAILABLE:
+            map_info_label = QLabel('Use "Switch to Map" for location view')
+            map_info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            map_info_label.setFont(QFont("Arial", 10))
+            map_info_label.setStyleSheet("QLabel { color: #6c757d; }")
+            self.container_layout.addWidget(map_info_label)
+        
         self.container_layout.addStretch()
     
+    def setup_map_display(self):
+        """Setup the map view display"""
+        if not MAP_AVAILABLE:
+            return
+            
+        # Clear existing widgets
+        for i in reversed(range(self.container_layout.count())):
+            child = self.container_layout.itemAt(i).widget()
+            if child:
+                child.setParent(None)
+        
+        # Create map widget if it doesn't exist
+        if not self.map_widget:
+            self.map_widget = GPSMapWidget()
+        
+        # Add map widget to container
+        self.container_layout.addWidget(self.map_widget)
+        
+        # Update with current GPS data if available
+        if self.last_gps_data.valid:
+            self.map_widget.update_position(self.last_gps_data.lat, self.last_gps_data.lon)
+
     def setup_active_display(self):
         """Setup the active GPS display with all data fields"""
         # Clear existing widgets
@@ -449,14 +555,22 @@ class GPSDisplayWidget(QWidget):
         if not self.is_active:
             return
         
-        # Update status
-        self._update_status_display(gps_data.valid)
+        # Update based on current view mode
+        if self.view_mode == "data":
+            # Update status
+            self._update_status_display(gps_data.valid)
+            
+            # Update coordinate values (only if we're in data mode and widgets exist)
+            if hasattr(self, 'lat_value') and self.lat_value:
+                self.lat_value.setText(self._format_coordinate(gps_data.lat, False))
+                self.lon_value.setText(self._format_coordinate(gps_data.lon, True))
+                self.alt_value.setText(self._format_altitude(gps_data.alt))
+                self.head_value.setText(self._format_heading(gps_data.head))
         
-        # Update coordinate values
-        self.lat_value.setText(self._format_coordinate(gps_data.lat, False))
-        self.lon_value.setText(self._format_coordinate(gps_data.lon, True))
-        self.alt_value.setText(self._format_altitude(gps_data.alt))
-        self.head_value.setText(self._format_heading(gps_data.head))
+        elif self.view_mode == "map" and gps_data.valid:
+            # Update map with new position
+            if self.map_widget:
+                self.map_widget.update_position(gps_data.lat, gps_data.lon)
         
         # Force widget refresh
         self.update()
@@ -469,5 +583,11 @@ class GPSDisplayWidget(QWidget):
     
     def is_gps_active(self) -> bool:
         """Return whether GPS display is currently active"""
-        return self.is_active 
+        return self.is_active
+    
+    def cleanup(self):
+        """Clean up resources when widget is destroyed"""
+        if self.map_widget:
+            self.map_widget.cleanup()
+            self.map_widget = None 
  
