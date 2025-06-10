@@ -147,7 +147,7 @@ Thumbs.db
 *.log.*
 logs/
 bvex_ground_station_*.log
-data/
+/data/
 temp/
 tmp/
 
