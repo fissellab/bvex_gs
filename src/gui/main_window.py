@@ -14,8 +14,9 @@ from PyQt6.QtGui import QFont, QIcon, QAction
 from src.gui.sky_chart_widget import SkyChartWidget
 from src.gui.gps_display_widget import GPSDisplayWidget
 from src.gui.spectra_display_widget import SpectraDisplayWidget
+from src.gui.star_camera_widget import StarCameraWidget
 from src.data.gps_client import GPSClient
-from src.config.settings import GUI, GPS_SERVER, BCP_SPECTROMETER
+from src.config.settings import GUI, GPS_SERVER, BCP_SPECTROMETER, STAR_CAMERA
 
 class MainWindow(QMainWindow):
     """Main application window for BVEX Ground Station"""
@@ -112,18 +113,18 @@ class MainWindow(QMainWindow):
     def setup_ui(self):
         """Setup the main UI layout"""
         # Set window properties first
-        self.setWindowTitle("BVEX Ground Station GUI")
+        self.setWindowTitle("BVEX Ground Station GUI with Star Camera")
         
         central_widget = QWidget()
         central_widget.setStyleSheet("QWidget { background-color: white; }")
         self.setCentralWidget(central_widget)
         
-        # Main layout - horizontal split
+        # Main layout - three-column layout
         main_layout = QHBoxLayout(central_widget)
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(15)
         
-        # Left side - Sky chart and GPS (rebalanced for better GPS visibility)
+        # Left side - Sky chart and GPS
         left_widget = QWidget()
         left_layout = QVBoxLayout(left_widget)
         left_layout.setContentsMargins(0, 0, 0, 0)
@@ -131,27 +132,35 @@ class MainWindow(QMainWindow):
         
         # Sky chart widget (smaller to make room for GPS)
         self.sky_chart_widget = SkyChartWidget()
-        self.sky_chart_widget.setMinimumSize(400, 400)  # Reduced from 500x500
-        self.sky_chart_widget.setMaximumSize(500, 500)  # Reduced from 600x600
+        self.sky_chart_widget.setMinimumSize(350, 350)
+        self.sky_chart_widget.setMaximumSize(450, 450)
         left_layout.addWidget(self.sky_chart_widget)
         
-        # GPS widget (much larger for better readability)
+        # GPS widget
         self.gps_widget = GPSDisplayWidget()
-        self.gps_widget.setMinimumHeight(350)  # Increased significantly from 250
-        self.gps_widget.setMaximumHeight(450)  # Increased significantly from 300
+        self.gps_widget.setMinimumHeight(300)
+        self.gps_widget.setMaximumHeight(400)
         left_layout.addWidget(self.gps_widget)
         
-        # Right side - Spectra display (full height)
+        # Middle - Star Camera (better aspect ratio, less vertical space)
+        self.star_camera_widget = StarCameraWidget()
+        self.star_camera_widget.setMinimumSize(520, 370)  # Slightly increased to accommodate larger fonts
+        self.star_camera_widget.setMaximumSize(750, 470)  # Increased max size as well
+        self.star_camera_widget.setMaximumWidth(750)
+        
+        # Right side - Spectra display (smaller as requested)
         self.spectra_widget = SpectraDisplayWidget()
-        self.spectra_widget.setMinimumSize(600, 400)  # Minimum size
+        self.spectra_widget.setMinimumSize(500, 400)
+        self.spectra_widget.setMaximumWidth(600)
         
-        # Add widgets to main layout with proper proportions
-        main_layout.addWidget(left_widget, 1)  # Left side gets 1 part
-        main_layout.addWidget(self.spectra_widget, 2)  # Spectra gets 2 parts (larger)
+        # Add widgets to main layout with better proportions for star camera
+        main_layout.addWidget(left_widget, 1)  # Left side gets 1 part (reduced from 2)
+        main_layout.addWidget(self.star_camera_widget, 4)  # Star camera gets 4 parts (increased from 3)
+        main_layout.addWidget(self.spectra_widget, 2)  # Spectra gets 2 parts (same)
         
-        # Set window properties
-        self.setMinimumSize(1200, 850)  # Increased height from 700 to accommodate larger GPS
-        self.resize(1400, 950)  # Increased height from 800 to give more room
+        # Set window properties - increased to accommodate star camera
+        self.setMinimumSize(1600, 850)  # Increased width from 1200 to 1600
+        self.resize(1800, 950)  # Increased width from 1400 to 1800
         
         # Setup menu bar
         self.setup_menu_bar()
@@ -198,6 +207,14 @@ class MainWindow(QMainWindow):
         refresh_spectra_action.triggered.connect(lambda: self.spectra_widget.trigger_fetch() if self.spectra_widget.is_spectrometer_active() else None)
         spectrometer_menu.addAction(refresh_spectra_action)
         
+        # Star Camera menu
+        star_camera_menu = menubar.addMenu('&Star Camera')
+        
+        # Force refresh image
+        refresh_image_action = QAction('&Refresh Image', self)
+        refresh_image_action.triggered.connect(lambda: self.star_camera_widget.request_image() if self.star_camera_widget.is_star_camera_active() else None)
+        star_camera_menu.addAction(refresh_image_action)
+        
         # Help menu
         help_menu = menubar.addMenu('&Help')
         
@@ -221,6 +238,10 @@ class MainWindow(QMainWindow):
         # Add spectrometer connection status to status bar
         self.spectrometer_status_label = self.create_status_label("Spectrometer: Disconnected")
         self.status_bar.addPermanentWidget(self.spectrometer_status_label)
+        
+        # Add star camera connection status to status bar
+        self.star_camera_status_label = self.create_status_label("Star Camera: Disconnected")
+        self.status_bar.addPermanentWidget(self.star_camera_status_label)
     
     def create_status_label(self, text):
         """Create a status label widget"""
@@ -308,6 +329,11 @@ class MainWindow(QMainWindow):
             spec_rate = self.spectra_widget.get_data_rate_kbps()
             total_rate_kbps += spec_rate
         
+        # Add star camera data rate if active
+        if self.star_camera_widget.is_star_camera_active():
+            star_rate = self.star_camera_widget.get_data_rate_kbps()
+            total_rate_kbps += star_rate
+        
         # Update data rate display
         if total_rate_kbps >= 1000:
             self.data_rate_label.setText(f"Data Rate: {total_rate_kbps/1000:.1f} MB/s")
@@ -337,6 +363,15 @@ class MainWindow(QMainWindow):
         else:
             spec_status_text = "Spectrometer: Disconnected"
         self.spectrometer_status_label.setText(spec_status_text)
+        
+        # Update star camera status
+        if not self.star_camera_widget.is_star_camera_active():
+            star_status_text = "Star Camera: Off"
+        elif self.star_camera_widget.is_connected():
+            star_status_text = "Star Camera: Connected"
+        else:
+            star_status_text = "Star Camera: Disconnected"
+        self.star_camera_status_label.setText(star_status_text)
     
     def periodic_cleanup(self):
         """Perform periodic cleanup to prevent memory buildup during long sessions"""
@@ -380,8 +415,9 @@ class MainWindow(QMainWindow):
         <ul>
         <li>GPS Server: {GPS_SERVER['host']}:{GPS_SERVER['port']}</li>
         <li>BCP Spectrometer: {BCP_SPECTROMETER['host']}:{BCP_SPECTROMETER['port']}</li>
+        <li>Star Camera: {STAR_CAMERA['host']}:{STAR_CAMERA['port']}</li>
         </ul>
-        """.format(GPS_SERVER=GPS_SERVER, BCP_SPECTROMETER=BCP_SPECTROMETER)
+        """.format(GPS_SERVER=GPS_SERVER, BCP_SPECTROMETER=BCP_SPECTROMETER, STAR_CAMERA=STAR_CAMERA)
         QMessageBox.about(self, "About BVEX Ground Station", about_text)
     
     def closeEvent(self, event):
@@ -405,6 +441,13 @@ class MainWindow(QMainWindow):
             # Spectra widget cleanup
             if hasattr(self, 'spectra_widget'):
                 self.spectra_widget.cleanup()
+            
+            # Star camera widget cleanup
+            if hasattr(self, 'star_camera_widget'):
+                self.star_camera_widget.stop_star_camera()
+                if hasattr(self.star_camera_widget, 'worker_thread'):
+                    self.star_camera_widget.worker_thread.quit()
+                    self.star_camera_widget.worker_thread.wait()
             
             # Sky chart cleanup (minimal - just stop animation if running)
             if hasattr(self, 'sky_chart_widget') and self.sky_chart_widget.is_sky_chart_active():

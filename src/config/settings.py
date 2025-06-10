@@ -19,6 +19,14 @@ BCP_SPECTROMETER = {
     'update_interval': 1.0   # 1 second = 1 Hz updates
 }
 
+# Star Camera Configuration
+STAR_CAMERA = {
+    'host': '100.85.84.122',  # Star camera system IP - update this with correct IP
+    'port': 8001,
+    'timeout': 10.0,  # Longer timeout for image transfers
+    'update_interval': 10.0   # 10 seconds between image requests due to bandwidth limits
+}
+
 # GPS Data Processing
 GPS_PROCESSING = {
     'heading_offset': 0.0,  # degrees - constant offset to add to GPS heading
@@ -35,8 +43,8 @@ OBSERVATORY = {
 
 # GUI Configuration
 GUI = {
-    'window_title': 'BVEX Ground Station with Spectrometer',
-    'window_size': (1600, 900),  # Increased window size to accommodate spectra
+    'window_title': 'BVEX Ground Station with Spectrometer and Star Camera',
+    'window_size': (1800, 950),  # Increased window size to accommodate star camera
     'update_interval': 1000,  # ms for GUI updates
     'sky_chart_size': (6, 6),  # inches - reduced from (10, 10)
     'gps_panel_width': 280,    # reduced from 350

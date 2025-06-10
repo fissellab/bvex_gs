@@ -4,7 +4,7 @@ Professional ground station GUI software for the Balloon-borne VLBI Experiment (
 
 ## Current Status
 
-The BVEX Ground Station is a fully functional PyQt6-based application that integrates multiple data sources and display systems. The software provides real-time visualization of astronomical data, GPS telemetry, and spectrometer measurements in a professional three-panel interface.
+The BVEX Ground Station is a fully functional PyQt6-based application that integrates multiple data sources and display systems. The software provides real-time visualization of astronomical data, GPS telemetry, spectrometer measurements, and star camera images in a professional four-panel interface.
 
 ## Core Features
 
@@ -35,9 +35,18 @@ The BVEX Ground Station is a fully functional PyQt6-based application that integ
 - Thread-safe UDP communication with rate limiting
 - Error handling for connection failures and data corruption
 
+### Star Camera Image Display
+- Real-time star camera image acquisition via UDP downlink protocol
+- JPEG image compression and decompression with quality control
+- Bandwidth-limited image updates (every 10 seconds at ~200 kB/s)
+- Image metadata display (dimensions, compression quality, detected stars)
+- Server status monitoring (queue size, bandwidth usage, transmission status)
+- Thread-safe image downloading with progress tracking
+- Automatic image scaling and display with scroll support
+
 ### Professional User Interface
-- Three-panel layout optimized for operational use
-- Individual component control (GPS, Sky Chart, Spectrometer)
+- Four-panel layout optimized for operational use
+- Individual component control (GPS, Sky Chart, Spectrometer, Star Camera)
 - Real-time status indicators and connection monitoring
 - Resizable interface with minimum size constraints
 - Menu system with connection controls and refresh options
@@ -61,12 +70,14 @@ bvex_gs/
 │   ├── data/
 │   │   ├── gps_client.py        # GPS UDP client with threading
 │   │   ├── bcp_spectrometer_client.py  # Spectrometer UDP client
+│   │   ├── star_camera_client.py    # Star camera UDP client
 │   │   └── __init__.py
 │   └── gui/
 │       ├── main_window.py       # Main application window
 │       ├── sky_chart_widget.py  # Astronomical sky chart display
 │       ├── gps_display_widget.py    # GPS data visualization
 │       ├── spectra_display_widget.py # Spectrometer data display
+│       ├── star_camera_widget.py    # Star camera image display
 │       └── __init__.py
 ├── main.py                      # Application entry point
 ├── requirements.txt             # Python dependencies
@@ -84,10 +95,12 @@ bvex_gs/
 - **matplotlib >= 3.6.0**: Scientific plotting for sky charts and spectra
 - **numpy >= 1.24.0**: Numerical computations and data processing
 - **astropy >= 5.2.0**: Astronomical calculations and coordinate transformations
+- **Pillow >= 9.0.0**: Image processing for star camera JPEG handling
 
 ### Network Configuration
 - **GPS Server**: UDP communication on configurable IP/port (default: 100.70.234.8:8080)
 - **BCP Spectrometer**: UDP communication on configurable IP/port (default: 100.70.234.8:8081)
+- **Star Camera**: UDP communication on configurable IP/port (default: 100.70.234.8:8001)
 - **Protocol**: Custom message formats with error handling and validation
 
 ### Data Processing
@@ -138,6 +151,13 @@ BCP_SPECTROMETER = {
     'update_interval': 1.0   # 1 Hz updates
 }
 
+# Star Camera Configuration
+STAR_CAMERA = {
+    'host': '100.70.234.8',
+    'port': 8001,
+    'update_interval': 10.0  # 10 second intervals due to bandwidth limits
+}
+
 # Observatory Location (Kingston, ON area)
 OBSERVATORY = {
     'latitude': 44.224372,
@@ -158,6 +178,7 @@ OBSERVATORY = {
 - **Sky Chart Toggle**: Turn on/off real-time astronomical display
 - **GPS Connection**: Manual connect/disconnect with automatic retry
 - **Spectrometer Toggle**: Activate spectrum acquisition and display
+- **Star Camera Toggle**: Activate image acquisition every 10 seconds
 - **Status Monitoring**: Real-time connection and data rate indicators
 
 ### Data Formats
