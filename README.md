@@ -112,24 +112,86 @@ bvex_gs/
 ## Installation and Setup
 
 ### Prerequisites
-- Python 3.8 or higher
-- pip package manager
-- Network connectivity to BVEX flight systems
+- **Python 3.8 or higher** (Python 3.9+ recommended)
+- **pip package manager** (usually included with Python)
+- **Network connectivity** to BVEX flight systems
 
-### Installation Steps
+### Quick Setup (Recommended)
+
+We **highly recommend** using a virtual environment to avoid dependency conflicts with your system Python packages.
+
+#### Option 1: Automated Setup (Easiest)
+
 ```bash
 # Clone repository
 git clone [repository-url]
 cd bvex_gs
 
+# Run automated setup script
+./setup.sh
+```
+
+The automated script will:
+- ✅ Check Python version compatibility
+- ✅ Create a virtual environment (`venv/`)
+- ✅ Install all dependencies automatically
+- ✅ Provide clear next steps
+
+#### Option 2: Manual Setup
+
+```bash
+# Clone repository
+git clone [repository-url]
+cd bvex_gs
+
+# Create virtual environment
+python3 -m venv venv
+
+# Activate virtual environment
+source venv/bin/activate
+
+# Upgrade pip
+pip install --upgrade pip
+
 # Install dependencies
 pip install -r requirements.txt
 
-# Configure settings
-# Edit src/config/settings.py for your network configuration
-
 # Run application
 python main.py
+```
+
+### Daily Usage
+
+After initial setup, to run the application:
+
+```bash
+cd bvex_gs
+source venv/bin/activate  # Activate virtual environment
+python main.py            # Run application
+deactivate                # When done (optional)
+```
+
+
+### Virtual Environment Management
+
+**Check if virtual environment is active:**
+- Your terminal prompt should show `(venv)` at the beginning
+- Run `which python` - it should point to the venv directory
+
+**Deactivate virtual environment:**
+```bash
+deactivate
+```
+
+**Remove virtual environment (if needed):**
+```bash
+rm -rf venv
+```
+
+**Recreate virtual environment:**
+```bash
+# Just run the setup script again
+./setup.sh
 ```
 
 ### Configuration
@@ -218,11 +280,47 @@ gps_lat:44.224372,gps_lon:-76.498007,gps_alt:100.0,gps_head:270.0
 
 ## Troubleshooting
 
-### Common Issues
+### Common Installation Issues
+
+**1. Python Version Problems:**
+```bash
+# Check your Python version
+python3 --version
+
+# If version is < 3.8, install newer Python
+```
+
+**2. Virtual Environment Activation Issues:**
+```bash
+# If activation fails, try:
+python3 -m venv --clear venv
+source venv/bin/activate
+```
+
+**3. Permission Errors:**
+```bash
+# If setup.sh won't run
+chmod +x setup.sh
+./setup.sh
+```
+
+**4. PyQt6 Installation Issues:**
+```bash
+# If PyQt6 fails to install, try:
+pip install --upgrade pip setuptools wheel
+pip install PyQt6
+```
+
+**5. "Module not found" errors:**
+- Make sure virtual environment is activated (you should see `(venv)` in your prompt)
+- Re-run the setup script to ensure all dependencies are installed
+
+### Common Runtime Issues
 1. **GPS Connection Failures**: Verify network connectivity and server IP/port configuration
-2. **Spectrometer Data Issues**: Check spectrometer server status and request rate limits
+2. **Spectrometer Data Issues**: Check spectrometer server status and request rate limits  
 3. **Sky Chart Performance**: Adjust update intervals for system performance
-4. **Display Issues**: Ensure proper PyQt6 installation and graphics drivers
+4. **Star Camera Connection**: Verify Ophiuchus server is running on 100.85.84.122:8002
+5. **Display Issues**: Ensure proper PyQt6 installation and graphics drivers
 
 ### Debug Information
 - Application logging provides detailed operational information
