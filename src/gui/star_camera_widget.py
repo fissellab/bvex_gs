@@ -276,8 +276,8 @@ class StarCameraWidget(QWidget):
         self.connection_status_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
         
         self.server_info_label = QLabel("Server: 100.85.84.122:8001")
-        self.server_info_label.setFont(QFont("Arial", 9))
-        self.server_info_label.setStyleSheet("QLabel { color: #666; }")
+        self.server_info_label.setFont(QFont("Arial", 10))  # Increased font size
+        self.server_info_label.setStyleSheet("QLabel { color: #000000; }")  # Changed to black
         
         info_layout.addWidget(self.connection_status_label)
         info_layout.addStretch()
@@ -297,12 +297,12 @@ class StarCameraWidget(QWidget):
         
         self.image_scroll_area = QScrollArea()
         self.image_scroll_area.setWidgetResizable(True)
-        self.image_scroll_area.setMinimumHeight(250)
-        self.image_scroll_area.setMaximumHeight(350)
+        self.image_scroll_area.setMinimumHeight(300)  # Increased from 250 to 300
+        self.image_scroll_area.setMaximumHeight(420)  # Increased from 350 to 420
         
         self.image_label = QLabel("Loading...")
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.image_label.setMinimumSize(400, 250)
+        self.image_label.setMinimumSize(400, 300)  # Increased from 250 to 300
         self.image_label.setStyleSheet("""
             QLabel {
                 border: 1px solid #dee2e6;
@@ -330,18 +330,18 @@ class StarCameraWidget(QWidget):
         
         image_info_title = QLabel("Image Info")
         image_info_title.setFont(QFont("Arial", 12, QFont.Weight.Bold))  # Increased from 10 to 12
-        image_info_title.setStyleSheet("QLabel { color: #333; }")
+        image_info_title.setStyleSheet("QLabel { color: #000000; }")  # Changed to black
         image_info_layout.addWidget(image_info_title)
         
         self.image_info_label = QLabel("No image")
-        self.image_info_label.setFont(QFont("Arial", 10))  # Increased from 8 to 10
+        self.image_info_label.setFont(QFont("Arial", 11))  # Increased font size again
         self.image_info_label.setWordWrap(True)
-        self.image_info_label.setStyleSheet("QLabel { color: #333; }")
+        self.image_info_label.setStyleSheet("QLabel { color: #000000; }")  # Changed to black
         image_info_layout.addWidget(self.image_info_label)
         
         self.next_update_label = QLabel("Next update: Soon")
-        self.next_update_label.setFont(QFont("Arial", 10))  # Increased from 8 to 10
-        self.next_update_label.setStyleSheet("QLabel { color: #666; }")
+        self.next_update_label.setFont(QFont("Arial", 11))  # Increased font size
+        self.next_update_label.setStyleSheet("QLabel { color: #000000; }")  # Changed to black
         image_info_layout.addWidget(self.next_update_label)
         
         status_layout.addWidget(image_info_group)
@@ -349,22 +349,22 @@ class StarCameraWidget(QWidget):
         # Server status (no frame, just labels)
         server_status_title = QLabel("Server Status")
         server_status_title.setFont(QFont("Arial", 12, QFont.Weight.Bold))  # Increased from 10 to 12
-        server_status_title.setStyleSheet("QLabel { color: #333; }")
+        server_status_title.setStyleSheet("QLabel { color: #000000; }")  # Changed to black
         status_layout.addWidget(server_status_title)
         
-        self.download_progress_label = QLabel("Download: Ready")
-        self.download_progress_label.setFont(QFont("Arial", 10))  # Increased from 8 to 10
-        self.download_progress_label.setStyleSheet("QLabel { color: #333; }")
+        self.download_progress_label = QLabel("Download: Complete")
+        self.download_progress_label.setFont(QFont("Arial", 11))  # Increased font size
+        self.download_progress_label.setStyleSheet("QLabel { color: #000000; }")  # Changed to black
         status_layout.addWidget(self.download_progress_label)
         
         self.bandwidth_label = QLabel("Bandwidth: 0 kbps")
-        self.bandwidth_label.setFont(QFont("Arial", 10))  # Increased from 8 to 10
-        self.bandwidth_label.setStyleSheet("QLabel { color: #333; }")
+        self.bandwidth_label.setFont(QFont("Arial", 11))  # Increased font size
+        self.bandwidth_label.setStyleSheet("QLabel { color: #000000; }")  # Changed to black
         status_layout.addWidget(self.bandwidth_label)
         
-        self.queue_label = QLabel("Queue: 0 images")
-        self.queue_label.setFont(QFont("Arial", 10))  # Increased from 8 to 10
-        self.queue_label.setStyleSheet("QLabel { color: #333; }")
+        self.queue_label = QLabel("Queue: 1 images")
+        self.queue_label.setFont(QFont("Arial", 11))  # Increased font size
+        self.queue_label.setStyleSheet("QLabel { color: #000000; }")  # Changed to black
         status_layout.addWidget(self.queue_label)
         
         status_layout.addStretch()  # Push everything to top

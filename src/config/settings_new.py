@@ -11,13 +11,13 @@ GPS_SERVER = {
     'update_interval': 1.0  # 1 second between requests (1 Hz)
 }
 
-# Ophiuchus Server Configuration
 OPH_SERVER = {
     'host': '100.85.84.122',
     'port': 8002,  # You'll need to verify this port
     'timeout': 5.0,
     'update_interval': 1.0  # 1 second between requests (1 Hz)
 }
+
 
 # BCP Spectrometer Configuration
 BCP_SPECTROMETER = {

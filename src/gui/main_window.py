@@ -7,7 +7,7 @@ import sys
 import logging
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QHBoxLayout, QVBoxLayout, 
                              QWidget, QMenuBar, QStatusBar, QSplitter,
-                             QMessageBox)
+                             QMessageBox, QSizePolicy)
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QIcon, QAction
 
@@ -15,6 +15,7 @@ from src.gui.sky_chart_widget import SkyChartWidget
 from src.gui.gps_display_widget import GPSDisplayWidget
 from src.gui.spectra_display_widget import SpectraDisplayWidget
 from src.gui.star_camera_widget import StarCameraWidget
+from src.gui.star_camera_status_widget import StarCameraStatusWidget
 from src.data.gps_client import GPSClient
 from src.config.settings import GUI, GPS_SERVER, BCP_SPECTROMETER, STAR_CAMERA
 
@@ -121,19 +122,19 @@ class MainWindow(QMainWindow):
         
         # Main layout - three-column layout
         main_layout = QHBoxLayout(central_widget)
-        main_layout.setContentsMargins(10, 10, 10, 10)
-        main_layout.setSpacing(15)
+        main_layout.setContentsMargins(10, 10, 10, 10)  # Reduced margins to use space efficiently
+        main_layout.setSpacing(15)  # Reduced spacing for better space utilization
         
         # Left side - Sky chart and GPS
         left_widget = QWidget()
         left_layout = QVBoxLayout(left_widget)
-        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setContentsMargins(15, 0, 5, 0)  # Increased left margin to prevent title cutoff
         left_layout.setSpacing(10)
         
-        # Sky chart widget (smaller to make room for GPS)
+        # Sky chart widget (increased width to prevent title cutoff)
         self.sky_chart_widget = SkyChartWidget()
-        self.sky_chart_widget.setMinimumSize(350, 350)
-        self.sky_chart_widget.setMaximumSize(450, 450)
+        self.sky_chart_widget.setMinimumSize(380, 350)  # Increased width to accommodate full title
+        self.sky_chart_widget.setMaximumSize(480, 450)  # Increased max width accordingly
         left_layout.addWidget(self.sky_chart_widget)
         
         # GPS widget
@@ -142,25 +143,46 @@ class MainWindow(QMainWindow):
         self.gps_widget.setMaximumHeight(400)
         left_layout.addWidget(self.gps_widget)
         
-        # Middle - Star Camera (better aspect ratio, less vertical space)
+        # Middle - Star Camera section (image and status)
+        star_camera_container = QWidget()
+        star_camera_layout = QVBoxLayout(star_camera_container)
+        star_camera_layout.setContentsMargins(5, 0, 5, 0)  # Minimal margins for efficient space usage
+        star_camera_layout.setSpacing(5)
+        
+        # Star camera image widget (increased height for better aspect ratio)
         self.star_camera_widget = StarCameraWidget()
-        self.star_camera_widget.setMinimumSize(520, 370)  # Slightly increased to accommodate larger fonts
-        self.star_camera_widget.setMaximumSize(750, 470)  # Increased max size as well
-        self.star_camera_widget.setMaximumWidth(750)
+        self.star_camera_widget.setMinimumSize(520, 350)  # Further increased height to accommodate metadata
+        self.star_camera_widget.setMaximumSize(700, 450)  # Further increased max height 
+        star_camera_layout.addWidget(self.star_camera_widget, 0, Qt.AlignmentFlag.AlignCenter)  # Center align
         
-        # Right side - Spectra display (smaller as requested)
+        # Star camera status widget (new telemetry display)
+        self.star_camera_status_widget = StarCameraStatusWidget()
+        self.star_camera_status_widget.setMinimumSize(600, 280)  # Slightly reduced to balance with image widget
+        self.star_camera_status_widget.setMaximumSize(700, 350)  # Reduced max height for better proportion
+        star_camera_layout.addWidget(self.star_camera_status_widget, 0, Qt.AlignmentFlag.AlignCenter)  # Center align
+        
+        # Right side - Spectra display in a container for top alignment
+        spectra_container = QWidget()
+        spectra_layout = QVBoxLayout(spectra_container)
+        spectra_layout.setContentsMargins(5, 0, 5, 0)
+        spectra_layout.setSpacing(0)
+        
         self.spectra_widget = SpectraDisplayWidget()
-        self.spectra_widget.setMinimumSize(500, 400)
-        self.spectra_widget.setMaximumWidth(600)
+        self.spectra_widget.setMinimumSize(450, 300)  # Reduced height for better proportion
+        self.spectra_widget.setMaximumSize(550, 650)  # Set both width and height limits
         
-        # Add widgets to main layout with better proportions for star camera
-        main_layout.addWidget(left_widget, 1)  # Left side gets 1 part (reduced from 2)
-        main_layout.addWidget(self.star_camera_widget, 4)  # Star camera gets 4 parts (increased from 3)
-        main_layout.addWidget(self.spectra_widget, 2)  # Spectra gets 2 parts (same)
+        # Add spectra widget to top of container
+        spectra_layout.addWidget(self.spectra_widget, 0, Qt.AlignmentFlag.AlignTop)
+        spectra_layout.addStretch()  # Add stretch at bottom to push spectra to top
         
-        # Set window properties - increased to accommodate star camera
-        self.setMinimumSize(1600, 850)  # Increased width from 1200 to 1600
-        self.resize(1800, 950)  # Increased width from 1400 to 1800
+        # Add widgets to main layout with more efficient space usage
+        main_layout.addWidget(left_widget, 3)  # Left side gets 3 parts
+        main_layout.addWidget(star_camera_container, 5)  # Star camera section gets 5 parts
+        main_layout.addWidget(spectra_container, 3)  # Spectra container gets 3 parts - no stretch spaces
+        
+        # Set window properties - balanced height for all widgets
+        self.setMinimumSize(1600, 950)  # Reduced height to match shorter spectrometer
+        self.resize(1800, 1000)  # Reduced height for better overall balance
         
         # Setup menu bar
         self.setup_menu_bar()
@@ -215,6 +237,11 @@ class MainWindow(QMainWindow):
         refresh_image_action.triggered.connect(lambda: self.star_camera_widget.request_image() if self.star_camera_widget.is_star_camera_active() else None)
         star_camera_menu.addAction(refresh_image_action)
         
+        # Force refresh status
+        refresh_status_action = QAction('&Refresh Status', self)
+        refresh_status_action.triggered.connect(lambda: self.star_camera_status_widget.update_display() if self.star_camera_status_widget.is_star_camera_status_active() else None)
+        star_camera_menu.addAction(refresh_status_action)
+        
         # Help menu
         help_menu = menubar.addMenu('&Help')
         
@@ -242,6 +269,10 @@ class MainWindow(QMainWindow):
         # Add star camera connection status to status bar
         self.star_camera_status_label = self.create_status_label("Star Camera: Disconnected")
         self.status_bar.addPermanentWidget(self.star_camera_status_label)
+        
+        # Add star camera telemetry status to status bar
+        self.star_camera_telemetry_status_label = self.create_status_label("SC Telemetry: Disconnected")
+        self.status_bar.addPermanentWidget(self.star_camera_telemetry_status_label)
     
     def create_status_label(self, text):
         """Create a status label widget"""
@@ -334,6 +365,11 @@ class MainWindow(QMainWindow):
             star_rate = self.star_camera_widget.get_data_rate_kbps()
             total_rate_kbps += star_rate
         
+        # Add star camera telemetry data rate if active
+        if self.star_camera_status_widget.is_star_camera_status_active():
+            telemetry_rate = self.star_camera_status_widget.oph_client.get_data_rate_kbps()
+            total_rate_kbps += telemetry_rate
+        
         # Update data rate display
         if total_rate_kbps >= 1000:
             self.data_rate_label.setText(f"Data Rate: {total_rate_kbps/1000:.1f} MB/s")
@@ -372,6 +408,19 @@ class MainWindow(QMainWindow):
         else:
             star_status_text = "Star Camera: Disconnected"
         self.star_camera_status_label.setText(star_status_text)
+        
+        # Update star camera telemetry status
+        if not self.star_camera_status_widget.is_star_camera_status_active():
+            telemetry_status_text = "SC Telemetry: Off"
+        elif self.star_camera_status_widget.is_connected():
+            current_data = self.star_camera_status_widget.get_current_data()
+            if current_data.valid:
+                telemetry_status_text = f"SC Telemetry: Connected (RA: {current_data.sc_ra:.2f}°)"
+            else:
+                telemetry_status_text = "SC Telemetry: Connected (No Data)"
+        else:
+            telemetry_status_text = "SC Telemetry: Disconnected"
+        self.star_camera_telemetry_status_label.setText(telemetry_status_text)
     
     def periodic_cleanup(self):
         """Perform periodic cleanup to prevent memory buildup during long sessions"""
@@ -448,6 +497,12 @@ class MainWindow(QMainWindow):
                 if hasattr(self.star_camera_widget, 'worker_thread'):
                     self.star_camera_widget.worker_thread.quit()
                     self.star_camera_widget.worker_thread.wait()
+            
+            # Star camera status widget cleanup
+            if hasattr(self, 'star_camera_status_widget'):
+                self.star_camera_status_widget.stop_star_camera_status()
+                if hasattr(self.star_camera_status_widget, 'oph_client'):
+                    self.star_camera_status_widget.oph_client.cleanup()
             
             # Sky chart cleanup (minimal - just stop animation if running)
             if hasattr(self, 'sky_chart_widget') and self.sky_chart_widget.is_sky_chart_active():
