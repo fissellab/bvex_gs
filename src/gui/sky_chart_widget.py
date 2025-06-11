@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import matplotlib.animation as animation
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QCheckBox
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 
@@ -19,6 +19,7 @@ import datetime as dt
 import logging
 
 from src.config.settings import OBSERVATORY, CELESTIAL_OBJECTS, GUI
+from src.data.Oph_client import OphClient, OphData
 
 class SkyChartWidget(QWidget):
     """Widget displaying real-time sky chart"""
@@ -34,6 +35,12 @@ class SkyChartWidget(QWidget):
         # Control state
         self.is_active = False
         self.ani = None
+        
+        # Star camera data for crosshair
+        self.star_camera_data = OphData()
+        
+        # Coordinate system toggle for crosshair
+        self.use_az_alt_coordinates = False  # False = RA/DEC, True = Az/Alt
         
         self.setup_ui()
         self.setup_static_display()
@@ -69,6 +76,41 @@ class SkyChartWidget(QWidget):
         """)
         
         control_layout.addWidget(self.status_label)
+        
+        # Coordinate system toggle for crosshair - make it more prominent
+        self.coord_checkbox = QCheckBox("Use Az/Alt for Crosshair")
+        self.coord_checkbox.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+        self.coord_checkbox.setStyleSheet("""
+            QCheckBox {
+                color: #333333;
+                spacing: 8px;
+                background-color: #f0f0f0;
+                padding: 4px 8px;
+                border-radius: 4px;
+                border: 1px solid #cccccc;
+            }
+            QCheckBox::indicator {
+                width: 16px;
+                height: 16px;
+            }
+            QCheckBox::indicator:unchecked {
+                border: 2px solid #666666;
+                background-color: white;
+                border-radius: 3px;
+            }
+            QCheckBox::indicator:checked {
+                border: 2px solid #007ACC;
+                background-color: #007ACC;
+                border-radius: 3px;
+            }
+            QCheckBox::indicator:checked:pressed {
+                background-color: #005A9E;
+            }
+        """)
+        self.coord_checkbox.setToolTip("Toggle between RA/DEC and Azimuth/Altitude coordinates for star camera crosshair")
+        self.coord_checkbox.stateChanged.connect(self.toggle_coordinate_system)
+        control_layout.addWidget(self.coord_checkbox)
+        
         control_layout.addStretch()
         control_layout.addWidget(self.toggle_button)
         
@@ -213,12 +255,23 @@ class SkyChartWidget(QWidget):
         # Draw observation targets
         self._draw_targets(tel_frame)
         
+        # Draw star camera crosshair
+        self._draw_star_camera_crosshair(tel_frame)
+        
         # Configure plot appearance
         self._configure_plot(t_utc)
     
     def set_gps_data(self, gps_data):
         """Set GPS data for heading display"""
         self.current_gps_data = gps_data
+    
+    def set_star_camera_data(self, oph_data: OphData):
+        """Set star camera data for crosshair display"""
+        self.star_camera_data = oph_data
+    
+    def toggle_coordinate_system(self, state):
+        """Toggle between RA/DEC and Az/Alt coordinate systems for crosshair"""
+        self.use_az_alt_coordinates = state == Qt.CheckState.Checked.value
     
     def is_sky_chart_active(self) -> bool:
         """Return whether sky chart is currently active"""
@@ -329,6 +382,65 @@ class SkyChartWidget(QWidget):
             self.ax.annotate('W49N', xy=((W49N_AltAz.az.deg + 1) * np.pi / 180, W49N_AltAz.alt.deg + 1), 
                            size=11, color='green', weight='bold')
     
+    def _draw_star_camera_crosshair(self, tel_frame):
+        """Draw crosshair showing star camera pointing direction"""
+        if not self.star_camera_data.valid:
+            return
+            
+        try:
+            if self.use_az_alt_coordinates:
+                # Use Az/Alt coordinates directly from star camera
+                sc_az = self.star_camera_data.sc_az  # degrees
+                sc_alt = self.star_camera_data.sc_alt  # degrees (altitude/elevation)
+                
+                # Use star camera Az/Alt directly (no coordinate transformation needed)
+                az_rad = sc_az * np.pi / 180
+                alt_deg = sc_alt
+                
+            else:
+                # Use RA/DEC coordinates (original implementation)
+                sc_ra = self.star_camera_data.sc_ra  # degrees
+                sc_dec = self.star_camera_data.sc_dec  # degrees
+                
+                # Note: We plot even if RA/DEC are zero (no solution) as requested
+                    
+                # Create sky coordinate from star camera RA/DEC
+                star_camera_coord = SkyCoord(ra=sc_ra * u.degree, dec=sc_dec * u.degree)
+                
+                # Transform to Alt/Az
+                star_camera_altaz = star_camera_coord.transform_to(tel_frame)
+                
+                az_rad = star_camera_altaz.az.deg * np.pi / 180
+                alt_deg = star_camera_altaz.alt.deg
+            
+            # Only draw if above horizon
+            if alt_deg > 0:
+                # Draw crosshair - simple cross design
+                crosshair_size = 3.0  # degrees
+                
+                # Vertical line of crosshair
+                self.ax.plot([az_rad, az_rad], 
+                            [max(0, alt_deg - crosshair_size), 
+                             min(90, alt_deg + crosshair_size)], 
+                            'r-', linewidth=2, alpha=0.8)
+                
+                # Horizontal line of crosshair (approximate in polar coordinates)
+                # For small angles, we can approximate the horizontal line
+                az_offset = crosshair_size / np.cos(np.deg2rad(90 - alt_deg)) if alt_deg < 87 else crosshair_size
+                az_left = az_rad - np.deg2rad(az_offset)
+                az_right = az_rad + np.deg2rad(az_offset)
+                
+                self.ax.plot([az_left, az_right], 
+                            [alt_deg, alt_deg], 
+                            'r-', linewidth=2, alpha=0.8)
+                
+                # Add center dot
+                self.ax.plot(az_rad, alt_deg, 'ro', markersize=4, alpha=0.9)
+                               
+        except Exception as e:
+            # Silently skip if coordinate transformation fails
+            pass
+
     def _configure_plot(self, time_utc):
         """Configure plot appearance - EXACT settings from original bvex_pointing.py"""
         self.ax.set_rlim(90, 0)  # EXACT from original

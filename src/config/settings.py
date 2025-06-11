@@ -54,7 +54,7 @@ GUI = {
     'window_title': 'BVEX Ground Station with Spectrometer and Star Camera',
     'window_size': (1800, 950),  # Increased window size to accommodate star camera
     'update_interval': 1000,  # ms for GUI updates
-    'sky_chart_size': (6, 6),  # inches - reduced from (10, 10)
+    'sky_chart_size': (10, 10),  # inches - increased for better visibility
     'gps_panel_width': 280,    # reduced from 350
     'spectra_panel_size': (8, 6)  # inches for spectra plot
 }

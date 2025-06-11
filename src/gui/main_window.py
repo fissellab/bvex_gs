@@ -15,7 +15,7 @@ from src.gui.sky_chart_widget import SkyChartWidget
 from src.gui.gps_display_widget import GPSDisplayWidget
 from src.gui.spectra_display_widget import SpectraDisplayWidget
 from src.gui.star_camera_widget import StarCameraWidget
-from src.gui.star_camera_status_widget import StarCameraStatusWidget
+# from src.gui.star_camera_status_widget import StarCameraStatusWidget  # No longer needed
 from src.data.gps_client import GPSClient
 from src.config.settings import GUI, GPS_SERVER, BCP_SPECTROMETER, STAR_CAMERA
 
@@ -131,10 +131,10 @@ class MainWindow(QMainWindow):
         left_layout.setContentsMargins(15, 0, 5, 0)  # Increased left margin to prevent title cutoff
         left_layout.setSpacing(10)
         
-        # Sky chart widget (increased width to prevent title cutoff)
+        # Sky chart widget (increased size for better visibility)
         self.sky_chart_widget = SkyChartWidget()
-        self.sky_chart_widget.setMinimumSize(380, 350)  # Increased width to accommodate full title
-        self.sky_chart_widget.setMaximumSize(480, 450)  # Increased max width accordingly
+        self.sky_chart_widget.setMinimumSize(500, 450)  # Larger minimum size
+        self.sky_chart_widget.setMaximumSize(650, 600)  # Larger maximum size
         left_layout.addWidget(self.sky_chart_widget)
         
         # GPS widget
@@ -149,17 +149,11 @@ class MainWindow(QMainWindow):
         star_camera_layout.setContentsMargins(5, 0, 5, 0)  # Minimal margins for efficient space usage
         star_camera_layout.setSpacing(5)
         
-        # Star camera image widget (increased height for better aspect ratio)
+        # Star camera widget (now includes both image and telemetry)
         self.star_camera_widget = StarCameraWidget()
-        self.star_camera_widget.setMinimumSize(520, 350)  # Further increased height to accommodate metadata
-        self.star_camera_widget.setMaximumSize(700, 450)  # Further increased max height 
-        star_camera_layout.addWidget(self.star_camera_widget, 0, Qt.AlignmentFlag.AlignCenter)  # Center align
-        
-        # Star camera status widget (new telemetry display)
-        self.star_camera_status_widget = StarCameraStatusWidget()
-        self.star_camera_status_widget.setMinimumSize(600, 280)  # Slightly reduced to balance with image widget
-        self.star_camera_status_widget.setMaximumSize(700, 350)  # Reduced max height for better proportion
-        star_camera_layout.addWidget(self.star_camera_status_widget, 0, Qt.AlignmentFlag.AlignCenter)  # Center align
+        self.star_camera_widget.setMinimumSize(560, 680)  # Further increased to eliminate scroll bars completely
+        self.star_camera_widget.setMaximumSize(640, 750)  # Increased max size
+        star_camera_layout.addWidget(self.star_camera_widget, 0, Qt.AlignmentFlag.AlignTop)  # Top align like other widgets
         
         # Right side - Spectra display in a container for top alignment
         spectra_container = QWidget()
@@ -168,8 +162,8 @@ class MainWindow(QMainWindow):
         spectra_layout.setSpacing(0)
         
         self.spectra_widget = SpectraDisplayWidget()
-        self.spectra_widget.setMinimumSize(450, 300)  # Reduced height for better proportion
-        self.spectra_widget.setMaximumSize(550, 650)  # Set both width and height limits
+        self.spectra_widget.setMinimumSize(500, 400)  # Increased size for better visibility
+        self.spectra_widget.setMaximumSize(600, 750)  # Increased limits for larger display
         
         # Add spectra widget to top of container
         spectra_layout.addWidget(self.spectra_widget, 0, Qt.AlignmentFlag.AlignTop)
@@ -339,6 +333,11 @@ class MainWindow(QMainWindow):
         # Update sky chart with GPS data for heading display
         self.sky_chart_widget.set_gps_data(gps_data)
         
+        # Update sky chart with star camera data for crosshair
+        if self.star_camera_widget.is_star_camera_active():
+            star_camera_data = self.star_camera_widget.get_current_telemetry()
+            self.sky_chart_widget.set_star_camera_data(star_camera_data)
+        
         # # Update sky chart location if GPS data is valid
         # # NOTE: This is disabled as per user request to always use the hardcoded
         # # observatory location from the settings file.
@@ -365,10 +364,7 @@ class MainWindow(QMainWindow):
             star_rate = self.star_camera_widget.get_data_rate_kbps()
             total_rate_kbps += star_rate
         
-        # Add star camera telemetry data rate if active
-        if self.star_camera_status_widget.is_star_camera_status_active():
-            telemetry_rate = self.star_camera_status_widget.oph_client.get_data_rate_kbps()
-            total_rate_kbps += telemetry_rate
+        # Star camera widget now includes telemetry, so no separate telemetry rate needed
         
         # Update data rate display
         if total_rate_kbps >= 1000:
@@ -409,17 +405,15 @@ class MainWindow(QMainWindow):
             star_status_text = "Star Camera: Disconnected"
         self.star_camera_status_label.setText(star_status_text)
         
-        # Update star camera telemetry status
-        if not self.star_camera_status_widget.is_star_camera_status_active():
-            telemetry_status_text = "SC Telemetry: Off"
-        elif self.star_camera_status_widget.is_connected():
-            current_data = self.star_camera_status_widget.get_current_data()
-            if current_data.valid:
-                telemetry_status_text = f"SC Telemetry: Connected (RA: {current_data.sc_ra:.2f}°)"
-            else:
-                telemetry_status_text = "SC Telemetry: Connected (No Data)"
+        # Star camera now includes telemetry - show combined status
+        if not self.star_camera_widget.is_star_camera_active():
+            telemetry_status_text = "SC Combined: Off"
         else:
-            telemetry_status_text = "SC Telemetry: Disconnected"
+            current_data = self.star_camera_widget.get_current_telemetry()
+            if current_data.valid:
+                telemetry_status_text = f"SC Combined: Active (RA: {current_data.sc_ra:.2f}°)"
+            else:
+                telemetry_status_text = "SC Combined: Active (No Telemetry)"
         self.star_camera_telemetry_status_label.setText(telemetry_status_text)
     
     def periodic_cleanup(self):
@@ -498,11 +492,7 @@ class MainWindow(QMainWindow):
                     self.star_camera_widget.worker_thread.quit()
                     self.star_camera_widget.worker_thread.wait()
             
-            # Star camera status widget cleanup
-            if hasattr(self, 'star_camera_status_widget'):
-                self.star_camera_status_widget.stop_star_camera_status()
-                if hasattr(self.star_camera_status_widget, 'oph_client'):
-                    self.star_camera_status_widget.oph_client.cleanup()
+            # Star camera widget now handles its own telemetry cleanup
             
             # Sky chart cleanup (minimal - just stop animation if running)
             if hasattr(self, 'sky_chart_widget') and self.sky_chart_widget.is_sky_chart_active():

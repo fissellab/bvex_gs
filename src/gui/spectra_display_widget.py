@@ -274,6 +274,10 @@ class SpectraDisplayWidget(QWidget):
         self.ax_spectrum.set_xlabel("Frequency (GHz)", fontsize=12)
         self.ax_spectrum.set_ylabel("Power (dB)", fontsize=12)
         self.ax_spectrum.grid(True, alpha=0.3)
+        
+        # Rotate x-axis labels to prevent overlapping
+        self.ax_spectrum.tick_params(axis='x', labelrotation=45, labelsize=9)
+        
         self.ax_spectrum.text(0.5, 0.5, 'Click "Turn ON" to start\nspectrum data acquisition', 
                               horizontalalignment='center', verticalalignment='center',
                               transform=self.ax_spectrum.transAxes, fontsize=16, color='gray', weight='bold')
@@ -288,6 +292,9 @@ class SpectraDisplayWidget(QWidget):
                           horizontalalignment='center', verticalalignment='center',
                           transform=self.ax_power.transAxes, fontsize=12, color='gray')
         
+        # Ensure proper spacing between subplots to accommodate rotated labels
+        self.figure.subplots_adjust(bottom=0.15, hspace=0.4)
+        
         self.canvas.draw()
     
     def setup_active_display(self):
@@ -298,6 +305,10 @@ class SpectraDisplayWidget(QWidget):
         self.ax_spectrum.set_xlabel("Frequency (GHz)", fontsize=12)
         self.ax_spectrum.set_ylabel("Power (dB)", fontsize=12)
         self.ax_spectrum.grid(True, alpha=0.3)
+        
+        # Rotate x-axis labels to prevent overlapping
+        self.ax_spectrum.tick_params(axis='x', labelrotation=45, labelsize=9)
+        
         self.ax_spectrum.text(0.5, 0.5, 'Waiting for spectrum data...', 
                               horizontalalignment='center', verticalalignment='center',
                               transform=self.ax_spectrum.transAxes, fontsize=14, color='gray')
@@ -308,6 +319,9 @@ class SpectraDisplayWidget(QWidget):
         self.ax_power.set_xlabel("Time", fontsize=10)
         self.ax_power.set_ylabel("Power (dB)", fontsize=10)
         self.ax_power.grid(True, alpha=0.3)
+        
+        # Ensure proper spacing between subplots to accommodate rotated labels
+        self.figure.subplots_adjust(bottom=0.15, hspace=0.4)
         
         self.canvas.draw()
     
@@ -460,6 +474,12 @@ class SpectraDisplayWidget(QWidget):
         self.ax_spectrum.set_xlabel("Frequency (GHz)", fontsize=11)
         self.ax_spectrum.set_ylabel("Power (dB arb.)", fontsize=11)
         self.ax_spectrum.grid(True, alpha=0.3, linestyle='--')
+        
+        # Rotate x-axis labels to prevent overlapping
+        self.ax_spectrum.tick_params(axis='x', labelrotation=45, labelsize=9)
+        
+        # Ensure proper spacing between subplots to accommodate rotated labels
+        self.figure.subplots_adjust(bottom=0.15, hspace=0.4)
         
         # Dynamic Y-axis for spectrum - different logic for STANDARD vs 120KHZ
         if self.spectrum_data.type == 'STANDARD':
