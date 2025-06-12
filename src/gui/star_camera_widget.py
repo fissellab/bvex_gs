@@ -13,6 +13,7 @@ import datetime as dt
 from collections import deque
 import logging
 import io
+import time
 
 from src.data.star_camera_client import StarCameraClient, StarCameraImage
 from src.data.Oph_client import OphClient, OphData
@@ -593,33 +594,44 @@ class StarCameraWidget(QWidget):
         self.update_status_labels()
     
     def display_image(self, star_image: StarCameraImage):
-        """Display the star camera image"""
+        """Display the star camera image - RAW, no processing"""
         try:
-            # Convert image data to QPixmap
+            self.logger.info(f"Displaying raw image: {len(star_image.image_data)} bytes, {star_image.width}x{star_image.height}")
+            
+            # Convert image data to PIL Image - NO PROCESSING
             pil_image = Image.open(io.BytesIO(star_image.image_data))
+            self.logger.info(f"PIL image opened: mode={pil_image.mode}, size={pil_image.size}")
             
-            # Convert PIL image to QImage
-            if pil_image.mode == 'RGB':
-                rgb_image = pil_image
-            else:
-                rgb_image = pil_image.convert('RGB')
+            # Convert PIL image to bytes and load as QPixmap directly - NO ENHANCEMENT
+            img_buffer = io.BytesIO()
+            pil_image.save(img_buffer, format='PNG')
+            img_buffer.seek(0)
+            
+            # Load as QPixmap directly
+            pixmap = QPixmap()
+            if pixmap.loadFromData(img_buffer.getvalue()):
+                self.logger.info(f"QPixmap loaded: {pixmap.width()}x{pixmap.height()}")
                 
-            h, w, ch = np.array(rgb_image).shape
-            bytes_per_line = ch * w
-            qt_image = QImage(np.array(rgb_image).data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
-            
-            # Scale image to fit the larger layout without scroll bars
-            pixmap = QPixmap.fromImage(qt_image)
-            # Use larger dimensions that will definitely fit without scroll bars
-            scaled_pixmap = pixmap.scaled(510, 420, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-            
-            self.image_label.setPixmap(scaled_pixmap)
-            self.image_label.setText("")  # Clear text
-            
-            self.download_progress_label.setText("Download: Complete")
+                # Scale to fit display area
+                scaled_pixmap = pixmap.scaled(
+                    510, 420, 
+                    Qt.AspectRatioMode.KeepAspectRatio, 
+                    Qt.TransformationMode.SmoothTransformation
+                )
+                
+                # Display the raw image
+                self.image_label.setPixmap(scaled_pixmap)
+                self.image_label.setText("")
+                self.download_progress_label.setText("Download: Complete")
+                self.logger.info("Raw image display successful")
+                
+            else:
+                self.logger.error("Failed to load image as QPixmap")
+                self.image_label.setText("Error: Failed to load image")
+                self.download_progress_label.setText("Download: Display error")
             
         except Exception as e:
-            self.logger.error(f"Error displaying image: {e}")
+            self.logger.error(f"Error displaying image: {e}", exc_info=True)
             self.image_label.setText(f"Error displaying image: {str(e)}")
             self.download_progress_label.setText("Download: Display error")
     

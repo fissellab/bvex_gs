@@ -274,6 +274,17 @@ class StarCameraClient:
             if chunks_received == expected_chunks:
                 self.logger.info(f"Image download complete: {len(image_data)} bytes received")
                 
+                # Debug: Log first few bytes to verify data integrity
+                if len(image_data) >= 16:
+                    header_bytes = image_data[:16].hex()
+                    self.logger.debug(f"Image data header: {header_bytes}")
+                    
+                    # Check for JPEG header (FF D8 FF)
+                    if image_data[0:3] == b'\xff\xd8\xff':
+                        self.logger.info("Valid JPEG header detected")
+                    else:
+                        self.logger.warning(f"Unexpected image header: {image_data[0:10].hex()}")
+                
                 # Reset failure count on successful image download
                 self.consecutive_failures = 0
                 self.last_successful_connection = time.time()
