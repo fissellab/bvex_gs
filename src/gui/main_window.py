@@ -131,12 +131,12 @@ class MainWindow(QMainWindow):
         left_widget = QWidget()
         left_layout = QVBoxLayout(left_widget)
         left_layout.setContentsMargins(15, 0, 5, 0)  # Increased left margin to prevent title cutoff
-        left_layout.setSpacing(10)
+        left_layout.setSpacing(5)  # Reduced spacing to push widgets closer together
         
-        # Sky chart widget (reduced size to make room for other widgets)
+        # Sky chart widget (increased size for better visibility)
         self.sky_chart_widget = SkyChartWidget()
-        self.sky_chart_widget.setMinimumSize(500, 350)  # Reduced height to make room
-        self.sky_chart_widget.setMaximumSize(650, 400)  # Reduced height
+        self.sky_chart_widget.setMinimumSize(550, 420)  # Increased from 500x350 to 550x420
+        self.sky_chart_widget.setMaximumSize(700, 480)  # Increased from 650x400 to 700x480
         left_layout.addWidget(self.sky_chart_widget)
         
         # GPS widget (back in middle position with reduced size)
@@ -144,6 +144,9 @@ class MainWindow(QMainWindow):
         self.gps_widget.setMinimumHeight(200)  # Reduced to fit better
         self.gps_widget.setMaximumHeight(250)  # Reduced to fit better
         left_layout.addWidget(self.gps_widget)
+        
+        # Add minimal spacing before motor controller to push it up
+        left_layout.addSpacing(5)  # Small spacing instead of default
         
         # Create shared Oph client for star camera and motor controller  
         from src.data.Oph_client import OphClient
@@ -156,11 +159,14 @@ class MainWindow(QMainWindow):
         else:
             self.logger.error("Failed to start shared OphClient")
         
-        # Motor Controller widget (back at bottom) - wider and shorter
+        # Motor Controller widget - positioned closer to GPS widget
         self.motor_controller_widget = MotorControllerWidget(oph_client=self.shared_oph_client)
-        self.motor_controller_widget.setMinimumSize(450, 280)
-        self.motor_controller_widget.setMaximumSize(500, 320)
+        self.motor_controller_widget.setMinimumSize(450, 200)  # Increased height to show all fields
+        self.motor_controller_widget.setMaximumSize(500, 220)  # Increased height
         left_layout.addWidget(self.motor_controller_widget)
+        
+        # Add stretch at the end to push all widgets to the top
+        left_layout.addStretch()
         
         # Middle - Star Camera section (image and status)
         star_camera_container = QWidget()
@@ -168,10 +174,10 @@ class MainWindow(QMainWindow):
         star_camera_layout.setContentsMargins(5, 0, 5, 0)  # Minimal margins for efficient space usage
         star_camera_layout.setSpacing(5)
         
-        # Star camera widget (now includes both image and telemetry) - expanded for usability
+        # Star camera widget (now includes both image and telemetry) - increased height to eliminate scrollbars
         self.star_camera_widget = StarCameraWidget(oph_client=self.shared_oph_client)
-        self.star_camera_widget.setMinimumSize(560, 550)  # Expanded from 400 to 550 for better usability
-        self.star_camera_widget.setMaximumSize(640, 600)  # Expanded from 450 to 600
+        self.star_camera_widget.setMinimumSize(560, 650)  # Increased from 550 to 650 to eliminate scrollbars
+        self.star_camera_widget.setMaximumSize(640, 700)  # Increased from 600 to 700
         star_camera_layout.addWidget(self.star_camera_widget, 0, Qt.AlignmentFlag.AlignTop)  # Top align like other widgets
         
         # Add some spacing between widgets
@@ -179,8 +185,8 @@ class MainWindow(QMainWindow):
         
         # Scanning Operations widget (below star camera)
         self.scanning_operations_widget = ScanningOperationsWidget(oph_client=self.shared_oph_client)
-        self.scanning_operations_widget.setMinimumSize(560, 280)
-        self.scanning_operations_widget.setMaximumSize(640, 320)
+        self.scanning_operations_widget.setMinimumSize(560, 220)  # Increased height for wrapped labels
+        self.scanning_operations_widget.setMaximumSize(640, 240)  # Increased height
         star_camera_layout.addWidget(self.scanning_operations_widget, 0, Qt.AlignmentFlag.AlignTop)
         
         # Right side - Spectra display in a container for top alignment
@@ -190,21 +196,21 @@ class MainWindow(QMainWindow):
         spectra_layout.setSpacing(0)
         
         self.spectra_widget = SpectraDisplayWidget()
-        self.spectra_widget.setMinimumSize(500, 400)  # Increased size for better visibility
-        self.spectra_widget.setMaximumSize(600, 750)  # Increased limits for larger display
+        self.spectra_widget.setMinimumSize(580, 400)  # Increased width from 500 to 580 to fill space better
+        self.spectra_widget.setMaximumSize(720, 750)  # Increased width from 600 to 720 to fill space better
         
         # Add spectra widget to top of container
         spectra_layout.addWidget(self.spectra_widget, 0, Qt.AlignmentFlag.AlignTop)
         spectra_layout.addStretch()  # Add stretch at bottom to push spectra to top
         
-        # Add widgets to main layout with more efficient space usage
+        # Add widgets to main layout with optimized space distribution
         main_layout.addWidget(left_widget, 3)  # Left side gets 3 parts
-        main_layout.addWidget(star_camera_container, 5)  # Star camera section gets 5 parts
-        main_layout.addWidget(spectra_container, 3)  # Spectra container gets 3 parts - no stretch spaces
+        main_layout.addWidget(star_camera_container, 4)  # Star camera section gets 4 parts (reduced from 5)
+        main_layout.addWidget(spectra_container, 3)  # Spectra container gets 3 parts
         
-        # Set window properties - wider window to accommodate wider motor controller widget 
-        self.setMinimumSize(1800, 1050)  # Wider to accommodate motor controller widget
-        self.resize(2000, 1150)  # Wider for better overall fit
+        # Set window properties - adjusted for larger sky chart and wider spectrometer widget 
+        self.setMinimumSize(1850, 1100)  # Increased width and height for bigger sky chart
+        self.resize(2050, 1200)  # Increased for better overall fit with larger widgets
         
         # Setup menu bar
         self.setup_menu_bar()

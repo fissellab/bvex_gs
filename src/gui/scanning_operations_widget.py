@@ -88,8 +88,9 @@ class ScanningOperationsWidget(QWidget):
         main_layout.addWidget(self.container)
         
         self.setLayout(main_layout)
-        self.setMinimumSize(560, 280)
-        self.setMaximumSize(640, 320)
+        # Set proper size to show all data fields clearly - increased height for wrapped labels
+        self.setMinimumSize(560, 220)  # Increased height to accommodate two-line labels
+        self.setMaximumSize(640, 240)  # Allow some flexibility
         
     def toggle_state(self):
         """Toggle between active and inactive states"""
@@ -239,52 +240,63 @@ class ScanningOperationsWidget(QWidget):
         """Create the main data display section with scanning and target fields"""
         data_frame = QFrame()
         data_frame.setFrameStyle(QFrame.Shape.NoFrame)
-        data_frame.setStyleSheet("QFrame { background-color: white; }")
+        data_frame.setStyleSheet("QFrame { border: none; background-color: transparent; }")
         
-        # Use a simple grid layout
+        # Use a simple grid layout with clean spacing
         layout = QGridLayout(data_frame)
-        layout.setSpacing(6)
-        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(8)  # Increased spacing for better breathing room
+        layout.setContentsMargins(8, 4, 8, 4)
         
         # Create all field labels
         self.field_labels = {}
         
-        # Scanning and Target fields (arranged in 2 columns)
+        # Scanning and Target fields - arranged in 4 columns (label-value pairs)
         fields = [
-            # Scanning fields
-            ("scan_mode", "Scan Mode", 0, 0),
-            ("scan_start", "Scan Start (deg)", 0, 2),
-            ("scan_stop", "Scan Stop (deg)", 1, 0),
-            ("scan_vel", "Scan Velocity", 1, 2),
-            ("scan_scan", "Current Scan", 2, 0),
-            ("scan_nscans", "Total Scans", 2, 2),
-            ("scan_offset", "Scan Offset", 3, 0),
-            ("scan_op", "Scan Operation", 3, 2),
+            # Row 1: Scanning basics
+            ("scan_mode", "Scan Mode", "", 0, 0),
+            ("scan_start", "Start", "deg", 0, 2),
+            ("scan_stop", "Stop", "deg", 0, 4),
+            ("scan_vel", "Velocity", "deg/s", 0, 6),
             
-            # Target fields
-            ("target_type", "Target Type", 4, 0),
-            ("target_lon", "Target Longitude", 4, 2),
-            ("target_lat", "Target Latitude", 5, 0),
-            ("sc_save", "Star Camera Save", 5, 2),
+            # Row 2: Scanning status
+            ("scan_scan", "Current Scan", "", 1, 0),
+            ("scan_nscans", "Total Scans", "", 1, 2),
+            ("scan_offset", "Offset", "deg", 1, 4),
+            ("scan_op", "Operation", "", 1, 6),
+            
+            # Row 3: Target information
+            ("target_type", "Target Type", "", 2, 0),
+            ("target_lon", "Longitude", "deg", 2, 2),
+            ("target_lat", "Latitude", "deg", 2, 4),
+            ("sc_save", "Recording", "", 2, 6),
         ]
         
-        for field, label_text, row, col in fields:
-            # Create label
+        for field, label_text, unit, row, col in fields:
+            # Create label with clean typography and word wrapping
             label = QLabel(f"{label_text}:")
-            label.setFont(QFont("Arial", 9, QFont.Weight.Bold))
-            label.setStyleSheet("QLabel { color: #333333; }")
+            label.setFont(QFont("Arial", 9))
+            label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            label.setStyleSheet("QLabel { color: #6c757d; border: none; background: transparent; }")
+            label.setWordWrap(True)  # Enable word wrapping for multi-word labels
+            label.setMaximumWidth(90)  # Slightly wider for scanning operations labels
             
-            # Create value label
+            # Create value label with clean, no-border style like GPS widget
             value_label = QLabel("--")
-            value_label.setFont(QFont("Arial", 9))
-            value_label.setStyleSheet("QLabel { color: black; background-color: #f0f0f0; padding: 3px; border: 1px solid #ccc; }")
-            value_label.setMinimumWidth(100)
+            value_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+            value_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            value_label.setStyleSheet("QLabel { color: #212529; border: none; background: transparent; }")
+            value_label.setMinimumWidth(70)
+            
+            # Add unit if specified
+            if unit:
+                display_text = f"-- {unit}"
+                value_label.setText(display_text)
             
             # Add to layout
             layout.addWidget(label, row, col)
             layout.addWidget(value_label, row, col + 1)
             
-            self.field_labels[field] = value_label
+            self.field_labels[field] = (value_label, unit)  # Store unit for updates
         
         return data_frame
     
@@ -333,29 +345,43 @@ class ScanningOperationsWidget(QWidget):
         if not hasattr(self, 'field_labels'):
             return
         
+        # Helper function to format values with units
+        def update_field(field_key, value, format_str=None):
+            if field_key in self.field_labels:
+                label, unit = self.field_labels[field_key]
+                if format_str:
+                    display_value = format_str.format(value)
+                else:
+                    display_value = str(value)
+                
+                if unit:
+                    label.setText(f"{display_value} {unit}")
+                else:
+                    label.setText(display_value)
+        
         # Scanning fields
         scan_modes = {0: "None", 1: "El Dither", 2: "Tracking", 3: "El On-Off"}
         mode_text = scan_modes.get(telemetry.scan_mode, "Unknown")
-        self.field_labels["scan_mode"].setText(mode_text)
-        self.field_labels["scan_start"].setText(f"{telemetry.scan_start:.2f}")
-        self.field_labels["scan_stop"].setText(f"{telemetry.scan_stop:.2f}")
-        self.field_labels["scan_vel"].setText(f"{telemetry.scan_vel:.3f}")
-        self.field_labels["scan_scan"].setText(f"{telemetry.scan_scan}")
-        self.field_labels["scan_nscans"].setText(f"{telemetry.scan_nscans}")
-        self.field_labels["scan_offset"].setText(f"{telemetry.scan_offset:.2f}")
+        update_field("scan_mode", mode_text)
+        update_field("scan_start", telemetry.scan_start, "{:.2f}")
+        update_field("scan_stop", telemetry.scan_stop, "{:.2f}")
+        update_field("scan_vel", telemetry.scan_vel, "{:.3f}")
+        update_field("scan_scan", telemetry.scan_scan)
+        update_field("scan_nscans", telemetry.scan_nscans)
+        update_field("scan_offset", telemetry.scan_offset, "{:.2f}")
         
         # Scan operation status
         scan_op_text = {-1: "Off Position", 0: "Moving", 1: "On Position"}.get(telemetry.scan_op, "Unknown")
-        self.field_labels["scan_op"].setText(scan_op_text)
+        update_field("scan_op", scan_op_text)
         
         # Target fields
-        self.field_labels["target_type"].setText(telemetry.target_type)
-        self.field_labels["target_lon"].setText(f"{telemetry.target_lon:.4f}")
-        self.field_labels["target_lat"].setText(f"{telemetry.target_lat:.4f}")
+        update_field("target_type", telemetry.target_type)
+        update_field("target_lon", telemetry.target_lon, "{:.4f}")
+        update_field("target_lat", telemetry.target_lat, "{:.4f}")
         
         # Star Camera Save status
         save_text = "Recording" if telemetry.sc_save == 1 else "Not Recording"
-        self.field_labels["sc_save"].setText(save_text)
+        update_field("sc_save", save_text)
     
     def is_scanning_operations_active(self) -> bool:
         """Check if scanning operations display is active"""

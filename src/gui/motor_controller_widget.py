@@ -88,8 +88,9 @@ class MotorControllerWidget(QWidget):
         main_layout.addWidget(self.container)
         
         self.setLayout(main_layout)
-        # Set proper size that fits content without empty space
-        self.setFixedHeight(100)  # Reduced height to match tighter spacing
+        # Set proper size that fits content - increased height to show all fields properly
+        self.setMinimumHeight(200)  # Significantly increased to show all 3 rows of data
+        self.setMaximumHeight(220)  # Allow some flexibility
         self.setMinimumWidth(450)
         
     def toggle_state(self):
@@ -241,54 +242,63 @@ class MotorControllerWidget(QWidget):
         """Create the main data display section with motor controller and axis fields"""
         data_frame = QFrame()
         data_frame.setFrameStyle(QFrame.Shape.NoFrame)
-        data_frame.setStyleSheet("QFrame { background-color: white; }")
+        data_frame.setStyleSheet("QFrame { border: none; background-color: transparent; }")
         
-        # Use a simple grid layout with proper spacing
+        # Use a simple grid layout with clean spacing
         layout = QGridLayout(data_frame)
-        layout.setSpacing(4)
-        layout.setContentsMargins(5, 2, 5, 2)
+        layout.setSpacing(8)  # Increased spacing for better breathing room
+        layout.setContentsMargins(8, 4, 8, 4)
         
         # Create all field labels
         self.field_labels = {}
         
-        # Motor Controller and Axis Control fields - arranged in 3 columns
+        # Motor Controller and Axis Control fields - arranged in 4 columns (label-value pairs)
         fields = [
-            # Column 1: Motor Controller fields
-            ("mc_curr", "Motor Current (A)", 0, 0),
-            ("mc_pos", "Motor Position (deg)", 1, 0),
-            ("mc_vel", "Motor Velocity (deg/s)", 2, 0),
-            ("mc_temp", "Motor Temperature (°C)", 3, 0),
+            # Row 1: Motor essentials
+            ("mc_curr", "Motor Current", "A", 0, 0),
+            ("mc_pos", "Motor Position", "deg", 0, 2),
+            ("mc_vel", "Motor Velocity", "deg/s", 0, 4),
+            ("mc_temp", "Motor Temp", "°C", 0, 6),
             
-            # Column 2: Motor Status fields
-            ("mc_sw", "Motor Status Word", 0, 2),
-            ("mc_np", "Network Status", 1, 2),
-            ("ax_mode", "Axis Mode", 2, 2),
-            ("ax_ot", "On Target", 3, 2),
+            # Row 2: Status and control
+            ("ax_mode", "Axis Mode", "", 1, 0),
+            ("ax_ot", "On Target", "", 1, 2),
+            ("mc_sw", "Status Word", "", 1, 4),
+            ("mc_np", "Network", "", 1, 6),
             
-            # Column 3: Axis Control fields
-            ("ax_dest", "Target Elevation (deg)", 0, 4),
-            ("ax_vel", "Target Velocity (deg/s)", 1, 4),
-            ("ax_dest_az", "Target Azimuth (deg)", 2, 4),
-            ("ax_vel_az", "Target Az Velocity", 3, 4),
+            # Row 3: Target controls
+            ("ax_dest", "Target Elevation", "deg", 2, 0),
+            ("ax_vel", "Target Velocity", "deg/s", 2, 2),
+            ("ax_dest_az", "Target Azimuth", "deg", 2, 4),
+            ("ax_vel_az", "Az Velocity", "deg/s", 2, 6),
         ]
         
-        for field, label_text, row, col in fields:
-            # Create label with proper readable font
+        for field, label_text, unit, row, col in fields:
+            # Create label with clean typography and word wrapping
             label = QLabel(f"{label_text}:")
-            label.setFont(QFont("Arial", 9, QFont.Weight.Bold))
-            label.setStyleSheet("QLabel { color: #333333; }")
+            label.setFont(QFont("Arial", 9))
+            label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            label.setStyleSheet("QLabel { color: #6c757d; border: none; background: transparent; }")
+            label.setWordWrap(True)  # Enable word wrapping for multi-word labels
+            label.setMaximumWidth(80)  # Set a reasonable maximum width to force wrapping
             
-            # Create value label with proper readable font
+            # Create value label with clean, no-border style like GPS widget
             value_label = QLabel("--")
-            value_label.setFont(QFont("Arial", 9))
-            value_label.setStyleSheet("QLabel { color: black; background-color: white; padding: 2px; border: 1px solid #ccc; }")
-            value_label.setMinimumWidth(70)
+            value_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+            value_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            value_label.setStyleSheet("QLabel { color: #212529; border: none; background: transparent; }")
+            value_label.setMinimumWidth(60)
+            
+            # Add unit if specified
+            if unit:
+                display_text = f"-- {unit}"
+                value_label.setText(display_text)
             
             # Add to layout
             layout.addWidget(label, row, col)
             layout.addWidget(value_label, row, col + 1)
             
-            self.field_labels[field] = value_label
+            self.field_labels[field] = (value_label, unit)  # Store unit for updates
         
         return data_frame
     
@@ -337,23 +347,37 @@ class MotorControllerWidget(QWidget):
         if not hasattr(self, 'field_labels'):
             return
         
+        # Helper function to format values with units
+        def update_field(field_key, value, format_str=None):
+            if field_key in self.field_labels:
+                label, unit = self.field_labels[field_key]
+                if format_str:
+                    display_value = format_str.format(value)
+                else:
+                    display_value = str(value)
+                
+                if unit:
+                    label.setText(f"{display_value} {unit}")
+                else:
+                    label.setText(display_value)
+        
         # Motor Controller fields
-        self.field_labels["mc_curr"].setText(f"{telemetry.mc_curr:.3f}")
-        self.field_labels["mc_pos"].setText(f"{telemetry.mc_pos:.2f}")
-        self.field_labels["mc_vel"].setText(f"{telemetry.mc_vel:.3f}")
-        self.field_labels["mc_temp"].setText(f"{telemetry.mc_temp}")
-        self.field_labels["mc_sw"].setText(f"{telemetry.mc_sw}")
-        self.field_labels["mc_np"].setText(f"{telemetry.mc_np}")
+        update_field("mc_curr", telemetry.mc_curr, "{:.3f}")
+        update_field("mc_pos", telemetry.mc_pos, "{:.2f}")
+        update_field("mc_vel", telemetry.mc_vel, "{:.3f}")
+        update_field("mc_temp", telemetry.mc_temp)
+        update_field("mc_sw", telemetry.mc_sw)
+        update_field("mc_np", telemetry.mc_np)
         
         # Axis Control fields
         mode_text = "Position" if telemetry.ax_mode == 1 else "Velocity"
-        self.field_labels["ax_mode"].setText(mode_text)
-        self.field_labels["ax_dest"].setText(f"{telemetry.ax_dest:.2f}")
-        self.field_labels["ax_vel"].setText(f"{telemetry.ax_vel:.3f}")
-        self.field_labels["ax_dest_az"].setText(f"{telemetry.ax_dest_az:.2f}")
-        self.field_labels["ax_vel_az"].setText(f"{telemetry.ax_vel_az:.3f}")
+        update_field("ax_mode", mode_text)
+        update_field("ax_dest", telemetry.ax_dest, "{:.2f}")
+        update_field("ax_vel", telemetry.ax_vel, "{:.3f}")
+        update_field("ax_dest_az", telemetry.ax_dest_az, "{:.2f}")
+        update_field("ax_vel_az", telemetry.ax_vel_az, "{:.3f}")
         ot_text = "Yes" if telemetry.ax_ot == 1 else "No"
-        self.field_labels["ax_ot"].setText(ot_text)
+        update_field("ax_ot", ot_text)
     
     def is_motor_controller_active(self) -> bool:
         """Check if motor controller display is active"""

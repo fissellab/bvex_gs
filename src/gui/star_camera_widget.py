@@ -5,7 +5,7 @@ Displays images from the star camera downlink server
 
 import numpy as np
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
-                             QFrame, QScrollArea, QSizePolicy)
+                             QFrame, QScrollArea, QSizePolicy, QGridLayout)
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QObject, QThread
 from PyQt6.QtGui import QFont, QPixmap, QImage
 from PIL import Image
@@ -285,42 +285,37 @@ class StarCameraWidget(QWidget):
             if child:
                 child.setParent(None)
         
-        # Top info bar - more compact
-        info_frame = QFrame()
-        info_layout = QHBoxLayout(info_frame)
-        info_layout.setContentsMargins(8, 4, 8, 4)
+        # Simple clean status line at the top - no borders
+        top_status_layout = QHBoxLayout()
+        top_status_layout.setContentsMargins(5, 5, 5, 5)
         
         self.connection_status_label = QLabel("Status: Connecting...")
         self.connection_status_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        self.connection_status_label.setStyleSheet("QLabel { color: #495057; border: none; background: transparent; }")
         
         self.server_info_label = QLabel("Server: 100.85.84.122:8001")
-        self.server_info_label.setFont(QFont("Arial", 10))  # Increased font size
-        self.server_info_label.setStyleSheet("QLabel { color: #000000; }")  # Changed to black
+        self.server_info_label.setFont(QFont("Arial", 10))
+        self.server_info_label.setStyleSheet("QLabel { color: #6c757d; border: none; background: transparent; }")
         
-        info_layout.addWidget(self.connection_status_label)
-        info_layout.addStretch()
-        info_layout.addWidget(self.server_info_label)
+        top_status_layout.addWidget(self.connection_status_label)
+        top_status_layout.addStretch()
+        top_status_layout.addWidget(self.server_info_label)
         
-        self.container_layout.addWidget(info_frame)
+        self.container_layout.addLayout(top_status_layout)
         
-        # Main content area - vertical layout (image on top, telemetry below)
-        content_frame = QFrame()
-        content_layout = QVBoxLayout(content_frame)
-        content_layout.setContentsMargins(5, 5, 5, 5)
-        content_layout.setSpacing(10)
-        
-        # Image display section - further increased to completely eliminate scroll bars
+        # Image display section - clean, no borders
         self.image_scroll_area = QScrollArea()
         self.image_scroll_area.setWidgetResizable(True)
-        self.image_scroll_area.setMinimumHeight(380)  # Further increased to eliminate scroll bars
-        self.image_scroll_area.setMaximumHeight(450)  # Further increased max height
+        self.image_scroll_area.setMinimumHeight(380)
+        self.image_scroll_area.setMaximumHeight(420)  # Reduced slightly to give more room for telemetry
+        self.image_scroll_area.setStyleSheet("QScrollArea { border: none; background: transparent; }")
         
         self.image_label = QLabel("Loading...")
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.image_label.setMinimumSize(520, 380)  # Increased both width and height
+        self.image_label.setMinimumSize(520, 380)
         self.image_label.setStyleSheet("""
             QLabel {
-                border: 1px solid #dee2e6;
+                border: none;
                 background-color: white;
                 font-size: 14px;
                 color: #6c757d;
@@ -328,45 +323,53 @@ class StarCameraWidget(QWidget):
         """)
         
         self.image_scroll_area.setWidget(self.image_label)
-        content_layout.addWidget(self.image_scroll_area)
+        self.container_layout.addWidget(self.image_scroll_area)
         
-        # Image info and status row
-        info_status_layout = QHBoxLayout()
-        info_status_layout.setSpacing(10)
+        # Image info row - clean, no containers
+        info_layout = QHBoxLayout()
+        info_layout.setContentsMargins(5, 5, 5, 5)
+        info_layout.setSpacing(10)
         
         # Image info
         self.image_info_label = QLabel("No image")
-        self.image_info_label.setFont(QFont("Arial", 10))
+        self.image_info_label.setFont(QFont("Arial", 9))
         self.image_info_label.setWordWrap(True)
-        self.image_info_label.setStyleSheet("QLabel { color: #000000; }")
+        self.image_info_label.setStyleSheet("QLabel { color: #6c757d; border: none; background: transparent; }")
         
         # Download status
         self.download_progress_label = QLabel("Ready")
-        self.download_progress_label.setFont(QFont("Arial", 10))
-        self.download_progress_label.setStyleSheet("QLabel { color: #000000; }")
+        self.download_progress_label.setFont(QFont("Arial", 9))
+        self.download_progress_label.setStyleSheet("QLabel { color: #6c757d; border: none; background: transparent; }")
         
-        info_status_layout.addWidget(self.image_info_label, 2)
-        info_status_layout.addWidget(self.download_progress_label, 1)
+        info_layout.addWidget(self.image_info_label, 2)
+        info_layout.addWidget(self.download_progress_label, 1)
         
-        content_layout.addLayout(info_status_layout)
+        self.container_layout.addLayout(info_layout)
         
-        # Star Camera Telemetry Section - more compact
-        telemetry_group = QFrame()
-        telemetry_group.setFrameStyle(QFrame.Shape.StyledPanel)
-        telemetry_group.setStyleSheet("QFrame { border: 1px solid #dee2e6; background-color: #f8f9fa; padding: 6px; }")
-        telemetry_layout = QVBoxLayout(telemetry_group)
-        telemetry_layout.setContentsMargins(6, 6, 6, 6)
-        telemetry_layout.setSpacing(4)
+        # Star Camera Telemetry Section - completely clean like GPS widget
+        # Simple header with connection status
+        telemetry_header_layout = QHBoxLayout()
+        telemetry_header_layout.setContentsMargins(5, 10, 5, 5)
         
-        # Title 
         telemetry_title = QLabel("Star Camera Telemetry")
-        telemetry_title.setFont(QFont("Arial", 11, QFont.Weight.Bold))
-        telemetry_title.setStyleSheet("QLabel { color: #000000; }")
-        telemetry_layout.addWidget(telemetry_title)
+        telemetry_title.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+        telemetry_title.setStyleSheet("QLabel { color: #495057; border: none; background: transparent; }")
         
-        # Status indicators row - always visible
+        # Connection status inline with title
+        self.telemetry_connection_label = QLabel("Telemetry: Disconnected")
+        self.telemetry_connection_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        self.telemetry_connection_label.setStyleSheet("QLabel { color: red; border: none; background: transparent; }")
+        
+        telemetry_header_layout.addWidget(telemetry_title)
+        telemetry_header_layout.addStretch()
+        telemetry_header_layout.addWidget(self.telemetry_connection_label)
+        
+        self.container_layout.addLayout(telemetry_header_layout)
+        
+        # Status indicators row - clean styling
         status_indicators_layout = QHBoxLayout()
         status_indicators_layout.setSpacing(15)
+        status_indicators_layout.setContentsMargins(5, 0, 5, 5)
         
         # Auto focus status indicator
         self.auto_focus_status = QLabel("Focus: Idle")
@@ -382,86 +385,66 @@ class StarCameraWidget(QWidget):
         status_indicators_layout.addWidget(self.solving_status)
         status_indicators_layout.addStretch()
         
-        telemetry_layout.addLayout(status_indicators_layout)
+        self.container_layout.addLayout(status_indicators_layout)
         
-        # Telemetry data in a grid for compactness
-        data_grid_layout = QHBoxLayout()
-        
-        # Left column
-        left_col_layout = QVBoxLayout()
-        left_col_layout.setSpacing(2)
-        
-        # Right column  
-        right_col_layout = QVBoxLayout()
-        right_col_layout.setSpacing(2)
+        # Clean telemetry data grid - completely borderless like GPS widget
+        grid_layout = QGridLayout()
+        grid_layout.setSpacing(8)  # Clean spacing
+        grid_layout.setContentsMargins(5, 5, 5, 10)
         
         self.telemetry_labels = {}
+        
+        # Reorganized telemetry fields in logical 2-column layout (4 columns total with labels)
         telemetry_fields = [
-            ('ra', 'RA:', '°'), ('dec', 'DEC:', '°'), 
-            ('az', 'Az:', '°'), ('el', 'El:', '°'),
-            ('exp', 'Exp:', 's'), ('fr', 'F.Rot:', '°'), 
-            ('ir', 'I.Rot:', '°')
+            # Row 1: Position coordinates
+            ('ra', 'RA', '°', 0, 0),
+            ('dec', 'DEC', '°', 0, 2),
+            # Row 2: Local coordinates  
+            ('az', 'Azimuth', '°', 1, 0),
+            ('el', 'Elevation', '°', 1, 2),
+            # Row 3: Camera settings
+            ('exp', 'Exposure', 's', 2, 0),
+            ('fr', 'Field Rotation', '°', 2, 2),
+            # Row 4: Additional rotation
+            ('ir', 'Image Rotation', '°', 3, 0)
         ]
         
-        for i, (field, label_text, unit) in enumerate(telemetry_fields):
-            data_layout = QHBoxLayout()
-            data_layout.setContentsMargins(0, 0, 0, 0)
-            data_layout.setSpacing(4)
+        for field, label_text, unit, row, col in telemetry_fields:
+            # Create label with clean typography
+            label = QLabel(f"{label_text}:")
+            label.setFont(QFont("Arial", 9))
+            label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            label.setStyleSheet("QLabel { color: #6c757d; border: none; background: transparent; }")
+            label.setWordWrap(True)  # Enable word wrapping
+            label.setMaximumWidth(80)  # Reasonable width for telemetry labels
             
-            label = QLabel(label_text)
-            label.setFont(QFont("Arial", 9, QFont.Weight.Bold))
-            label.setStyleSheet("QLabel { color: #000000; }")
-            label.setMinimumWidth(40)
-            
+            # Create value label with clean, no-border style
             value_label = QLabel(f"N/A {unit}".strip())
-            value_label.setFont(QFont("Arial", 9))
-            value_label.setStyleSheet("QLabel { color: #000000; background-color: #e8f5e8; padding: 1px; border: 1px solid #4CAF50; }")
-            value_label.setMinimumWidth(70)
+            value_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+            value_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            value_label.setStyleSheet("QLabel { color: #212529; border: none; background: transparent; }")
+            value_label.setMinimumWidth(80)
             
-            data_layout.addWidget(label)
-            data_layout.addWidget(value_label)
-            data_layout.addStretch()
-            
-            # Alternate between left and right columns
-            if i % 2 == 0:
-                left_col_layout.addLayout(data_layout)
-            else:
-                right_col_layout.addLayout(data_layout)
+            # Add to layout
+            grid_layout.addWidget(label, row, col)
+            grid_layout.addWidget(value_label, row, col + 1)
             
             self.telemetry_labels[field] = value_label
         
-        data_grid_layout.addLayout(left_col_layout)
-        data_grid_layout.addLayout(right_col_layout)
-        telemetry_layout.addLayout(data_grid_layout)
+        self.container_layout.addLayout(grid_layout)
         
-        # Connection status
-        self.telemetry_connection_label = QLabel("Telemetry: Disconnected")
-        self.telemetry_connection_label.setFont(QFont("Arial", 9, QFont.Weight.Bold))
-        self.telemetry_connection_label.setStyleSheet("QLabel { color: red; }")
-        telemetry_layout.addWidget(self.telemetry_connection_label)
-        
-        content_layout.addWidget(telemetry_group)
-        
-        # Add some missing labels that are referenced in other methods
+        # Hidden labels that are referenced in other methods - keep them but invisible
         self.bandwidth_label = QLabel("Bandwidth: Unknown")
-        self.bandwidth_label.setFont(QFont("Arial", 8))
-        self.bandwidth_label.setStyleSheet("QLabel { color: #666666; }")
-        self.bandwidth_label.setVisible(False)  # Hide for now
-        content_layout.addWidget(self.bandwidth_label)
+        self.bandwidth_label.setVisible(False)
+        self.container_layout.addWidget(self.bandwidth_label)
         
         self.queue_label = QLabel("Queue: Unknown") 
-        self.queue_label.setFont(QFont("Arial", 8))
-        self.queue_label.setStyleSheet("QLabel { color: #666666; }")
-        self.queue_label.setVisible(False)  # Hide for now
-        content_layout.addWidget(self.queue_label)
+        self.queue_label.setVisible(False)
+        self.container_layout.addWidget(self.queue_label)
         
         self.next_update_label = QLabel("Next update: Soon")
-        self.next_update_label.setFont(QFont("Arial", 8))
-        self.next_update_label.setStyleSheet("QLabel { color: #666666; }")
-        self.next_update_label.setVisible(False)  # Hide for now
-        content_layout.addWidget(self.next_update_label)
-        
-        self.container_layout.addWidget(content_frame)
+        self.next_update_label.setVisible(False)
+        self.container_layout.addWidget(self.next_update_label)
     
     def start_update_timers(self):
         """Start the update timers"""
@@ -557,7 +540,7 @@ class StarCameraWidget(QWidget):
                     else:
                         formatted_value = f"{int(value)} {unit}".strip()
                     self.telemetry_labels[field].setText(formatted_value)
-                    self.telemetry_labels[field].setStyleSheet("QLabel { color: #000000; background-color: #e8f5e8; padding: 2px; border: 1px solid #4CAF50; }")
+                    self.telemetry_labels[field].setStyleSheet("QLabel { color: #212529; border: none; background: transparent; font-weight: bold; }")
         else:
             # Reset status indicators to disconnected state
             self.auto_focus_status.setText("Focus: N/A")
@@ -571,7 +554,7 @@ class StarCameraWidget(QWidget):
                     label.setText("N/A s")
                 else:
                     label.setText("N/A °")
-                label.setStyleSheet("QLabel { color: #000000; background-color: #f0f0f0; padding: 2px; border: 1px solid #ccc; }")
+                label.setStyleSheet("QLabel { color: #212529; border: none; background: transparent; }")
     
     def handle_image_update(self, new_image):
         """Update image display with new data"""
