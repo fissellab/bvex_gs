@@ -277,6 +277,10 @@ class SpectraDisplayWidget(QWidget):
             
             # Setup active display and start timer
             self.setup_active_display()
+            
+            # Clear any old integration plot data when starting fresh
+            self.clear_integration_plot_data()
+            
             self.setup_update_timer()
     
     def stop_spectrometer(self):
@@ -576,21 +580,45 @@ class SpectraDisplayWidget(QWidget):
 
         # Plot integrated power - simplified approach for better visibility
         if self.integrated_plot_times:
-            # Use simple x-axis indexing instead of datetime for clearer visualization
-            x_indices = list(range(len(self.integrated_plot_times)))
-            self.ax_power.plot(x_indices, list(self.integrated_plot_values), 'r-', linewidth=1.5)
+            # Filter to show only recent data (last 5 minutes maximum)
+            current_time = dt.datetime.now()
+            time_cutoff = current_time - dt.timedelta(minutes=5)
             
-            # Show evenly spaced time labels across the entire visible data range
-            if len(self.integrated_plot_times) > 1:
-                # Determine the number of ticks to show (max 5)
-                num_ticks = min(5, len(self.integrated_plot_times))
+            # Find indices of data within the time window
+            recent_indices = []
+            recent_times = []
+            recent_values = []
+            
+            for i, time_point in enumerate(self.integrated_plot_times):
+                if time_point >= time_cutoff:
+                    recent_indices.append(i)
+                    recent_times.append(time_point)
+                    recent_values.append(self.integrated_plot_values[i])
+            
+            if recent_times:
+                # Use simple x-axis indexing for recent data only
+                x_indices = list(range(len(recent_times)))
+                self.ax_power.plot(x_indices, recent_values, 'r-', linewidth=1.5)
                 
-                # Calculate evenly spaced indices across the entire data length
-                indices = np.linspace(0, len(self.integrated_plot_times) - 1, num_ticks, dtype=int)
+                # Show evenly spaced time labels across the recent data range
+                if len(recent_times) > 1:
+                    # Determine the number of ticks to show (max 5)
+                    num_ticks = min(5, len(recent_times))
+                    
+                    # Calculate evenly spaced indices across the recent data length
+                    indices = np.linspace(0, len(recent_times) - 1, num_ticks, dtype=int)
+                    
+                    tick_labels = [recent_times[int(i)].strftime('%H:%M:%S') for i in indices]
+                    self.ax_power.set_xticks(indices)
+                    self.ax_power.set_xticklabels(tick_labels, rotation=45, ha='right')
                 
-                tick_labels = [self.integrated_plot_times[i].strftime('%H:%M:%S') for i in indices]
-                self.ax_power.set_xticks(indices)
-                self.ax_power.set_xticklabels(tick_labels, rotation=45, ha='right')
+                # Use recent values for Y-axis scaling
+                plot_values_for_scaling = recent_values
+            else:
+                # No recent data to plot
+                plot_values_for_scaling = []
+        else:
+            plot_values_for_scaling = []
         
         self.ax_power.set_title(f"Integrated Power ({self.integration_time_sec:.1f}s integration)", fontsize=12)
         self.ax_power.set_xlabel("Time", fontsize=10)
@@ -600,9 +628,9 @@ class SpectraDisplayWidget(QWidget):
         # Disable the scientific notation offset on y-axis for better readability
         self.ax_power.ticklabel_format(useOffset=False, axis='y')
         
-        # Dynamic Y-axis for power - make changes more visible
-        if self.integrated_plot_values:
-            p_min, p_max = np.min(list(self.integrated_plot_values)), np.max(list(self.integrated_plot_values))
+        # Dynamic Y-axis for power - make changes more visible using only recent data
+        if plot_values_for_scaling:
+            p_min, p_max = np.min(plot_values_for_scaling), np.max(plot_values_for_scaling)
             p_range = p_max - p_min
             if p_range > 0.01:  # If there's meaningful variation
                 padding = 0.05 * p_range  # Smaller padding to show changes better
@@ -639,13 +667,19 @@ class SpectraDisplayWidget(QWidget):
         self.integration_time_sec = value / 10.0  # Convert from tenths to seconds
         self.integration_value_label.setText(f"{self.integration_time_sec:.1f} sec")
         
-        # Reset integration when time changes
-        self.reset_integration()
+        # Clear all plot data when integration time changes since old data is no longer relevant
+        self.clear_integration_plot_data()
     
     def reset_integration(self):
         """Reset the integration accumulator and start time"""
         self.power_accumulator.clear()
         self.integration_start_time = None
+    
+    def clear_integration_plot_data(self):
+        """Clear the integrated plot data (used when settings change or restarting)"""
+        self.integrated_plot_times.clear()
+        self.integrated_plot_values.clear()
+        self.reset_integration()
     
     def handle_power_integration(self, integrated_power_db, current_time):
         """Handle integration of power values over the specified time period"""
@@ -670,5 +704,17 @@ class SpectraDisplayWidget(QWidget):
                 self.integrated_plot_times.append(current_time)
                 self.integrated_plot_values.append(averaged_power)
                 
+                # Periodically clean old data to prevent memory bloat
+                self.clean_old_plot_data(current_time)
+                
                 # Reset for next integration period
-                self.reset_integration() 
+                self.reset_integration()
+    
+    def clean_old_plot_data(self, current_time):
+        """Remove plot data older than 10 minutes to prevent memory bloat"""
+        time_cutoff = current_time - dt.timedelta(minutes=10)
+        
+        # Remove old entries from the beginning of the deques
+        while self.integrated_plot_times and self.integrated_plot_times[0] < time_cutoff:
+            self.integrated_plot_times.popleft()
+            self.integrated_plot_values.popleft() 
