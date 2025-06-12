@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame, QSizePolicy, QComboBox
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame, QSizePolicy, QComboBox, QSlider
 from PyQt6.QtCore import QTimer, Qt, pyqtSignal, QObject, QThread
 from PyQt6.QtGui import QFont
 import datetime as dt
@@ -52,9 +52,16 @@ class SpectraDisplayWidget(QWidget):
         # History buffer for data rate calculation
         self.update_times = deque(maxlen=10)
         
-        # Data storage for integrated power plot
-        self.power_times = deque(maxlen=200) # Store ~20 seconds of data at 10Hz
-        self.power_values = deque(maxlen=200)
+        # Data storage for integrated power plot - Option 1: Reduced buffer size
+        self.power_times = deque(maxlen=100) # Store ~10 seconds of data at 10Hz (reduced from 200)
+        self.power_values = deque(maxlen=100)
+        
+        # Integration time control for power plot
+        self.integration_time_sec = 2.0  # Default integration time in seconds
+        self.power_accumulator = []  # Temporary storage for power values during integration
+        self.integration_start_time = None  # Track when integration period started
+        self.integrated_plot_times = deque(maxlen=100)  # For the actual plot points
+        self.integrated_plot_values = deque(maxlen=100)  # For the actual plot points
         
         # Create frequency axis exactly matching read_latest_data.py
         fs = 3932.16 / 2
@@ -112,6 +119,9 @@ class SpectraDisplayWidget(QWidget):
         self.update_times.clear()
         self.power_times.clear()
         self.power_values.clear()
+        self.integrated_plot_times.clear()
+        self.integrated_plot_values.clear()
+        self.power_accumulator.clear()
         
         self.logger.info("Spectra display widget cleaned up")
 
@@ -192,6 +202,46 @@ class SpectraDisplayWidget(QWidget):
         self.canvas.setMinimumHeight(400) # Increased height for two plots
         
         layout.addWidget(self.canvas, 1)
+        
+        # Add integration time control below the plot
+        integration_layout = QHBoxLayout()
+        integration_layout.setContentsMargins(10, 5, 10, 5)
+        
+        # Integration time label
+        integration_label = QLabel("Integration Time:")
+        integration_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        integration_layout.addWidget(integration_label)
+        
+        # Integration time slider (1-10 seconds)
+        self.integration_slider = QSlider(Qt.Orientation.Horizontal)
+        self.integration_slider.setMinimum(10)  # 1.0 second (in tenths)
+        self.integration_slider.setMaximum(100)  # 10.0 seconds (in tenths)
+        self.integration_slider.setValue(20)  # Default 2.0 seconds
+        self.integration_slider.setMinimumWidth(200)
+        self.integration_slider.valueChanged.connect(self.on_integration_time_changed)
+        integration_layout.addWidget(self.integration_slider)
+        
+        # Integration time value display
+        self.integration_value_label = QLabel("2.0 sec")
+        self.integration_value_label.setFont(QFont("Arial", 10))
+        self.integration_value_label.setMinimumWidth(60)
+        integration_layout.addWidget(self.integration_value_label)
+        
+        integration_layout.addStretch()
+        layout.addLayout(integration_layout)
+        
+        # Add description label below the slider
+        description_layout = QHBoxLayout()
+        description_layout.setContentsMargins(10, 0, 10, 5)
+        
+        description_label = QLabel("Adjust integration time")
+        description_label.setFont(QFont("Arial", 9))
+        description_label.setStyleSheet("QLabel { color: #6c757d; }")  # Muted gray color
+        description_layout.addWidget(description_label)
+        description_layout.addStretch()
+        
+        layout.addLayout(description_layout)
+        
         self.setLayout(layout)
         
         # Initial plot setup
@@ -446,6 +496,9 @@ class SpectraDisplayWidget(QWidget):
         self.power_times.append(current_time)
         self.power_values.append(integrated_power_db)
         
+        # Handle power integration for plot
+        self.handle_power_integration(integrated_power_db, current_time)
+        
         # --- Plotting ---
         self.ax_spectrum.clear()
         self.ax_power.clear()
@@ -522,24 +575,24 @@ class SpectraDisplayWidget(QWidget):
             self.ax_spectrum.set_ylim(y_min - padding, y_max + padding)
 
         # Plot integrated power - simplified approach for better visibility
-        if self.power_times:
+        if self.integrated_plot_times:
             # Use simple x-axis indexing instead of datetime for clearer visualization
-            x_indices = list(range(len(self.power_times)))
-            self.ax_power.plot(x_indices, list(self.power_values), 'r-', linewidth=1.5)
+            x_indices = list(range(len(self.integrated_plot_times)))
+            self.ax_power.plot(x_indices, list(self.integrated_plot_values), 'r-', linewidth=1.5)
             
             # Show evenly spaced time labels across the entire visible data range
-            if len(self.power_times) > 1:
+            if len(self.integrated_plot_times) > 1:
                 # Determine the number of ticks to show (max 5)
-                num_ticks = min(5, len(self.power_times))
+                num_ticks = min(5, len(self.integrated_plot_times))
                 
                 # Calculate evenly spaced indices across the entire data length
-                indices = np.linspace(0, len(self.power_times) - 1, num_ticks, dtype=int)
+                indices = np.linspace(0, len(self.integrated_plot_times) - 1, num_ticks, dtype=int)
                 
-                tick_labels = [self.power_times[i].strftime('%H:%M:%S') for i in indices]
+                tick_labels = [self.integrated_plot_times[i].strftime('%H:%M:%S') for i in indices]
                 self.ax_power.set_xticks(indices)
                 self.ax_power.set_xticklabels(tick_labels, rotation=45, ha='right')
         
-        self.ax_power.set_title("Integrated Power", fontsize=12)
+        self.ax_power.set_title(f"Integrated Power ({self.integration_time_sec:.1f}s integration)", fontsize=12)
         self.ax_power.set_xlabel("Time", fontsize=10)
         self.ax_power.set_ylabel("Power (dB)", fontsize=10)
         self.ax_power.grid(True, alpha=0.3)
@@ -548,8 +601,8 @@ class SpectraDisplayWidget(QWidget):
         self.ax_power.ticklabel_format(useOffset=False, axis='y')
         
         # Dynamic Y-axis for power - make changes more visible
-        if self.power_values:
-            p_min, p_max = np.min(list(self.power_values)), np.max(list(self.power_values))
+        if self.integrated_plot_values:
+            p_min, p_max = np.min(list(self.integrated_plot_values)), np.max(list(self.integrated_plot_values))
             p_range = p_max - p_min
             if p_range > 0.01:  # If there's meaningful variation
                 padding = 0.05 * p_range  # Smaller padding to show changes better
@@ -579,4 +632,43 @@ class SpectraDisplayWidget(QWidget):
         """Get current data rate from spectrometer client in kB/s"""
         if not self.is_active:
             return 0.0
-        return self.spectrometer_client.get_data_rate_kbps() 
+        return self.spectrometer_client.get_data_rate_kbps()
+    
+    def on_integration_time_changed(self, value):
+        """Handle integration time slider changes"""
+        self.integration_time_sec = value / 10.0  # Convert from tenths to seconds
+        self.integration_value_label.setText(f"{self.integration_time_sec:.1f} sec")
+        
+        # Reset integration when time changes
+        self.reset_integration()
+    
+    def reset_integration(self):
+        """Reset the integration accumulator and start time"""
+        self.power_accumulator.clear()
+        self.integration_start_time = None
+    
+    def handle_power_integration(self, integrated_power_db, current_time):
+        """Handle integration of power values over the specified time period"""
+        # Initialize integration period if needed
+        if self.integration_start_time is None:
+            self.integration_start_time = current_time
+            self.power_accumulator.clear()
+        
+        # Add current power reading to accumulator
+        self.power_accumulator.append(integrated_power_db)
+        
+        # Check if integration period is complete
+        time_elapsed = (current_time - self.integration_start_time).total_seconds()
+        
+        if time_elapsed >= self.integration_time_sec:
+            # Calculate integrated power over the period
+            if self.power_accumulator:
+                # Average the accumulated power readings
+                averaged_power = np.mean(self.power_accumulator)
+                
+                # Add to plot data
+                self.integrated_plot_times.append(current_time)
+                self.integrated_plot_values.append(averaged_power)
+                
+                # Reset for next integration period
+                self.reset_integration() 
