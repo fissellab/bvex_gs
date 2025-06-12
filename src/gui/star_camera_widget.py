@@ -73,15 +73,16 @@ class StarCameraWidget(QWidget):
     trigger_fetch_image_signal = pyqtSignal()
     trigger_fetch_status_signal = pyqtSignal()
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, oph_client=None):
         super().__init__(parent)
         
         self.logger = logging.getLogger(__name__)
         # Initialize star camera client (will be used in worker thread)
         self.star_camera_client = StarCameraClient()
         
-        # Initialize Ophiuchus client for telemetry
-        self.oph_client = OphClient()
+        # Use shared Ophiuchus client for telemetry if provided
+        self.oph_client = oph_client if oph_client else OphClient()
+        self.owns_oph_client = oph_client is None  # Track if we own the client
         
         # Control state
         self.is_active = False
@@ -201,9 +202,11 @@ class StarCameraWidget(QWidget):
                 }
             """)
             
-            # Start the Ophiuchus client for telemetry
-            if self.oph_client.start():
-                self.oph_client.resume()
+            # Start the Ophiuchus client for telemetry (only if we own it)
+            if self.owns_oph_client and not self.oph_client.running:
+                self.oph_client.start()
+            # Always resume our client (shared or owned)
+            self.oph_client.resume()
             
             # Setup active display
             self.setup_active_display()
@@ -235,10 +238,11 @@ class StarCameraWidget(QWidget):
             # Stop timers
             self.stop_update_timers()
             
-            # Stop the Ophiuchus client
+            # Pause the Ophiuchus client, but only stop/cleanup if we own it
             self.oph_client.pause()
-            self.oph_client.stop()
-            self.oph_client.cleanup()
+            if self.owns_oph_client:
+                self.oph_client.stop()
+                self.oph_client.cleanup()
             
             # Show static display
             self.setup_static_display()

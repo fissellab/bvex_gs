@@ -15,6 +15,8 @@ from src.gui.sky_chart_widget import SkyChartWidget
 from src.gui.gps_display_widget import GPSDisplayWidget
 from src.gui.spectra_display_widget import SpectraDisplayWidget
 from src.gui.star_camera_widget import StarCameraWidget
+from src.gui.motor_controller_widget import MotorControllerWidget
+from src.gui.scanning_operations_widget import ScanningOperationsWidget
 # from src.gui.star_camera_status_widget import StarCameraStatusWidget  # No longer needed
 from src.data.gps_client import GPSClient
 from src.config.settings import GUI, GPS_SERVER, BCP_SPECTROMETER, STAR_CAMERA
@@ -131,17 +133,34 @@ class MainWindow(QMainWindow):
         left_layout.setContentsMargins(15, 0, 5, 0)  # Increased left margin to prevent title cutoff
         left_layout.setSpacing(10)
         
-        # Sky chart widget (increased size for better visibility)
+        # Sky chart widget (reduced size to make room for other widgets)
         self.sky_chart_widget = SkyChartWidget()
-        self.sky_chart_widget.setMinimumSize(500, 450)  # Larger minimum size
-        self.sky_chart_widget.setMaximumSize(650, 600)  # Larger maximum size
+        self.sky_chart_widget.setMinimumSize(500, 350)  # Reduced height to make room
+        self.sky_chart_widget.setMaximumSize(650, 400)  # Reduced height
         left_layout.addWidget(self.sky_chart_widget)
         
-        # GPS widget
+        # GPS widget (back in middle position with reduced size)
         self.gps_widget = GPSDisplayWidget()
-        self.gps_widget.setMinimumHeight(300)
-        self.gps_widget.setMaximumHeight(400)
+        self.gps_widget.setMinimumHeight(200)  # Reduced to fit better
+        self.gps_widget.setMaximumHeight(250)  # Reduced to fit better
         left_layout.addWidget(self.gps_widget)
+        
+        # Create shared Oph client for star camera and motor controller  
+        from src.data.Oph_client import OphClient
+        self.shared_oph_client = OphClient()
+        # Start the shared client immediately since all widgets will use it
+        if self.shared_oph_client.start():
+            # Initially pause it - widgets will resume when they turn ON
+            self.shared_oph_client.pause()
+            self.logger.info("Shared OphClient started successfully (paused)")
+        else:
+            self.logger.error("Failed to start shared OphClient")
+        
+        # Motor Controller widget (back at bottom) - wider and shorter
+        self.motor_controller_widget = MotorControllerWidget(oph_client=self.shared_oph_client)
+        self.motor_controller_widget.setMinimumSize(450, 280)
+        self.motor_controller_widget.setMaximumSize(500, 320)
+        left_layout.addWidget(self.motor_controller_widget)
         
         # Middle - Star Camera section (image and status)
         star_camera_container = QWidget()
@@ -149,11 +168,20 @@ class MainWindow(QMainWindow):
         star_camera_layout.setContentsMargins(5, 0, 5, 0)  # Minimal margins for efficient space usage
         star_camera_layout.setSpacing(5)
         
-        # Star camera widget (now includes both image and telemetry)
-        self.star_camera_widget = StarCameraWidget()
-        self.star_camera_widget.setMinimumSize(560, 680)  # Further increased to eliminate scroll bars completely
-        self.star_camera_widget.setMaximumSize(640, 750)  # Increased max size
+        # Star camera widget (now includes both image and telemetry) - expanded for usability
+        self.star_camera_widget = StarCameraWidget(oph_client=self.shared_oph_client)
+        self.star_camera_widget.setMinimumSize(560, 550)  # Expanded from 400 to 550 for better usability
+        self.star_camera_widget.setMaximumSize(640, 600)  # Expanded from 450 to 600
         star_camera_layout.addWidget(self.star_camera_widget, 0, Qt.AlignmentFlag.AlignTop)  # Top align like other widgets
+        
+        # Add some spacing between widgets
+        star_camera_layout.addSpacing(10)
+        
+        # Scanning Operations widget (below star camera)
+        self.scanning_operations_widget = ScanningOperationsWidget(oph_client=self.shared_oph_client)
+        self.scanning_operations_widget.setMinimumSize(560, 280)
+        self.scanning_operations_widget.setMaximumSize(640, 320)
+        star_camera_layout.addWidget(self.scanning_operations_widget, 0, Qt.AlignmentFlag.AlignTop)
         
         # Right side - Spectra display in a container for top alignment
         spectra_container = QWidget()
@@ -174,9 +202,9 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(star_camera_container, 5)  # Star camera section gets 5 parts
         main_layout.addWidget(spectra_container, 3)  # Spectra container gets 3 parts - no stretch spaces
         
-        # Set window properties - balanced height for all widgets
-        self.setMinimumSize(1600, 950)  # Reduced height to match shorter spectrometer
-        self.resize(1800, 1000)  # Reduced height for better overall balance
+        # Set window properties - wider window to accommodate wider motor controller widget 
+        self.setMinimumSize(1800, 1050)  # Wider to accommodate motor controller widget
+        self.resize(2000, 1150)  # Wider for better overall fit
         
         # Setup menu bar
         self.setup_menu_bar()
@@ -236,6 +264,22 @@ class MainWindow(QMainWindow):
         refresh_status_action.triggered.connect(lambda: self.star_camera_status_widget.update_display() if self.star_camera_status_widget.is_star_camera_status_active() else None)
         star_camera_menu.addAction(refresh_status_action)
         
+        # Motor Controller menu
+        motor_controller_menu = menubar.addMenu('&Motor Controller')
+        
+        # Force refresh motor controller telemetry
+        refresh_motor_action = QAction('&Refresh Motor Telemetry', self)
+        refresh_motor_action.triggered.connect(lambda: self.motor_controller_widget.update_telemetry() if self.motor_controller_widget.is_motor_controller_active() else None)
+        motor_controller_menu.addAction(refresh_motor_action)
+        
+        # Scanning Operations menu
+        scanning_menu = menubar.addMenu('&Scanning Operations')
+        
+        # Force refresh scanning telemetry
+        refresh_scanning_action = QAction('&Refresh Scanning Telemetry', self)
+        refresh_scanning_action.triggered.connect(lambda: self.scanning_operations_widget.update_telemetry() if self.scanning_operations_widget.is_scanning_operations_active() else None)
+        scanning_menu.addAction(refresh_scanning_action)
+        
         # Help menu
         help_menu = menubar.addMenu('&Help')
         
@@ -267,6 +311,14 @@ class MainWindow(QMainWindow):
         # Add star camera telemetry status to status bar
         self.star_camera_telemetry_status_label = self.create_status_label("SC Telemetry: Disconnected")
         self.status_bar.addPermanentWidget(self.star_camera_telemetry_status_label)
+        
+        # Add motor controller status to status bar
+        self.motor_controller_status_label = self.create_status_label("Motor Controller: Disconnected")
+        self.status_bar.addPermanentWidget(self.motor_controller_status_label)
+        
+        # Add scanning operations status to status bar
+        self.scanning_operations_status_label = self.create_status_label("Scanning Ops: Disconnected")
+        self.status_bar.addPermanentWidget(self.scanning_operations_status_label)
     
     def create_status_label(self, text):
         """Create a status label widget"""
@@ -415,6 +467,34 @@ class MainWindow(QMainWindow):
             else:
                 telemetry_status_text = "SC Combined: Active (No Telemetry)"
         self.star_camera_telemetry_status_label.setText(telemetry_status_text)
+        
+        # Update motor controller status
+        if not self.motor_controller_widget.is_motor_controller_active():
+            motor_status_text = "Motor Controller: Off"
+        elif self.motor_controller_widget.is_connected():
+            current_data = self.motor_controller_widget.get_current_telemetry()
+            if current_data.valid:
+                motor_status_text = f"Motor Controller: Active (Pos: {current_data.mc_pos:.1f}°)"
+            else:
+                motor_status_text = "Motor Controller: Connected (No Data)"
+        else:
+            motor_status_text = "Motor Controller: Disconnected"
+        self.motor_controller_status_label.setText(motor_status_text)
+        
+        # Update scanning operations status
+        if not self.scanning_operations_widget.is_scanning_operations_active():
+            scanning_status_text = "Scanning Ops: Off"
+        elif self.scanning_operations_widget.is_connected():
+            current_data = self.scanning_operations_widget.get_current_telemetry()
+            if current_data.valid:
+                scan_modes = {0: "None", 1: "El Dither", 2: "Tracking", 3: "El On-Off"}
+                mode_text = scan_modes.get(current_data.scan_mode, "Unknown")
+                scanning_status_text = f"Scanning Ops: Active ({mode_text})"
+            else:
+                scanning_status_text = "Scanning Ops: Connected (No Data)"
+        else:
+            scanning_status_text = "Scanning Ops: Disconnected"
+        self.scanning_operations_status_label.setText(scanning_status_text)
     
     def periodic_cleanup(self):
         """Perform periodic cleanup to prevent memory buildup during long sessions"""
@@ -491,6 +571,18 @@ class MainWindow(QMainWindow):
                 if hasattr(self.star_camera_widget, 'worker_thread'):
                     self.star_camera_widget.worker_thread.quit()
                     self.star_camera_widget.worker_thread.wait()
+            
+            # Motor controller widget cleanup
+            if hasattr(self, 'motor_controller_widget'):
+                self.motor_controller_widget.stop_motor_controller()
+            
+            # Scanning operations widget cleanup
+            if hasattr(self, 'scanning_operations_widget'):
+                self.scanning_operations_widget.stop_scanning_operations()
+            
+            # Cleanup shared Oph client (since all widgets share it)
+            if hasattr(self, 'shared_oph_client'):
+                self.shared_oph_client.cleanup()
             
             # Star camera widget now handles its own telemetry cleanup
             
