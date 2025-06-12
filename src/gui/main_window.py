@@ -174,10 +174,10 @@ class MainWindow(QMainWindow):
         star_camera_layout.setContentsMargins(5, 0, 5, 0)  # Minimal margins for efficient space usage
         star_camera_layout.setSpacing(5)
         
-        # Star camera widget (now includes both image and telemetry) - increased height to eliminate scrollbars
+        # Star camera widget (now includes both image and telemetry) - reduced size to fit properly
         self.star_camera_widget = StarCameraWidget(oph_client=self.shared_oph_client)
-        self.star_camera_widget.setMinimumSize(560, 650)  # Increased from 550 to 650 to eliminate scrollbars
-        self.star_camera_widget.setMaximumSize(640, 700)  # Increased from 600 to 700
+        self.star_camera_widget.setMinimumSize(520, 600)  # Reduced from 560x650 to 520x600 to fit properly
+        self.star_camera_widget.setMaximumSize(580, 650)  # Reduced from 640x700 to 580x650
         star_camera_layout.addWidget(self.star_camera_widget, 0, Qt.AlignmentFlag.AlignTop)  # Top align like other widgets
         
         # Add some spacing between widgets
@@ -185,8 +185,8 @@ class MainWindow(QMainWindow):
         
         # Scanning Operations widget (below star camera)
         self.scanning_operations_widget = ScanningOperationsWidget(oph_client=self.shared_oph_client)
-        self.scanning_operations_widget.setMinimumSize(560, 220)  # Increased height for wrapped labels
-        self.scanning_operations_widget.setMaximumSize(640, 240)  # Increased height
+        self.scanning_operations_widget.setMinimumSize(520, 200)  # Reduced from 560x220 to 520x200 to fit properly
+        self.scanning_operations_widget.setMaximumSize(580, 220)  # Reduced from 640x240 to 580x220
         star_camera_layout.addWidget(self.scanning_operations_widget, 0, Qt.AlignmentFlag.AlignTop)
         
         # Right side - Spectra display in a container for top alignment
@@ -196,8 +196,8 @@ class MainWindow(QMainWindow):
         spectra_layout.setSpacing(0)
         
         self.spectra_widget = SpectraDisplayWidget()
-        self.spectra_widget.setMinimumSize(580, 400)  # Increased width from 500 to 580 to fill space better
-        self.spectra_widget.setMaximumSize(720, 750)  # Increased width from 600 to 720 to fill space better
+        self.spectra_widget.setMinimumSize(540, 380)  # Reduced from 580x400 to 540x380 to fit properly without cutoff
+        self.spectra_widget.setMaximumSize(660, 700)  # Reduced from 720x750 to 660x700 to prevent edge cutoff
         
         # Add spectra widget to top of container
         spectra_layout.addWidget(self.spectra_widget, 0, Qt.AlignmentFlag.AlignTop)
