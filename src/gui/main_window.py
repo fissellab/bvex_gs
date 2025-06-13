@@ -4,6 +4,7 @@ Combines sky chart, GPS display, and spectra display in a professional layout
 """
 
 import sys
+import os
 import logging
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QHBoxLayout, QVBoxLayout, 
                              QWidget, QMenuBar, QStatusBar, QSplitter,
@@ -19,6 +20,7 @@ from src.gui.motor_controller_widget import MotorControllerWidget
 from src.gui.scanning_operations_widget import ScanningOperationsWidget
 # from src.gui.star_camera_status_widget import StarCameraStatusWidget  # No longer needed
 from src.data.gps_client import GPSClient
+from src.data.data_logger import DataLogger
 from src.config.settings import GUI, GPS_SERVER, BCP_SPECTROMETER, STAR_CAMERA
 
 class MainWindow(QMainWindow):
@@ -32,6 +34,9 @@ class MainWindow(QMainWindow):
         self.setup_logging()
         self.setup_ui()
         self.setup_timers()
+        
+        # Initialize data logger (after UI setup to access spectra widget)
+        self.setup_data_logger()
         
         # Connect GPS client
         self.connect_gps()
@@ -113,6 +118,94 @@ class MainWindow(QMainWindow):
         except Exception as e:
             print(f"Warning: Failed to clean up old logs: {e}")
     
+    def setup_data_logger(self):
+        """Setup the comprehensive data logger"""
+        try:
+            # Initialize data logger with reference to main window (NO direct client access)
+            self.data_logger = DataLogger(main_window=self)
+            self.logger.info("Data logger initialized successfully - using GUI widget data sources")
+        except Exception as e:
+            self.logger.error(f"Failed to initialize data logger: {e}")
+            self.data_logger = None
+    
+    def setup_data_logging_panel(self, parent_layout):
+        """Setup the data logging control panel"""
+        from PyQt6.QtWidgets import QFrame, QPushButton, QLabel
+        from PyQt6.QtGui import QFont
+        
+        # Create data logging panel frame
+        data_logging_frame = QFrame()
+        data_logging_frame.setFrameStyle(QFrame.Shape.StyledPanel)
+        data_logging_frame.setMinimumHeight(120)
+        data_logging_frame.setMaximumHeight(140)
+        data_logging_frame.setStyleSheet("""
+            QFrame {
+                background-color: #f8f9fa;
+                border: 2px solid #dee2e6;
+                border-radius: 5px;
+                margin: 5px;
+            }
+        """)
+        
+        # Layout for the data logging panel
+        panel_layout = QVBoxLayout(data_logging_frame)
+        panel_layout.setContentsMargins(10, 8, 10, 8)
+        panel_layout.setSpacing(8)
+        
+        # Title label
+        title_label = QLabel("📊 Data Logging")
+        title_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+        title_label.setStyleSheet("QLabel { color: #495057; border: none; margin: 0px; }")
+        panel_layout.addWidget(title_label)
+        
+        # Button and status layout
+        button_layout = QHBoxLayout()
+        button_layout.setSpacing(10)
+        
+        # Toggle button
+        self.data_logging_toggle_button = QPushButton("Start Logging")
+        self.data_logging_toggle_button.setMinimumHeight(35)
+        self.data_logging_toggle_button.setMinimumWidth(120)
+        self.data_logging_toggle_button.clicked.connect(self.toggle_data_logging)
+        self.data_logging_toggle_button.setStyleSheet("""
+            QPushButton {
+                background-color: #28a745;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+                font-size: 11px;
+            }
+            QPushButton:hover {
+                background-color: #218838;
+            }
+            QPushButton:pressed {
+                background-color: #1e7e34;
+            }
+        """)
+        
+        # Status label
+        self.data_logging_status_text = QLabel("Status: Stopped")
+        self.data_logging_status_text.setFont(QFont("Arial", 10))
+        self.data_logging_status_text.setStyleSheet("QLabel { color: #6c757d; border: none; margin: 0px; }")
+        self.data_logging_status_text.setWordWrap(True)
+        
+        button_layout.addWidget(self.data_logging_toggle_button)
+        button_layout.addWidget(self.data_logging_status_text, 1)  # Allow text to expand
+        
+        panel_layout.addLayout(button_layout)
+        
+        # File info label
+        self.data_logging_file_label = QLabel("No active log file")
+        self.data_logging_file_label.setFont(QFont("Arial", 9))
+        self.data_logging_file_label.setStyleSheet("QLabel { color: #868e96; border: none; margin: 0px; }")
+        self.data_logging_file_label.setWordWrap(True)
+        panel_layout.addWidget(self.data_logging_file_label)
+        
+        # Add the panel to the parent layout
+        parent_layout.addWidget(data_logging_frame)
+    
     def setup_ui(self):
         """Setup the main UI layout"""
         # Set window properties first
@@ -168,6 +261,9 @@ class MainWindow(QMainWindow):
         # Add stretch at the end to push all widgets to the top
         left_layout.addStretch()
         
+        # Initialize data logger placeholder (will be set up after UI is complete)
+        self.data_logger = None
+        
         # Middle - Star Camera section (image and status)
         star_camera_container = QWidget()
         star_camera_layout = QVBoxLayout(star_camera_container)
@@ -201,7 +297,11 @@ class MainWindow(QMainWindow):
         
         # Add spectra widget to top of container
         spectra_layout.addWidget(self.spectra_widget, 0, Qt.AlignmentFlag.AlignTop)
-        spectra_layout.addStretch()  # Add stretch at bottom to push spectra to top
+        
+        # Add Data Logging Control Panel
+        self.setup_data_logging_panel(spectra_layout)
+        
+        spectra_layout.addStretch()  # Add stretch at bottom to push widgets to top
         
         # Add widgets to main layout with optimized space distribution
         main_layout.addWidget(left_widget, 3)  # Left side gets 3 parts
@@ -286,6 +386,20 @@ class MainWindow(QMainWindow):
         refresh_scanning_action.triggered.connect(lambda: self.scanning_operations_widget.update_telemetry() if self.scanning_operations_widget.is_scanning_operations_active() else None)
         scanning_menu.addAction(refresh_scanning_action)
         
+        # Data Logging menu
+        logging_menu = menubar.addMenu('&Data Logging')
+        
+        # Toggle data logging action
+        self.toggle_logging_action = QAction('&Start Data Logging', self)
+        self.toggle_logging_action.triggered.connect(self.toggle_data_logging)
+        self.toggle_logging_action.setCheckable(True)
+        logging_menu.addAction(self.toggle_logging_action)
+        
+        # Show log file location action
+        show_log_file_action = QAction('&Show Log File Location', self)
+        show_log_file_action.triggered.connect(self.show_log_file_location)
+        logging_menu.addAction(show_log_file_action)
+        
         # Help menu
         help_menu = menubar.addMenu('&Help')
         
@@ -325,6 +439,10 @@ class MainWindow(QMainWindow):
         # Add scanning operations status to status bar
         self.scanning_operations_status_label = self.create_status_label("Scanning Ops: Disconnected")
         self.status_bar.addPermanentWidget(self.scanning_operations_status_label)
+        
+        # Add data logging status to status bar
+        self.data_logging_status_label = self.create_status_label("Data Logging: Stopped")
+        self.status_bar.addPermanentWidget(self.data_logging_status_label)
     
     def create_status_label(self, text):
         """Create a status label widget"""
@@ -501,6 +619,30 @@ class MainWindow(QMainWindow):
         else:
             scanning_status_text = "Scanning Ops: Disconnected"
         self.scanning_operations_status_label.setText(scanning_status_text)
+        
+        # Update data logging status
+        if self.data_logger and self.data_logger.is_active():
+            log_file = self.data_logger.get_log_file_path()
+            log_filename = os.path.basename(log_file) if log_file else "Unknown"
+            data_logging_status_text = f"Data Logging: Active ({log_filename})"
+            
+            # Update visible panel status
+            if hasattr(self, 'data_logging_status_text'):
+                self.data_logging_status_text.setText("Status: Active")
+                self.data_logging_status_text.setStyleSheet("QLabel { color: #28a745; border: none; margin: 0px; font-weight: bold; }")
+            if hasattr(self, 'data_logging_file_label'):
+                self.data_logging_file_label.setText(f"File: {log_filename}")
+        else:
+            data_logging_status_text = "Data Logging: Stopped"
+            
+            # Update visible panel status
+            if hasattr(self, 'data_logging_status_text'):
+                self.data_logging_status_text.setText("Status: Stopped")
+                self.data_logging_status_text.setStyleSheet("QLabel { color: #6c757d; border: none; margin: 0px; }")
+            if hasattr(self, 'data_logging_file_label'):
+                self.data_logging_file_label.setText("No active log file")
+                
+        self.data_logging_status_label.setText(data_logging_status_text)
     
     def periodic_cleanup(self):
         """Perform periodic cleanup to prevent memory buildup during long sessions"""
@@ -549,6 +691,138 @@ class MainWindow(QMainWindow):
         """.format(GPS_SERVER=GPS_SERVER, BCP_SPECTROMETER=BCP_SPECTROMETER, STAR_CAMERA=STAR_CAMERA)
         QMessageBox.about(self, "About BVEX Ground Station", about_text)
     
+    def toggle_data_logging(self):
+        """Toggle data logging on/off"""
+        if not self.data_logger:
+            QMessageBox.warning(
+                self, 
+                "Data Logger Error", 
+                "Data logger is not initialized. Please restart the application."
+            )
+            return
+        
+        try:
+            if self.data_logger.is_active():
+                # Stop logging
+                self.data_logger.stop_logging()
+                self.update_data_logging_ui(False)
+                self.status_bar.showMessage("Data logging stopped", 3000)
+                self.logger.info("Data logging stopped by user")
+            else:
+                # Start or resume logging
+                if self.data_logger.get_log_file_path():
+                    # Resume existing log
+                    if self.data_logger.resume_logging():
+                        self.update_data_logging_ui(True)
+                        self.status_bar.showMessage("Data logging resumed", 3000)
+                        self.logger.info("Data logging resumed by user")
+                    else:
+                        QMessageBox.warning(
+                            self, 
+                            "Data Logging Error", 
+                            "Failed to resume data logging. Check the logs for details."
+                        )
+                else:
+                    # Start new log
+                    if self.data_logger.start_logging():
+                        self.update_data_logging_ui(True)
+                        self.status_bar.showMessage("Data logging started", 3000)
+                        self.logger.info("Data logging started by user")
+                    else:
+                        QMessageBox.warning(
+                            self, 
+                            "Data Logging Error", 
+                            "Failed to start data logging. Check the logs for details."
+                        )
+        except Exception as e:
+            self.logger.error(f"Error toggling data logging: {e}")
+            QMessageBox.critical(
+                self, 
+                "Data Logging Error", 
+                f"An error occurred while toggling data logging:\n{str(e)}"
+            )
+    
+    def update_data_logging_ui(self, is_active: bool):
+        """Update both menu and visible UI elements for data logging state"""
+        if is_active:
+            # Update menu action
+            self.toggle_logging_action.setText('&Stop Data Logging')
+            self.toggle_logging_action.setChecked(True)
+            
+            # Update visible button
+            if hasattr(self, 'data_logging_toggle_button'):
+                self.data_logging_toggle_button.setText("Stop Logging")
+                self.data_logging_toggle_button.setStyleSheet("""
+                    QPushButton {
+                        background-color: #dc3545;
+                        color: white;
+                        border: none;
+                        padding: 8px 16px;
+                        border-radius: 4px;
+                        font-weight: bold;
+                        font-size: 11px;
+                    }
+                    QPushButton:hover {
+                        background-color: #c82333;
+                    }
+                    QPushButton:pressed {
+                        background-color: #bd2130;
+                    }
+                """)
+        else:
+            # Update menu action
+            self.toggle_logging_action.setText('&Start Data Logging')
+            self.toggle_logging_action.setChecked(False)
+            
+            # Update visible button
+            if hasattr(self, 'data_logging_toggle_button'):
+                self.data_logging_toggle_button.setText("Start Logging")
+                self.data_logging_toggle_button.setStyleSheet("""
+                    QPushButton {
+                        background-color: #28a745;
+                        color: white;
+                        border: none;
+                        padding: 8px 16px;
+                        border-radius: 4px;
+                        font-weight: bold;
+                        font-size: 11px;
+                    }
+                    QPushButton:hover {
+                        background-color: #218838;
+                    }
+                    QPushButton:pressed {
+                        background-color: #1e7e34;
+                    }
+                """)
+    
+    def show_log_file_location(self):
+        """Show the current log file location"""
+        if not self.data_logger:
+            QMessageBox.information(
+                self, 
+                "Data Logger", 
+                "Data logger is not initialized."
+            )
+            return
+        
+        log_file = self.data_logger.get_log_file_path()
+        if log_file:
+            log_dir = os.path.dirname(log_file)
+            log_filename = os.path.basename(log_file)
+            
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Icon.Information)
+            msg.setWindowTitle("Data Log File Location")
+            msg.setText(f"Current log file:\n{log_filename}")
+            msg.setDetailedText(f"Full path:\n{log_file}\n\nDirectory:\n{log_dir}")
+            msg.exec()
+        else:
+            QMessageBox.information(
+                self, 
+                "Data Log File Location", 
+                "No active log file. Start data logging to create a new log file."
+            )
+    
     def closeEvent(self, event):
         """Handle window close event"""
         self.logger.info("Application shutting down - cleaning up resources...")
@@ -595,6 +869,11 @@ class MainWindow(QMainWindow):
             # Sky chart cleanup (minimal - just stop animation if running)
             if hasattr(self, 'sky_chart_widget') and self.sky_chart_widget.is_sky_chart_active():
                 self.sky_chart_widget.stop_animation()
+            
+            # Data logger cleanup
+            if hasattr(self, 'data_logger') and self.data_logger:
+                self.data_logger.stop_logging()
+                self.logger.info("Data logging stopped during shutdown")
             
             self.logger.info("Application cleanup completed successfully")
             
