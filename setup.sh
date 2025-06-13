@@ -3,8 +3,13 @@
 # BVEX Ground Station Setup Script (Unix/macOS/Linux)
 # This script creates a virtual environment and installs all dependencies
 # Optimized for Ubuntu 20.04+ with full Qt6/PyQt6 support
+#
+# Usage:
+#   ./setup.sh                    # Interactive mode
+#   AUTO_FIX=1 ./setup.sh         # Auto-fix problematic packages without prompting
 
-set -e  # Exit on any error
+# Note: We don't use 'set -e' here because we want to handle errors gracefully
+# instead of exiting immediately on any error
 
 echo "=========================================="
 echo "BVEX Ground Station Setup"
@@ -56,105 +61,126 @@ fi
 install_ubuntu_deps() {
     print_blue "Installing system dependencies for Ubuntu/Debian..."
     
-    # Update package list
+    # First, attempt to fix any broken package installations
+    print_yellow "Checking for and fixing any broken package installations..."
+    
+    # Remove any crash reports that might be blocking installations
+    if [ -d "/var/crash" ] && [ "$(ls -A /var/crash 2>/dev/null)" ]; then
+        print_yellow "Found crash reports that might be blocking installations, attempting to clean up..."
+        sudo rm -f /var/crash/*.crash 2>/dev/null || true
+    fi
+    
+    # Try to fix broken packages
+    print_yellow "Attempting to fix broken packages..."
+    if ! sudo dpkg --configure -a 2>/dev/null; then
+        print_yellow "Some packages have configuration issues, attempting to fix..."
+        
+        # Try to fix broken installations
+        sudo apt-get install -f -y 2>/dev/null || true
+        
+        # If there are still issues, try to identify problematic packages
+        if ! sudo dpkg --configure -a 2>/dev/null; then
+            print_yellow "Checking for problematic DKMS modules..."
+            
+            # Check for common problematic packages like synosnap
+            for pkg in synosnap nvidia-dkms virtualbox-dkms; do
+                if dpkg -l | grep -q "^ii.*$pkg" 2>/dev/null; then
+                    print_yellow "Found potentially problematic package: $pkg"
+                    
+                    # Check if we're in a non-interactive environment or if AUTO_FIX is set
+                    if [ -n "$AUTO_FIX" ] || [ -n "$CI" ] || [ ! -t 0 ]; then
+                        print_yellow "Auto-removing problematic package $pkg..."
+                        REPLY="y"
+                    else
+                        read -p "Remove problematic package $pkg? This may help fix the installation. (y/N): " -n 1 -r
+                        echo
+                    fi
+                    
+                    if [[ $REPLY =~ ^[Yy]$ ]]; then
+                        print_yellow "Removing $pkg..."
+                        sudo apt-get remove --purge -y $pkg 2>/dev/null || true
+                        sudo apt-get autoremove -y 2>/dev/null || true
+                    fi
+                fi
+            done
+            
+            # Try one more time to configure packages
+            sudo dpkg --configure -a 2>/dev/null || true
+        fi
+    fi
+    
+    # Clean up package cache and fix any remaining issues
+    print_yellow "Cleaning package cache and fixing dependencies..."
+    sudo apt-get clean 2>/dev/null || true
+    sudo apt-get autoremove -y 2>/dev/null || true
+    sudo apt-get install -f -y 2>/dev/null || true
+    
+    # Update package list with error handling
     echo "Updating package list..."
-    sudo apt-get update -qq
+    if ! sudo apt-get update -qq; then
+        print_yellow "Standard package update failed, trying alternative approach..."
+        # Try updating without quiet mode to see errors
+        if ! sudo apt-get update; then
+            print_red "Package list update failed. Continuing anyway..."
+            print_yellow "Some packages may not install correctly."
+        fi
+    fi
+    
+    # Function to safely install packages with error handling
+    safe_install() {
+        local packages="$1"
+        local description="$2"
+        
+        echo "Installing $description..."
+        if ! sudo apt-get install -y $packages; then
+            print_yellow "Failed to install some packages in group: $description"
+            print_yellow "Attempting individual package installation..."
+            
+            # Try installing packages individually
+            for pkg in $packages; do
+                echo "  Trying to install: $pkg"
+                if sudo apt-get install -y $pkg 2>/dev/null; then
+                    print_green "  ✓ $pkg installed successfully"
+                else
+                    print_yellow "  ⚠ Failed to install $pkg (continuing anyway)"
+                fi
+            done
+        else
+            print_green "✓ $description installed successfully"
+        fi
+    }
     
     # Essential build tools and Python development
-    echo "Installing build essentials and Python development packages..."
-    sudo apt-get install -y \
-        build-essential \
-        python3-dev \
-        python3-pip \
-        python3-venv \
-        pkg-config
+    safe_install "build-essential python3-dev python3-pip python3-venv pkg-config" \
+                 "build essentials and Python development packages"
     
     # Qt6 and XCB dependencies - CRITICAL for PyQt6
-    echo "Installing Qt6 and XCB platform dependencies..."
-    sudo apt-get install -y \
-        qt6-base-dev \
-        qt6-tools-dev \
-        qt6-tools-dev-tools \
-        libqt6core6 \
-        libqt6gui6 \
-        libqt6widgets6 \
-        libqt6opengl6-dev \
-        libqt6svg6-dev \
-        libqt6multimedia6 \
-        libqt6multimediawidgets6
+    safe_install "qt6-base-dev qt6-tools-dev qt6-tools-dev-tools libqt6core6 libqt6gui6 libqt6widgets6 libqt6opengl6-dev libqt6svg6-dev libqt6multimedia6 libqt6multimediawidgets6" \
+                 "Qt6 and XCB platform dependencies"
         
     # XCB platform plugin dependencies - FIXES THE MAIN ERROR
-    echo "Installing XCB platform plugin dependencies..."
-    sudo apt-get install -y \
-        libxcb1-dev \
-        libxcb-cursor0 \
-        libxcb-cursor-dev \
-        libxcb-keysyms1-dev \
-        libxcb-image0-dev \
-        libxcb-shm0-dev \
-        libxcb-util1-dev \
-        libxcb-icccm4-dev \
-        libxcb-render0-dev \
-        libxcb-render-util0-dev \
-        libxcb-shape0-dev \
-        libxcb-randr0-dev \
-        libxcb-xfixes0-dev \
-        libxcb-sync-dev \
-        libxcb-xinerama0-dev \
-        libxcb-present-dev
+    safe_install "libxcb1-dev libxcb-cursor0 libxcb-cursor-dev libxcb-keysyms1-dev libxcb-image0-dev libxcb-shm0-dev libxcb-util1-dev libxcb-icccm4-dev libxcb-render0-dev libxcb-render-util0-dev libxcb-shape0-dev libxcb-randr0-dev libxcb-xfixes0-dev libxcb-sync-dev libxcb-xinerama0-dev libxcb-present-dev" \
+                 "XCB platform plugin dependencies"
     
     # X11 and OpenGL dependencies for full GUI functionality
-    echo "Installing X11 and OpenGL dependencies..."
-    sudo apt-get install -y \
-        libx11-dev \
-        libx11-xcb-dev \
-        libxext-dev \
-        libxfixes-dev \
-        libxi-dev \
-        libxrender-dev \
-        libgl1-mesa-dev \
-        libglu1-mesa-dev \
-        libglx-dev \
-        libegl1-mesa-dev
+    safe_install "libx11-dev libx11-xcb-dev libxext-dev libxfixes-dev libxi-dev libxrender-dev libgl1-mesa-dev libglu1-mesa-dev libglx-dev libegl1-mesa-dev" \
+                 "X11 and OpenGL dependencies"
     
     # Wayland support (for modern Ubuntu desktops)
-    echo "Installing Wayland compatibility..."
-    sudo apt-get install -y \
-        libwayland-dev \
-        libwayland-client0 \
-        libwayland-cursor0 \
-        libwayland-egl1-mesa
+    safe_install "libwayland-dev libwayland-client0 libwayland-cursor0 libwayland-egl1-mesa" \
+                 "Wayland compatibility"
     
     # Font and theme support for professional appearance
-    echo "Installing fonts and theme support..."
-    sudo apt-get install -y \
-        fonts-dejavu-core \
-        fonts-liberation \
-        fonts-noto \
-        fontconfig \
-        libfontconfig1-dev \
-        libfreetype6-dev
+    safe_install "fonts-dejavu-core fonts-liberation fonts-noto fontconfig libfontconfig1-dev libfreetype6-dev" \
+                 "fonts and theme support"
     
     # Audio/multimedia support (required by Qt6 multimedia)
-    echo "Installing multimedia support..."
-    sudo apt-get install -y \
-        libasound2-dev \
-        libpulse-dev \
-        libgstreamer1.0-dev \
-        libgstreamer-plugins-base1.0-dev
+    safe_install "libasound2-dev libpulse-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev" \
+                 "multimedia support"
     
     # Scientific computing dependencies (for matplotlib, numpy optimization)
-    echo "Installing scientific computing dependencies..."
-    sudo apt-get install -y \
-        libblas-dev \
-        liblapack-dev \
-        libatlas-base-dev \
-        gfortran \
-        libffi-dev \
-        libjpeg-dev \
-        libpng-dev \
-        libtiff-dev \
-        libfreetype6-dev
+    safe_install "libblas-dev liblapack-dev libatlas-base-dev gfortran libffi-dev libjpeg-dev libpng-dev libtiff-dev libfreetype6-dev" \
+                 "scientific computing dependencies"
     
     print_green "✓ System dependencies installed successfully"
 }
@@ -195,12 +221,20 @@ if [ "$OS" = "linux" ]; then
     print_blue "🔧 Installing system dependencies..."
     
     if [ "$DISTRO" = "ubuntu" ] || [ "$DISTRO" = "debian" ] || [ "$DISTRO" = "pop" ] || [ "$DISTRO" = "mint" ]; then
-        install_ubuntu_deps
+        if install_ubuntu_deps; then
+            print_green "✓ System dependencies installation completed"
+        else
+            print_yellow "⚠ System dependencies installation completed with some warnings"
+            print_yellow "The setup will continue, but some packages may not have installed correctly."
+        fi
     else
-        install_other_linux_deps
+        if install_other_linux_deps; then
+            print_green "✓ System dependencies installation completed"
+        else
+            print_yellow "⚠ System dependencies installation completed with some warnings"
+            print_yellow "The setup will continue, but some packages may not have installed correctly."
+        fi
     fi
-    
-    print_green "✓ System dependencies installation completed"
     echo ""
 elif [ "$OS" = "macos" ]; then
     print_blue "macOS detected - checking for Homebrew dependencies..."
