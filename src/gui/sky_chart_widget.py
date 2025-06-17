@@ -44,6 +44,11 @@ class SkyChartWidget(QWidget):
         # Coordinate system toggle for crosshair
         self.use_az_alt_coordinates = False  # False = RA/DEC, True = Az/Alt
         
+        # Last known crosshair positions for persistence during data outages
+        self.last_crosshair_az_rad = None
+        self.last_crosshair_alt_deg = None
+        self.last_crosshair_mode = None  # Track which mode the last position was from
+        
         self.setup_ui()
         self.setup_static_display()
     
@@ -433,48 +438,60 @@ class SkyChartWidget(QWidget):
                            size=11, color='red', weight='bold')
     
     def _draw_star_camera_crosshair(self, tel_frame):
-        """Draw crosshair showing star camera pointing direction"""
-        if not self.star_camera_data.valid:
-            return
-            
+        """Draw crosshair showing star camera pointing direction with persistence during data outages"""
+        # Try to update crosshair position with new valid data
+        new_az_rad = None
+        new_alt_deg = None
+        current_mode = "az_alt" if self.use_az_alt_coordinates else "ra_dec"
+        
         try:
             if self.use_az_alt_coordinates:
                 # Use Az from GPS heading and Alt from motor position
-                if not self.gps_data.valid:
-                    return  # Need GPS data for Az/Alt mode
+                if self.gps_data.valid and self.star_camera_data.valid:
+                    gps_az = self.gps_data.head  # degrees - true heading from GPS
+                    motor_alt = self.star_camera_data.sc_alt  # degrees - motor position altitude
                     
-                gps_az = self.gps_data.head  # degrees - true heading from GPS
-                motor_alt = self.star_camera_data.sc_alt  # degrees - motor position altitude
-                
-                # Use GPS heading for azimuth and motor position for altitude
-                az_rad = gps_az * np.pi / 180
-                alt_deg = motor_alt
+                    # Use GPS heading for azimuth and motor position for altitude
+                    new_az_rad = gps_az * np.pi / 180
+                    new_alt_deg = motor_alt
                 
             else:
                 # Use RA/DEC coordinates (original implementation)
-                sc_ra = self.star_camera_data.sc_ra  # degrees
-                sc_dec = self.star_camera_data.sc_dec  # degrees
-                
-                # Note: We plot even if RA/DEC are zero (no solution) as requested
+                if self.star_camera_data.valid:
+                    sc_ra = self.star_camera_data.sc_ra  # degrees
+                    sc_dec = self.star_camera_data.sc_dec  # degrees
                     
-                # Create sky coordinate from star camera RA/DEC
-                star_camera_coord = SkyCoord(ra=sc_ra * u.degree, dec=sc_dec * u.degree)
-                
-                # Transform to Alt/Az
-                star_camera_altaz = star_camera_coord.transform_to(tel_frame)
-                
-                az_rad = star_camera_altaz.az.deg * np.pi / 180
-                alt_deg = star_camera_altaz.alt.deg
-            
-            # Only draw if above horizon
-            if alt_deg > 0:
-                # Draw crosshair - simple cross design
-                self.ax.plot(az_rad, alt_deg, 'r+', markersize=20, alpha=0.9)
-            
-                               
+                    # Note: We plot even if RA/DEC are zero (no solution) as requested
+                        
+                    # Create sky coordinate from star camera RA/DEC
+                    star_camera_coord = SkyCoord(ra=sc_ra * u.degree, dec=sc_dec * u.degree)
+                    
+                    # Transform to Alt/Az
+                    star_camera_altaz = star_camera_coord.transform_to(tel_frame)
+                    
+                    new_az_rad = star_camera_altaz.az.deg * np.pi / 180
+                    new_alt_deg = star_camera_altaz.alt.deg
+        
         except Exception as e:
             # Silently skip if coordinate transformation fails
             pass
+        
+        # Update stored position if we have new valid data
+        if new_az_rad is not None and new_alt_deg is not None and new_alt_deg > 0:
+            self.last_crosshair_az_rad = new_az_rad
+            self.last_crosshair_alt_deg = new_alt_deg
+            self.last_crosshair_mode = current_mode
+        
+        # Draw crosshair using last known position (if available and matches current mode)
+        if (self.last_crosshair_az_rad is not None and 
+            self.last_crosshair_alt_deg is not None and 
+            self.last_crosshair_mode == current_mode and
+            self.last_crosshair_alt_deg > 0):
+            
+            # Draw crosshair - simple cross design
+            alpha = 0.9 if (new_az_rad is not None and new_alt_deg is not None) else 0.6  # Dimmer if using old data
+            self.ax.plot(self.last_crosshair_az_rad, self.last_crosshair_alt_deg, 'r+', 
+                        markersize=20, alpha=alpha)
             
     def _draw_el_mount_crosshair(self):
         """Draw crosshair showing elevation mount pointing direction"""
