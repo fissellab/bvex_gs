@@ -20,6 +20,7 @@ import logging
 
 from src.config.settings import OBSERVATORY, CELESTIAL_OBJECTS, GUI
 from src.data.Oph_client import OphClient, OphData
+from src.data.gps_client import GPSClient, GPSData
 
 class SkyChartWidget(QWidget):
     """Widget displaying real-time sky chart"""
@@ -38,6 +39,7 @@ class SkyChartWidget(QWidget):
         
         # Star camera data for crosshair
         self.star_camera_data = OphData()
+        self.gps_data = GPSData()
         
         # Coordinate system toggle for crosshair
         self.use_az_alt_coordinates = False  # False = RA/DEC, True = Az/Alt
@@ -191,8 +193,9 @@ class SkyChartWidget(QWidget):
         """Show static 'waiting for user input' display"""
         self.ax.clear()
         self.ax.set_rlim(90, 0)
+        self.ax.set_rticks([80, 60, 40, 20])
         self.ax.set_theta_zero_location("N")
-        self.ax.grid(True, alpha=0.3, linewidth=0.5)
+        self.ax.grid(True, alpha=1.0, linewidth=0.5)
         self.ax.set_title("Sky Chart - Waiting for User Input", fontsize=14, pad=20, color='gray')
         
         # Add centered text
@@ -223,16 +226,20 @@ class SkyChartWidget(QWidget):
             # Force canvas to draw to ensure animation is properly initialized
             self.canvas.draw_idle()
     
-    def update_location(self, latitude: float, longitude: float, elevation: float = None):
+    def update_location(self):
         """Update observer location (e.g., from GPS data)"""
-        if elevation is None:
-            elevation = OBSERVATORY['elevation']
-            
-        self.current_location = EarthLocation(
-            lon=longitude * u.degree,
-            lat=latitude * u.degree,
-            height=elevation * u.meter
-        )
+        if self.gps_data.valid:
+            self.current_location = EarthLocation(
+                lon=self.gps_data.lat * u.degree,
+                lat=self.gps_data.lon * u.degree,
+                height=self.gps_data.alt * u.meter
+            )
+        else:
+            self.current_location = EarthLocation(
+                lon=OBSERVATORY['longitude'] * u.degree,
+                lat=OBSERVATORY['latitude'] * u.degree,
+                height=OBSERVATORY['elevation'] * u.meter
+            )
     
     def update_chart(self, frame):
         """Update the sky chart with current celestial positions - EXACT logic from original"""
@@ -241,6 +248,9 @@ class SkyChartWidget(QWidget):
             
         # EXACT clearing approach from original bvex_pointing.py
         self.ax.clear()
+        
+        #Update location
+        self.update_location()
         
         # Current time and observing frame - use exact same format as original
         t_utc = Time(dt.datetime.now(dt.timezone.utc))
@@ -257,6 +267,9 @@ class SkyChartWidget(QWidget):
         
         # Draw star camera crosshair
         self._draw_star_camera_crosshair(tel_frame)
+        
+        # Draw elevation mount pointing crosshair
+        self._draw_el_mount_crosshair()
         
         # Configure plot appearance
         self._configure_plot(t_utc)
@@ -293,7 +306,7 @@ class SkyChartWidget(QWidget):
             vis = np.where(line_AltAz.alt.deg > 0)
             alt = line_AltAz.alt.deg[vis]
             az = line_AltAz.az.deg[vis]
-            self.ax.plot(az * np.pi / 180, alt, 'b-', alpha=0.3, linewidth=0.5)
+            self.ax.plot(az * np.pi / 180, alt, 'b-', alpha=0.5, linewidth=0.5)
 
             # Add RA labels in a ring just inside the plot boundary
             if len(alt) > 0:
@@ -330,7 +343,7 @@ class SkyChartWidget(QWidget):
             vis = np.where(line_AltAz.alt.deg > 0)
             alt = line_AltAz.alt.deg[vis]
             az = line_AltAz.az.deg[vis]
-            self.ax.plot(az * np.pi / 180, alt, 'b-', alpha=0.2, linewidth=0.5)
+            self.ax.plot(az * np.pi / 180, alt, 'b-', alpha=0.5, linewidth=0.5)
             # Keep the original buggy condition exactly as it was
             if len(alt) > 11:
                 try:
@@ -376,11 +389,48 @@ class SkyChartWidget(QWidget):
         # W49N target - EXACT coordinates and logic from original
         W49N = SkyCoord(ra='19h11m28.37s', dec='09d06m02.2s')
         W49N_AltAz = W49N.transform_to(tel_frame)
+        OrionKL = SkyCoord(ra='05h35m14.16s', dec='-05d22m21.5s')
+        OrionKL_AltAz = OrionKL.transform_to(tel_frame)
+        q_3C273 = SkyCoord(ra='12h29m6.7s', dec='02d03m09s')
+        q_3C273_AltAz = q_3C273.transform_to(tel_frame)
+        q_3C279 = SkyCoord(ra='12h56m11.1s', dec='-05d47m22s')
+        q_3C279_AltAz = q_3C279.transform_to(tel_frame)
+        q_3C4543 = SkyCoord(ra='22h53m57.7s', dec='16d08m53.6s')
+        q_3C4543_AltAz = q_3C4543.transform_to(tel_frame)
+        q_4C1169 = SkyCoord(ra='22h32m36.4s', dec='11d43m50.9s')
+        q_4C1169_AltAz = q_4C1169.transform_to(tel_frame)
+        q_3C84 = SkyCoord(ra='03h19m48.2s', dec='41d30m42.1s')
+        q_3C84_AltAz = q_3C84.transform_to(tel_frame)
         
         if(W49N_AltAz.alt.deg > 0):
             self.ax.plot(W49N_AltAz.az.deg * np.pi / 180, W49N_AltAz.alt.deg, 'gv', markersize=9)
             self.ax.annotate('W49N', xy=((W49N_AltAz.az.deg + 1) * np.pi / 180, W49N_AltAz.alt.deg + 1), 
                            size=11, color='green', weight='bold')
+        if(OrionKL_AltAz.alt.deg > 0):
+            self.ax.plot(OrionKL_AltAz.az.deg * np.pi / 180, OrionKL_AltAz.alt.deg, 'gv', markersize=9)
+            self.ax.annotate('Orion KL', xy=((OrionKL_AltAz.az.deg + 1) * np.pi / 180, OrionKL_AltAz.alt.deg + 1), 
+                           size=11, color='green', weight='bold')
+                           
+        if(q_3C273_AltAz.alt.deg > 0):
+            self.ax.plot(q_3C273_AltAz.az.deg * np.pi / 180, q_3C273_AltAz.alt.deg, 'rd', markersize=9)
+            self.ax.annotate('3C 273', xy=((q_3C273_AltAz.az.deg + 5) * np.pi / 180, q_3C273_AltAz.alt.deg + 5), 
+                           size=11, color='red', weight='bold')
+        if(q_3C279_AltAz.alt.deg > 0):
+            self.ax.plot(q_3C279_AltAz.az.deg * np.pi / 180, q_3C279_AltAz.alt.deg, 'rd', markersize=9)
+            self.ax.annotate('3C 279', xy=((q_3C279_AltAz.az.deg + 5) * np.pi / 180, q_3C279_AltAz.alt.deg - 5), 
+                           size=11, color='red', weight='bold')
+        if(q_3C4543_AltAz.alt.deg > 0):
+            self.ax.plot(q_3C4543_AltAz.az.deg * np.pi / 180, q_3C4543_AltAz.alt.deg, 'rd', markersize=9)
+            self.ax.annotate('3C 454.3', xy=((q_3C4543_AltAz.az.deg + 5) * np.pi / 180, q_3C4543_AltAz.alt.deg + 5), 
+                           size=11, color='red', weight='bold')
+        if(q_4C1169_AltAz.alt.deg > 0):
+            self.ax.plot(q_4C1169_AltAz.az.deg * np.pi / 180, q_4C1169_AltAz.alt.deg, 'rd', markersize=9)
+            self.ax.annotate('4C 11.69', xy=((qQ_4C1169_AltAz.az.deg + 5) * np.pi / 180, q_4C1169_AltAz.alt.deg + 5), 
+                           size=11, color='red', weight='bold')
+        if(q_3C84_AltAz.alt.deg > 0):
+            self.ax.plot(q_3C84_AltAz.az.deg * np.pi / 180, q_3C84_AltAz.alt.deg, 'rd', markersize=9)
+            self.ax.annotate('3C 84', xy=((q_3C84_AltAz.az.deg + 5) * np.pi / 180, q_3C84_AltAz.alt.deg + 5), 
+                           size=11, color='red', weight='bold')
     
     def _draw_star_camera_crosshair(self, tel_frame):
         """Draw crosshair showing star camera pointing direction"""
@@ -389,13 +439,16 @@ class SkyChartWidget(QWidget):
             
         try:
             if self.use_az_alt_coordinates:
-                # Use Az/Alt coordinates directly from star camera
-                sc_az = self.star_camera_data.sc_az  # degrees
-                sc_alt = self.star_camera_data.sc_alt  # degrees (altitude/elevation)
+                # Use Az from GPS heading and Alt from motor position
+                if not self.gps_data.valid:
+                    return  # Need GPS data for Az/Alt mode
+                    
+                gps_az = self.gps_data.head  # degrees - true heading from GPS
+                motor_alt = self.star_camera_data.sc_alt  # degrees - motor position altitude
                 
-                # Use star camera Az/Alt directly (no coordinate transformation needed)
-                az_rad = sc_az * np.pi / 180
-                alt_deg = sc_alt
+                # Use GPS heading for azimuth and motor position for altitude
+                az_rad = gps_az * np.pi / 180
+                alt_deg = motor_alt
                 
             else:
                 # Use RA/DEC coordinates (original implementation)
@@ -416,36 +469,43 @@ class SkyChartWidget(QWidget):
             # Only draw if above horizon
             if alt_deg > 0:
                 # Draw crosshair - simple cross design
-                crosshair_size = 3.0  # degrees
-                
-                # Vertical line of crosshair
-                self.ax.plot([az_rad, az_rad], 
-                            [max(0, alt_deg - crosshair_size), 
-                             min(90, alt_deg + crosshair_size)], 
-                            'r-', linewidth=2, alpha=0.8)
-                
-                # Horizontal line of crosshair (approximate in polar coordinates)
-                # For small angles, we can approximate the horizontal line
-                az_offset = crosshair_size / np.cos(np.deg2rad(90 - alt_deg)) if alt_deg < 87 else crosshair_size
-                az_left = az_rad - np.deg2rad(az_offset)
-                az_right = az_rad + np.deg2rad(az_offset)
-                
-                self.ax.plot([az_left, az_right], 
-                            [alt_deg, alt_deg], 
-                            'r-', linewidth=2, alpha=0.8)
-                
-                # Add center dot
-                self.ax.plot(az_rad, alt_deg, 'ro', markersize=4, alpha=0.9)
+                self.ax.plot(az_rad, alt_deg, 'r+', markersize=20, alpha=0.9)
+            
                                
         except Exception as e:
             # Silently skip if coordinate transformation fails
             pass
+            
+    def _draw_el_mount_crosshair(self):
+        """Draw crosshair showing elevation mount pointing direction"""
+        if (self.star_camera_data.valid and self.gps_data.valid):
+            
+            try:
+                # Use motor poisiton for alt and gps heading for az
+               gps_az = self.gps_data.head  # degrees
+               mc_alt = self.star_camera_data.sc_alt  # degrees (altitude/elevation)
+                
+
+               az_rad = gps_az * np.pi / 180
+               alt_deg = mc_alt
+                
+            
+               if alt_deg > 0:
+                   # Draw crosshair - simple cross design
+                   self.ax.plot(az_rad, alt_deg, 'b+', markersize=20, alpha=0.9)
+            
+                               
+            except Exception as e:
+                # Silently skip if coordinate transformation fails
+                pass
+        else:
+            return
 
     def _configure_plot(self, time_utc):
         """Configure plot appearance - EXACT settings from original bvex_pointing.py"""
         self.ax.set_rlim(90, 0)  # EXACT from original
         self.ax.set_rticks([80, 60, 40, 20])  # EXACT from original
-        self.ax.grid(True, alpha=0.3, linewidth=0.5)  # Cleaner grid
+        self.ax.grid(True, alpha=1.0, linewidth=0.5)  # Cleaner grid
         self.ax.set_theta_zero_location("N")  # EXACT from original
         self.ax.tick_params(labelsize=10)  # Smaller, cleaner tick labels
         time_str = str(time_utc).split('.')[0]
