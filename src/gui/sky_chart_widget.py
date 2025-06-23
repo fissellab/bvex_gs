@@ -430,7 +430,7 @@ class SkyChartWidget(QWidget):
                            size=11, color='red', weight='bold')
         if(q_4C1169_AltAz.alt.deg > 0):
             self.ax.plot(q_4C1169_AltAz.az.deg * np.pi / 180, q_4C1169_AltAz.alt.deg, 'rd', markersize=9)
-            self.ax.annotate('4C 11.69', xy=((qQ_4C1169_AltAz.az.deg + 5) * np.pi / 180, q_4C1169_AltAz.alt.deg + 5), 
+            self.ax.annotate('4C 11.69', xy=((q_4C1169_AltAz.az.deg + 5) * np.pi / 180, q_4C1169_AltAz.alt.deg + 5), 
                            size=11, color='red', weight='bold')
         if(q_3C84_AltAz.alt.deg > 0):
             self.ax.plot(q_3C84_AltAz.az.deg * np.pi / 180, q_3C84_AltAz.alt.deg, 'rd', markersize=9)
