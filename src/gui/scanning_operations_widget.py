@@ -169,7 +169,6 @@ class ScanningOperationsWidget(QWidget):
             child = self.container_layout.itemAt(i).widget()
             if child:
                 child.setParent(None)
-        
         # Add centered message
         message_label = QLabel("Scanning Operations - Waiting for User Input")
         message_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -193,7 +192,6 @@ class ScanningOperationsWidget(QWidget):
             child = self.container_layout.itemAt(i).widget()
             if child:
                 child.setParent(None)
-        
         # Status header
         self.status_header = self._create_status_header()
         self.container_layout.addWidget(self.status_header)

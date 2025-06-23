@@ -93,7 +93,7 @@ class StarCameraWidget(QWidget):
         self.current_status = None
         self.current_telemetry = OphData()
         self.last_fetch_time = None
-        
+        self.prev_focus_status = 0
         # History for data rate calculation
         self.update_times = deque(maxlen=10)
         
@@ -144,7 +144,7 @@ class StarCameraWidget(QWidget):
                 background-color: #218838;
             }
         """)
-        
+        control_layout.setSpacing(10)
         control_layout.addWidget(self.control_status_label)
         control_layout.addStretch()
         control_layout.addWidget(self.toggle_button)
@@ -164,7 +164,7 @@ class StarCameraWidget(QWidget):
         """)
         
         self.container_layout = QVBoxLayout(self.container)
-        self.container_layout.setSpacing(2)
+        self.container_layout.setSpacing(10)
         self.container_layout.setContentsMargins(4, 4, 4, 4)
         
         # Initially show static display
@@ -247,14 +247,36 @@ class StarCameraWidget(QWidget):
             
             # Show static display
             self.setup_static_display()
-    
+    def clear_widget(self,layout):
+        print("-- -- input layout: "+str(layout))
+        for i in reversed(range(layout.count())):
+            layoutItem = layout.itemAt(i)
+            if layoutItem.widget() is not None:
+                widgetToRemove = layoutItem.widget()
+                print("found widget: " + str(widgetToRemove))
+                widgetToRemove.setParent(None)
+                layout.removeWidget(widgetToRemove)
+            elif layoutItem.spacerItem() is not None:
+                print("found spacer: " + str(layoutItem.spacerItem()))
+            else:
+                layoutToRemove = layout.itemAt(i)
+                print("-- found Layout: "+str(layoutToRemove))
+                self.clear_widget(layoutToRemove)
+
+    """
+        for i in reversed(range(layout.count())):
+            if layout.itemAt(i) != None:
+               if "Layout" not in str(layout.itemAt(i)):
+                  if layout.itemAt(i).widget():
+                      layout.itemAt(i).widget().setParent(None)
+                      layout.removeWidget(layout.itemAt(i).widget())
+               else:
+                  self.clear_widget(layout.itemAt(i))
+    """         
     def setup_static_display(self):
         """Show static 'waiting for user input' display"""
         # Clear existing widgets
-        for i in reversed(range(self.container_layout.count())):
-            child = self.container_layout.itemAt(i).widget()
-            if child:
-                child.setParent(None)
+        self.clear_widget(self.container_layout)
         
         # Add centered message
         message_label = QLabel("Star Camera Display - Waiting for User Input")
@@ -281,10 +303,7 @@ class StarCameraWidget(QWidget):
     def setup_active_display(self):
         """Show active star camera display with image and controls"""
         # Clear existing widgets
-        for i in reversed(range(self.container_layout.count())):
-            child = self.container_layout.itemAt(i).widget()
-            if child:
-                child.setParent(None)
+        self.clear_widget(self.container_layout)
         
         # Simple clean status line at the top - no borders
         top_status_layout = QHBoxLayout()
@@ -325,7 +344,7 @@ class StarCameraWidget(QWidget):
         
         self.image_scroll_area.setWidget(self.image_label)
         self.container_layout.addWidget(self.image_scroll_area)
-        
+
         # Image info row - clean, no containers
         info_layout = QHBoxLayout()
         info_layout.setContentsMargins(5, 5, 5, 5)
@@ -382,8 +401,14 @@ class StarCameraWidget(QWidget):
         self.solving_status.setFont(QFont("Arial", 9, QFont.Weight.Bold))
         self.solving_status.setStyleSheet("QLabel { color: #666666; padding: 2px 6px; background-color: #f0f0f0; border-radius: 3px; }")
         
+        # Saving status indicator
+        self.saving_status = QLabel("Save: Idle")
+        self.saving_status.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        self.saving_status.setStyleSheet("QLabel { color: #666666; padding: 2px 6px; background-color: #f0f0f0; border-radius: 3px; }")
+        
         status_indicators_layout.addWidget(self.auto_focus_status)
         status_indicators_layout.addWidget(self.solving_status)
+        status_indicators_layout.addWidget(self.saving_status)
         status_indicators_layout.addStretch()
         
         self.container_layout.addLayout(status_indicators_layout)
@@ -396,19 +421,32 @@ class StarCameraWidget(QWidget):
         self.telemetry_labels = {}
         
         # Reorganized telemetry fields in logical 2-column layout (4 columns total with labels)
-        telemetry_fields = [
-            # Row 1: Position coordinates
-            ('ra', 'RA', '°', 0, 0),
-            ('dec', 'DEC', '°', 0, 2),
-            # Row 2: Local coordinates  
-            ('az', 'Azimuth', '°', 1, 0),
-            ('el', 'Elevation', '°', 1, 2),
-            # Row 3: Camera settings
-            ('exp', 'Exposure', 's', 2, 0),
-            ('fr', 'Field Rotation', '°', 2, 2),
-            # Row 4: Additional rotation
-            ('ir', 'Image Rotation', '°', 3, 0)
-        ]
+        if self.current_telemetry.sc_focus_mode == 1:
+            telemetry_fields = [
+                # Row 1: Position coordinates
+                ('start', 'Auto-focus start', '', 0, 0),
+                ('stop', 'Auto-focus stop', '', 0, 2),
+                # Row 2: Local coordinates  
+                ('step', 'Auto-focus step', '', 1, 0),
+                ('curr', 'Focus position', '', 1, 2),
+                # Row 3: Camera settings
+                ('exp', 'Exposure', 's', 2, 0),
+            ]
+        else:
+            telemetry_fields = [
+                # Row 1: Position coordinates
+                ('ra', 'RA', '°', 0, 0),
+                ('dec', 'DEC', '°', 0, 2),
+                # Row 2: Local coordinates  
+                ('az', 'Azimuth', '°', 1, 0),
+                ('el', 'Elevation', '°', 1, 2),
+                # Row 3: Camera settings
+                ('exp', 'Exposure', 's', 2, 0),
+                ('curr', 'Focus position','',2,2),
+                ('fr', 'Field Rotation', '°', 3, 0),
+                # Row 4: Additional rotation
+                ('ir', 'Image Rotation', '°', 3, 2)
+            ]
         
         for field, label_text, unit, row, col in telemetry_fields:
             # Create label with clean typography
@@ -509,9 +547,15 @@ class StarCameraWidget(QWidget):
         if self.current_telemetry.valid:
             # Auto focus status
             if self.current_telemetry.sc_focus_mode == 1:
+                if self.prev_focus_status == 0:
+                    self.setup_active_display()
+                    self.prev_focus_status = 1
                 self.auto_focus_status.setText("Focus: AUTO FOCUSING")
                 self.auto_focus_status.setStyleSheet("QLabel { color: white; padding: 2px 6px; background-color: orange; border-radius: 3px; font-weight: bold; }")
             else:
+                if self.prev_focus_status == 1:
+                    self.setup_active_display()
+                    self.prev_focus_status = 0
                 self.auto_focus_status.setText("Focus: Idle")
                 self.auto_focus_status.setStyleSheet("QLabel { color: #666666; padding: 2px 6px; background-color: #f0f0f0; border-radius: 3px; }")
             
@@ -522,17 +566,36 @@ class StarCameraWidget(QWidget):
             else:
                 self.solving_status.setText("Solve: Idle")
                 self.solving_status.setStyleSheet("QLabel { color: #666666; padding: 2px 6px; background-color: #f0f0f0; border-radius: 3px; }")
+                
+            # Saving status
+            if self.current_telemetry.sc_save == 1:
+                self.saving_status.setText("Save: SAVING")
+                self.saving_status.setStyleSheet("QLabel { color: white; padding: 2px 6px; background-color: blue; border-radius: 3px; font-weight: bold; }")
+            else:
+                self.saving_status.setText("Save: Idle")
+                self.saving_status.setStyleSheet("QLabel { color: #666666; padding: 2px 6px; background-color: #f0f0f0; border-radius: 3px; }")
+            
             
             # Update telemetry values
-            telemetry_data = {
-                'ra': (self.current_telemetry.sc_ra, '°', 2),
-                'dec': (self.current_telemetry.sc_dec, '°', 2),
-                'az': (self.current_telemetry.sc_az, '°', 2),
-                'el': (self.current_telemetry.sc_alt, '°', 2),  # Using sc_alt for elevation
-                'exp': (self.current_telemetry.sc_texp, 's', 3),
-                'fr': (self.current_telemetry.sc_fr, '°', 2),
-                'ir': (self.current_telemetry.sc_ir, '°', 2)
-            }
+            if self.current_telemetry.sc_focus_mode == 1:
+                telemetry_data = {
+                    'start': (self.current_telemetry.sc_start_focus, '', 2),
+                    'stop': (self.current_telemetry.sc_end_focus, '', 2),
+                    'step': (self.current_telemetry.sc_focus_step, '', 2),
+                    'curr': (self.current_telemetry.sc_curr_focus, '', 2),  # Using sc_alt for elevation
+                    'exp': (self.current_telemetry.sc_texp, 's', 3)
+                }
+            else:
+                telemetry_data = {
+                    'ra': (self.current_telemetry.sc_ra, '°', 2),
+                    'dec': (self.current_telemetry.sc_dec, '°', 2),
+                    'az': (self.current_telemetry.sc_az, '°', 2),
+                    'el': (self.current_telemetry.sc_alt, '°', 2),  # Using sc_alt for elevation
+                    'exp': (self.current_telemetry.sc_texp, 's', 3),
+                    'curr': (self.current_telemetry.sc_curr_focus,'',0),
+                    'fr': (self.current_telemetry.sc_fr, '°', 2),
+                    'ir': (self.current_telemetry.sc_ir, '°', 2)
+                }
             
             for field, (value, unit, decimals) in telemetry_data.items():
                 if field in self.telemetry_labels:
@@ -548,6 +611,8 @@ class StarCameraWidget(QWidget):
             self.auto_focus_status.setStyleSheet("QLabel { color: #999999; padding: 2px 6px; background-color: #e0e0e0; border-radius: 3px; }")
             self.solving_status.setText("Solve: N/A")
             self.solving_status.setStyleSheet("QLabel { color: #999999; padding: 2px 6px; background-color: #e0e0e0; border-radius: 3px; }")
+            self.saving_status.setText("Save: N/A")
+            self.saving_status.setStyleSheet("QLabel { color: #999999; padding: 2px 6px; background-color: #e0e0e0; border-radius: 3px; }")
             
             # Clear telemetry values
             for field, label in self.telemetry_labels.items():

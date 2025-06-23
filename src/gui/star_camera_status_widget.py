@@ -231,7 +231,8 @@ class StarCameraStatusWidget(QWidget):
             ('sc_end_focus', 'End Focus:', ''),
             ('sc_focus_step', 'Focus Step:', ''),
             ('sc_focus_mode', 'Focus Mode:', ''),
-            ('sc_solve', 'Solve Mode:', '')
+            ('sc_solve', 'Solve Mode:', ''),
+            ('sc_save', 'Saving:', '')
         ]
         
         self.data_labels = {}
@@ -309,7 +310,8 @@ class StarCameraStatusWidget(QWidget):
             'sc_end_focus': (self.current_data.sc_end_focus, '', 0),
             'sc_focus_step': (self.current_data.sc_focus_step, '', 0),
             'sc_focus_mode': (self.current_data.sc_focus_mode, '', 0),
-            'sc_solve': (self.current_data.sc_solve, '', 0)
+            'sc_solve': (self.current_data.sc_solve, '', 0),
+            'sc_save' : (self.current_data.sc_save,'',0)
         }
         
         for field, label in self.data_labels.items():
