@@ -256,8 +256,8 @@ class StarCameraWidget(QWidget):
                 widgetToRemove.setParent(None)
                 layout.removeWidget(widgetToRemove)
             elif layoutItem.spacerItem() is not None:
-                # Spacer item - no action needed, will be removed automatically
-                pass
+                # Remove spacer item from layout
+                layout.removeItem(layoutItem)
             else:
                 layoutToRemove = layout.itemAt(i)
                 self.clear_widget(layoutToRemove)
