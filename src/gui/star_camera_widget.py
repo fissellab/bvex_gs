@@ -259,8 +259,13 @@ class StarCameraWidget(QWidget):
                 # Remove spacer item from layout
                 layout.removeItem(layoutItem)
             else:
-                layoutToRemove = layout.itemAt(i)
-                self.clear_widget(layoutToRemove)
+                # Handle nested layout
+                layoutToRemove = layoutItem.layout()
+                if layoutToRemove is not None:
+                    # Recursively clear the nested layout
+                    self.clear_widget(layoutToRemove)
+                    # Remove the layout item from parent
+                    layout.removeItem(layoutItem)
 
     """
         for i in reversed(range(layout.count())):
