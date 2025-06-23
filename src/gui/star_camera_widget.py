@@ -248,19 +248,18 @@ class StarCameraWidget(QWidget):
             # Show static display
             self.setup_static_display()
     def clear_widget(self,layout):
-        print("-- -- input layout: "+str(layout))
+        """Recursively clear all widgets and layouts from the given layout"""
         for i in reversed(range(layout.count())):
             layoutItem = layout.itemAt(i)
             if layoutItem.widget() is not None:
                 widgetToRemove = layoutItem.widget()
-                print("found widget: " + str(widgetToRemove))
                 widgetToRemove.setParent(None)
                 layout.removeWidget(widgetToRemove)
             elif layoutItem.spacerItem() is not None:
-                print("found spacer: " + str(layoutItem.spacerItem()))
+                # Spacer item - no action needed, will be removed automatically
+                pass
             else:
                 layoutToRemove = layout.itemAt(i)
-                print("-- found Layout: "+str(layoutToRemove))
                 self.clear_widget(layoutToRemove)
 
     """
