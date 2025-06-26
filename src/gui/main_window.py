@@ -227,7 +227,7 @@ class MainWindow(QMainWindow):
         left_layout.setSpacing(5)  # Reduced spacing to push widgets closer together
         
         # Sky chart widget (increased size for better visibility)
-        self.sky_chart_widget = SkyChartWidget()
+        self.sky_chart_widget = SkyChartWidget(oph_client=self.shared_oph_client)
         self.sky_chart_widget.setMinimumSize(550, 420)  # Increased from 500x350 to 550x420
         self.sky_chart_widget.setMaximumSize(700, 480)  # Increased from 650x400 to 700x480
         left_layout.addWidget(self.sky_chart_widget)

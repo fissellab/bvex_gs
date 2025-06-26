@@ -25,7 +25,7 @@ from src.data.gps_client import GPSClient, GPSData
 class SkyChartWidget(QWidget):
     """Widget displaying real-time sky chart"""
     
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, oph_client=None):
         super().__init__(parent)
         self.current_location = EarthLocation(
             lon=OBSERVATORY['longitude'] * u.degree,
@@ -36,6 +36,10 @@ class SkyChartWidget(QWidget):
         # Control state
         self.is_active = False
         self.ani = None
+        
+        # Use shared Ophiuchus client for motor and star camera data if provided
+        self.oph_client = oph_client if oph_client else OphClient()
+        self.owns_oph_client = oph_client is None  # Track if we own the client
         
         # Star camera data for crosshair
         self.star_camera_data = OphData()
@@ -447,13 +451,26 @@ class SkyChartWidget(QWidget):
         try:
             if self.use_az_alt_coordinates:
                 # Use Az from GPS heading and Alt from motor position
-                if self.gps_data.valid and self.star_camera_data.valid:
+                # Get current motor and GPS data
+                gps_valid = getattr(self.gps_data, 'valid', False)
+                gps_head = getattr(self.gps_data, 'head', 0.0)
+                
+                # Get motor position from shared OphClient (actual motor elevation)
+                motor_data = self.oph_client.get_data() if self.oph_client else OphData()
+                motor_valid = motor_data.valid if motor_data else False
+                motor_pos = getattr(motor_data, 'mc_pos', 0.0) if motor_data else 0.0
+                
+                print(f"DEBUG Az/Alt: GPS valid={gps_valid}, head={gps_head}°, Motor valid={motor_valid}, pos={motor_pos}°")
+                
+                # Require GPS data for azimuth, motor position for elevation
+                if gps_valid and hasattr(self.gps_data, 'head') and motor_valid:
                     gps_az = self.gps_data.head  # degrees - true heading from GPS
-                    motor_alt = self.star_camera_data.sc_alt  # degrees - motor position altitude
+                    motor_alt = motor_pos  # degrees - actual motor elevation position
                     
-                    # Use GPS heading for azimuth and motor position for altitude
+                    # Use GPS heading for azimuth and motor position for elevation
                     new_az_rad = gps_az * np.pi / 180
                     new_alt_deg = motor_alt
+                    print(f"DEBUG: Drawing Az/Alt crosshair at az={gps_az}°, alt={motor_alt}°")
                 
             else:
                 # Use RA/DEC coordinates (original implementation)

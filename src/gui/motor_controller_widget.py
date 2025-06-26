@@ -10,7 +10,7 @@ from PyQt6.QtGui import QFont, QPalette, QColor
 import time
 
 from src.data.Oph_client import OphClient, OphData
-
+from src.config.settings import GUI
 class MotorControllerWidget(QWidget):
     """Widget for displaying motor controller and axis control telemetry"""
     
@@ -25,7 +25,7 @@ class MotorControllerWidget(QWidget):
         self.current_telemetry = OphData()
         self.is_active = False
         self.last_update_time = None
-        
+        self.prev_mode = self.current_telemetry.ax_mode
         self.setup_ui()
         
     def setup_ui(self):
@@ -162,14 +162,30 @@ class MotorControllerWidget(QWidget):
             
             # Show static display
             self.setup_static_display()
-    
+    def clear_widget(self,layout):
+        """Recursively clear all widgets and layouts from the given layout"""
+        for i in reversed(range(layout.count())):
+            layoutItem = layout.itemAt(i)
+            if layoutItem.widget() is not None:
+                widgetToRemove = layoutItem.widget()
+                widgetToRemove.setParent(None)
+                layout.removeWidget(widgetToRemove)
+            elif layoutItem.spacerItem() is not None:
+                # Remove spacer item from layout
+                layout.removeItem(layoutItem)
+            else:
+                # Handle nested layout
+                layoutToRemove = layoutItem.layout()
+                if layoutToRemove is not None:
+                    # Recursively clear the nested layout
+                    self.clear_widget(layoutToRemove)
+                    # Remove the layout item from parent
+                    layout.removeItem(layoutItem)
+
     def setup_static_display(self):
         """Show static 'waiting for user input' display"""
         # Clear existing widgets
-        for i in reversed(range(self.container_layout.count())):
-            child = self.container_layout.itemAt(i).widget()
-            if child:
-                child.setParent(None)
+        self.clear_widget(self.container_layout)
         
         # Add centered message
         message_label = QLabel("Motor Controller - Waiting for User Input")
@@ -190,10 +206,7 @@ class MotorControllerWidget(QWidget):
     def setup_active_display(self):
         """Setup the active motor controller display with all data fields"""
         # Clear existing widgets
-        for i in reversed(range(self.container_layout.count())):
-            child = self.container_layout.itemAt(i).widget()
-            if child:
-                child.setParent(None)
+        self.clear_widget(self.container_layout)
         
         # Status header
         self.status_header = self._create_status_header()
@@ -253,25 +266,96 @@ class MotorControllerWidget(QWidget):
         self.field_labels = {}
         
         # Motor Controller and Axis Control fields - arranged in 4 columns (label-value pairs)
-        fields = [
-            # Row 1: Motor essentials
-            ("mc_curr", "Motor Current", "A", 0, 0),
-            ("mc_pos", "Motor Position", "deg", 0, 2),
-            ("mc_vel", "Motor Velocity", "deg/s", 0, 4),
-            ("mc_temp", "Motor Temp", "°C", 0, 6),
+        if self.current_telemetry.ax_mode == 1:
+            if GUI['lazisusan_enabled'] == 1:
+                fields = [
+                    ("ax_mode", "Mode", "", 0, 0),
+                     # Row 1 and 2: Motor essentials
+                    ("mc_curr", "Current", "A", 1, 0),
+                    ("mc_pos", "Position", "deg", 1, 2),
+                    ("mc_vel", "Velocity", "deg/s", 1, 4),
+                
+                    ("mc_temp", "Temp", "°C", 2, 0),
+                    ("ax_dest", "Target EL", "deg", 2, 2),
+                    ("ax_dest_az", "Target AZ", "deg", 2, 4),
             
-            # Row 2: Status and control
-            ("ax_mode", "Axis Mode", "", 1, 0),
-            ("ax_ot", "On Target", "", 1, 2),
-            ("mc_sw", "Status Word", "", 1, 4),
-            ("mc_np", "Network", "", 1, 6),
+                    # Row 3 and 4: Status
+                    ("mc_lf", "Fault","", 3, 0),
+                    ("mc_sw", "Status Word", "", 3, 2),
+                    ("mc_sr", "Status Register", "", 3, 4),
+                
+                    ("mc_np", "Net Status", "", 4, 0),
+                    ("mc_cww", "CW Write", "", 4, 2),
+                    ("mc_cwr", "CW Read", "", 4, 4)
+                    # Row 3: Target controls
+                ]
+            else:
+                fields = [
+                    ("ax_mode", "Mode", "", 0, 0),
+                     # Row 1 and 2: Motor essentials
+                    ("mc_curr", "Current", "A", 1, 0),
+                    ("mc_pos", "Position", "deg", 1, 2),
+                    ("mc_vel", "Velocity", "deg/s", 1, 4),
+                
+                    ("mc_temp", "Temp", "°C", 2, 0),
+                    ("ax_dest", "Target EL", "deg", 2, 2),
             
-            # Row 3: Target controls
-            ("ax_dest", "Target Elevation", "deg", 2, 0),
-            ("ax_vel", "Target Velocity", "deg/s", 2, 2),
-            ("ax_dest_az", "Target Azimuth", "deg", 2, 4),
-            ("ax_vel_az", "Az Velocity", "deg/s", 2, 6),
-        ]
+                    # Row 3 and 4: Status
+                    ("mc_lf", "Fault","", 3, 0),
+                    ("mc_sw", "Status Word", "", 3, 2),
+                    ("mc_sr", "Status Register", "", 3, 4),
+                
+                    ("mc_np", "Net Status", "", 4, 0),
+                    ("mc_cww", "CW Write", "", 4, 2),
+                    ("mc_cwr", "CW Read", "", 4, 4)
+                    # Row 3: Target controls
+                ]
+        else:
+            if GUI['lazisusan_enabled'] == 1:
+                fields = [
+                    ("ax_mode", "Mode", "", 0, 0),
+                     # Row 1 and 2: Motor essentials
+                    ("mc_curr", "Current", "A", 1, 0),
+                    ("mc_pos", "Position", "deg", 1, 2),
+                    ("mc_vel", "Velocity", "deg/s", 1, 4),
+                
+                    ("mc_temp", "Temp", "°C", 2, 0),
+                    ("ax_vel", "Target EL Vel", "deg/s", 2, 2),
+                    ("ax_vel_az", "Target AZ Vel", "deg/s", 2, 4),
+            
+                    # Row 3 and 4: Status
+                    ("mc_lf", "Fault", "",3, 0),
+                    ("mc_sw", "Status Word", "", 3, 2),
+                    ("mc_sr", "Status Register", "", 3, 4),
+                
+                    ("mc_np", "Net Status", "", 4, 0),
+                    ("mc_cww", "CW Write", "", 4, 2),
+                    ("mc_cwr", "CW Read", "", 4, 4)
+                    # Row 3: Target controls
+                ]
+            else:
+                fields = [
+                    ("ax_mode", "Mode", "", 0, 0),
+                     # Row 1 and 2: Motor essentials
+                    ("mc_curr", "Current", "A", 1, 0),
+                    ("mc_pos", "Position", "deg", 1, 2),
+                    ("mc_vel", "Velocity", "deg/s", 1, 4),
+                
+                    ("mc_temp", "Temp", "°C", 2, 0),
+                    ("ax_vel", "Target EL Vel", "deg/s", 2, 2),
+                    
+            
+                    # Row 3 and 4: Status
+                    ("mc_lf", "Fault","", 3, 0),
+                    ("mc_sw", "Status Word", "", 3, 2),
+                    ("mc_sr", "Status Register", "", 3, 4),
+                
+                    ("mc_np", "Net Status", "", 4, 0),
+                    ("mc_cww", "CW Write", "", 4, 2),
+                    ("mc_cwr", "CW Read", "", 4, 4)
+                    # Row 3: Target controls
+                ]
+        
         
         for field, label_text, unit, row, col in fields:
             # Create label with clean typography and word wrapping
@@ -346,7 +430,9 @@ class MotorControllerWidget(QWidget):
         """Update all field displays with current telemetry data"""
         if not hasattr(self, 'field_labels'):
             return
-        
+        if self.prev_mode != telemetry.ax_mode:
+            self.setup_active_display()
+            self.prev_mode = telemetry.ax_mode
         # Helper function to format values with units
         def update_field(field_key, value, format_str=None):
             if field_key in self.field_labels:
@@ -361,23 +447,28 @@ class MotorControllerWidget(QWidget):
                 else:
                     label.setText(display_value)
         
-        # Motor Controller fields
+        mode_text = "Position" if telemetry.ax_mode == 1 else "Velocity"
+        update_field("ax_mode", mode_text)
         update_field("mc_curr", telemetry.mc_curr, "{:.3f}")
         update_field("mc_pos", telemetry.mc_pos, "{:.2f}")
         update_field("mc_vel", telemetry.mc_vel, "{:.3f}")
         update_field("mc_temp", telemetry.mc_temp)
         update_field("mc_sw", telemetry.mc_sw)
+        update_field("mc_sr", telemetry.mc_sr)
         update_field("mc_np", telemetry.mc_np)
+        update_field("mc_lf", telemetry.mc_lf)
+        update_field("mc_cwr", telemetry.mc_cwr)
+        update_field("mc_cww", telemetry.mc_cww)
         
-        # Axis Control fields
-        mode_text = "Position" if telemetry.ax_mode == 1 else "Velocity"
-        update_field("ax_mode", mode_text)
-        update_field("ax_dest", telemetry.ax_dest, "{:.2f}")
-        update_field("ax_vel", telemetry.ax_vel, "{:.3f}")
-        update_field("ax_dest_az", telemetry.ax_dest_az, "{:.2f}")
-        update_field("ax_vel_az", telemetry.ax_vel_az, "{:.3f}")
-        ot_text = "Yes" if telemetry.ax_ot == 1 else "No"
-        update_field("ax_ot", ot_text)
+        if telemetry.ax_mode == 1:
+            update_field("ax_dest", telemetry.ax_dest, "{:.2f}")
+            if GUI['lazisusan_enabled'] == 1:
+                update_field("ax_dest_az", telemetry.ax_dest_az, "{:.2f}")
+        else:
+            update_field("ax_vel", telemetry.ax_vel, "{:.3f}")
+            if GUI['lazisusan_enabled'] == 1:
+                update_field("ax_vel_az", telemetry.ax_vel_az, "{:.3f}")
+        
     
     def is_motor_controller_active(self) -> bool:
         """Check if motor controller display is active"""

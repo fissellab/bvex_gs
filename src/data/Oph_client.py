@@ -55,6 +55,7 @@ class OphData:
     scan_nscans: int = 0  # number of scans to do
     scan_offset: float = 0.0  # distance to 'off' position
     scan_op: int = 0  # -1 if on 'off' position 1 if on 'on' position and 0 if moving
+    scan_time: float = 0.0  # 'on' time
     target_lon: float = 0.0  # Target coordinate longitude (e.g. RA)
     target_lat: float = 0.0  # Target coordinate latitude (e.g. DEC)
     target_type: str = "None"  # Target coordinate type (eg. RaDec)
@@ -183,6 +184,7 @@ class OphClient:
                 scan_nscans=self.oph_data.scan_nscans,
                 scan_offset=self.oph_data.scan_offset,
                 scan_op=self.oph_data.scan_op,
+                scan_time=self.oph_data.scan_time,
                 target_lon=self.oph_data.target_lon,
                 target_lat=self.oph_data.target_lat,
                 target_type=self.oph_data.target_type,

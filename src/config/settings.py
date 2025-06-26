@@ -56,7 +56,8 @@ GUI = {
     'update_interval': 1000,  # ms for GUI updates
     'sky_chart_size': (10, 10),  # inches - increased for better visibility
     'gps_panel_width': 280,    # reduced from 350
-    'spectra_panel_size': (8, 6)  # inches for spectra plot
+    'spectra_panel_size': (8, 6),  # inches for spectra plot
+    'lazisusan_enabled': 1
 }
 
 # Celestial Objects to Display

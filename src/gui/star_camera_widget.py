@@ -267,16 +267,6 @@ class StarCameraWidget(QWidget):
                     # Remove the layout item from parent
                     layout.removeItem(layoutItem)
 
-    """
-        for i in reversed(range(layout.count())):
-            if layout.itemAt(i) != None:
-               if "Layout" not in str(layout.itemAt(i)):
-                  if layout.itemAt(i).widget():
-                      layout.itemAt(i).widget().setParent(None)
-                      layout.removeWidget(layout.itemAt(i).widget())
-               else:
-                  self.clear_widget(layout.itemAt(i))
-    """         
     def setup_static_display(self):
         """Show static 'waiting for user input' display"""
         # Clear existing widgets

@@ -25,6 +25,7 @@ class ScanningOperationsWidget(QWidget):
         self.current_telemetry = OphData()
         self.is_active = False
         self.last_update_time = None
+        self.prev_mode = self.current_telemetry.scan_mode
         
         self.setup_ui()
         
@@ -162,13 +163,30 @@ class ScanningOperationsWidget(QWidget):
             # Show static display
             self.setup_static_display()
     
+    def clear_widget(self,layout):
+        """Recursively clear all widgets and layouts from the given layout"""
+        for i in reversed(range(layout.count())):
+            layoutItem = layout.itemAt(i)
+            if layoutItem.widget() is not None:
+                widgetToRemove = layoutItem.widget()
+                widgetToRemove.setParent(None)
+                layout.removeWidget(widgetToRemove)
+            elif layoutItem.spacerItem() is not None:
+                # Remove spacer item from layout
+                layout.removeItem(layoutItem)
+            else:
+                # Handle nested layout
+                layoutToRemove = layoutItem.layout()
+                if layoutToRemove is not None:
+                    # Recursively clear the nested layout
+                    self.clear_widget(layoutToRemove)
+                    # Remove the layout item from parent
+                    layout.removeItem(layoutItem)
+                    
     def setup_static_display(self):
         """Show static 'waiting for user input' display"""
         # Clear existing widgets
-        for i in reversed(range(self.container_layout.count())):
-            child = self.container_layout.itemAt(i).widget()
-            if child:
-                child.setParent(None)
+        self.clear_widget(self.container_layout)
         # Add centered message
         message_label = QLabel("Scanning Operations - Waiting for User Input")
         message_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -188,10 +206,7 @@ class ScanningOperationsWidget(QWidget):
     def setup_active_display(self):
         """Setup the active scanning operations display with all data fields"""
         # Clear existing widgets
-        for i in reversed(range(self.container_layout.count())):
-            child = self.container_layout.itemAt(i).widget()
-            if child:
-                child.setParent(None)
+        self.clear_widget(self.container_layout)
         # Status header
         self.status_header = self._create_status_header()
         self.container_layout.addWidget(self.status_header)
@@ -249,25 +264,47 @@ class ScanningOperationsWidget(QWidget):
         self.field_labels = {}
         
         # Scanning and Target fields - arranged in 4 columns (label-value pairs)
-        fields = [
-            # Row 1: Scanning basics
-            ("scan_mode", "Scan Mode", "", 0, 0),
-            ("scan_start", "Start", "deg", 0, 2),
-            ("scan_stop", "Stop", "deg", 0, 4),
-            ("scan_vel", "Velocity", "deg/s", 0, 6),
+        if self.current_telemetry.scan_mode == 0:
+            fields = [("scan_mode", "Mode","",0,0)]
+        elif self.current_telemetry.scan_mode == 1:
+            fields = [
+                # Row 1: Scan mode
+                ("scan_mode", "Mode", "", 0, 0),
+                # Row 2: Scan parameters
+                ("scan_start", "Start", "deg", 1, 0),
+                ("scan_stop", "Stop", "deg", 1, 2),
+                ("scan_vel", "Velocity", "deg/s", 1, 4),
             
-            # Row 2: Scanning status
-            ("scan_scan", "Current Scan", "", 1, 0),
-            ("scan_nscans", "Total Scans", "", 1, 2),
-            ("scan_offset", "Offset", "deg", 1, 4),
-            ("scan_op", "Operation", "", 1, 6),
-            
-            # Row 3: Target information
-            ("target_type", "Target Type", "", 2, 0),
-            ("target_lon", "Longitude", "deg", 2, 2),
-            ("target_lat", "Latitude", "deg", 2, 4),
-            ("sc_save", "Recording", "", 2, 6),
-        ]
+                # Row 3: Scanning status
+                ("scan_scan", "Scan", "", 2, 0),
+                ("scan_nscans", "Total Scans", "", 2, 2)
+            ]
+        elif self.current_telemetry.scan_mode == 2:
+            fields = [
+                # Row 1: Scan mode
+                ("scan_mode", "Mode","",0,0),
+                # Row 2: Scan parameters
+                ("target_lon", "RA", "deg", 1, 0),
+                ("target_lat", "DEC", "deg", 1, 2),
+                ("on_target", "On Target","", 0, 2),
+                ("target_az", "AZ", "deg", 2, 0),
+                ("target_el", "EL", "deg", 2, 2)
+            ]
+        elif self.current_telemetry.scan_mode == 3:
+            fields = [
+                # Row 1: Scan mode
+                ("scan_mode", "Mode","",0,0),
+                
+                # Row 2:
+                ("target_lon", "RA", "deg", 1, 0),
+                ("target_lat", "DEC", "deg", 1, 2),
+                ("scan_time", "Time", "s", 1, 4),
+                
+                #Row 3:
+                ("scan_offset", "Offset", "deg", 2, 0),
+                ("scan_op", "Operation", "", 2, 2),
+                ("scan_scan", "Scan", "", 2, 4),
+            ]
         
         for field, label_text, unit, row, col in fields:
             # Create label with clean typography and word wrapping
@@ -342,6 +379,9 @@ class ScanningOperationsWidget(QWidget):
         """Update all field displays with current telemetry data"""
         if not hasattr(self, 'field_labels'):
             return
+        if telemetry.scan_mode != self.prev_mode:
+            self.setup_active_display()
+            self.prev_mode = telemetry.scan_mode
         
         # Helper function to format values with units
         def update_field(field_key, value, format_str=None):
@@ -361,25 +401,30 @@ class ScanningOperationsWidget(QWidget):
         scan_modes = {0: "None", 1: "El Dither", 2: "Tracking", 3: "El On-Off"}
         mode_text = scan_modes.get(telemetry.scan_mode, "Unknown")
         update_field("scan_mode", mode_text)
-        update_field("scan_start", telemetry.scan_start, "{:.2f}")
-        update_field("scan_stop", telemetry.scan_stop, "{:.2f}")
-        update_field("scan_vel", telemetry.scan_vel, "{:.3f}")
-        update_field("scan_scan", telemetry.scan_scan)
-        update_field("scan_nscans", telemetry.scan_nscans)
-        update_field("scan_offset", telemetry.scan_offset, "{:.2f}")
         
-        # Scan operation status
-        scan_op_text = {-1: "Off Position", 0: "Moving", 1: "On Position"}.get(telemetry.scan_op, "Unknown")
-        update_field("scan_op", scan_op_text)
-        
-        # Target fields
-        update_field("target_type", telemetry.target_type)
-        update_field("target_lon", telemetry.target_lon, "{:.4f}")
-        update_field("target_lat", telemetry.target_lat, "{:.4f}")
-        
-        # Star Camera Save status
-        save_text = "Recording" if telemetry.sc_save == 1 else "Not Recording"
-        update_field("sc_save", save_text)
+        if telemetry.scan_mode == 1:
+            update_field("scan_start", telemetry.scan_start, "{:.2f}")
+            update_field("scan_stop", telemetry.scan_stop, "{:.2f}")
+            update_field("scan_vel", telemetry.scan_vel, "{:.3f}")
+            update_field("scan_scan", telemetry.scan_scan+1)
+            update_field("scan_nscans", telemetry.scan_nscans)
+            
+        elif telemetry.scan_mode == 2:
+            update_field("target_lon", telemetry.target_lon, "{:.4f}")
+            update_field("target_lat", telemetry.target_lat, "{:.4f}")
+            update_field("on_target",telemetry.ax_ot)
+            update_field("target_az", telemetry.ax_dest, "{:.4f}")
+            update_field("target_el", telemetry.ax_dest_az, "{:.4f}")
+            
+        elif telemetry.scan_mode == 3:
+            update_field("scan_offset", telemetry.scan_offset, "{:.2f}")
+            update_field("target_lon", telemetry.target_lon, "{:.4f}")
+            update_field("target_lat", telemetry.target_lat, "{:.4f}")
+            update_field("scan_scan", telemetry.scan_scan)
+            update_field("scan_time", telemetry.scan_time, "{:.2f}")
+            # Scan operation status
+            scan_op_text = {-1: "Off Position", 0: "Moving", 1: "On Position"}.get(telemetry.scan_op, "Unknown")
+            update_field("scan_op", scan_op_text)
     
     def is_scanning_operations_active(self) -> bool:
         """Check if scanning operations display is active"""
