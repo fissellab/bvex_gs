@@ -13,12 +13,13 @@ from PyQt6.QtGui import QFont, QIcon, QAction
 
 from src.data.data_logger import DataLogger
 from src.config.settings import GUI
+from src.gui.pbob_widget import PBoBWidget
 
 
 class HousekeepingWindow(QMainWindow):
     """Housekeeping window for system monitoring and control"""
     
-    def __init__(self, pointing_window=None, telescope_data_window=None):
+    def __init__(self, pointing_window=None, telescope_data_window=None, shared_oph_client=None):
         super().__init__()
         
         self.logger = logging.getLogger(__name__)
@@ -29,6 +30,17 @@ class HousekeepingWindow(QMainWindow):
         
         # Data logger will be initialized after UI setup
         self.data_logger = None
+        
+        # Use the shared Oph client passed from main.py
+        self.oph_client = shared_oph_client
+        if not self.oph_client:
+            self.logger.error("No shared Oph client provided to housekeeping window")
+            # Fallback: create our own client
+            from src.data.Oph_client import OphClient
+            self.oph_client = OphClient()
+            self.oph_client.start()
+        else:
+            self.logger.info("Using shared Oph client for housekeeping window")
         
         self.setup_ui()
         self.setup_menu_bar()
@@ -50,43 +62,23 @@ class HousekeepingWindow(QMainWindow):
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(15)
         
-        # Data logging panel (extracted from main_window.py)
-        self.setup_data_logging_panel(main_layout)
+        # Top row layout for compact controls
+        top_row_layout = QHBoxLayout()
         
-        # Placeholder for future housekeeping widgets
-        placeholder_frame = QFrame()
-        placeholder_frame.setFrameStyle(QFrame.Shape.StyledPanel)
-        placeholder_frame.setMinimumHeight(400)
-        placeholder_frame.setStyleSheet("""
-            QFrame {
-                background-color: #f8f9fa;
-                border: 2px solid #dee2e6;
-                border-radius: 8px;
-                margin: 5px;
-            }
-        """)
+        # Data logging panel (compact)
+        self.setup_compact_data_logging_panel(top_row_layout)
         
-        placeholder_layout = QVBoxLayout(placeholder_frame)
-        placeholder_layout.setContentsMargins(20, 20, 20, 20)
+        # Add stretch to push data logger to left
+        top_row_layout.addStretch()
         
-        # Placeholder message
-        placeholder_label = QLabel("🔧 Future Housekeeping Widgets")
-        placeholder_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        placeholder_label.setFont(QFont("Arial", 16, QFont.Weight.Bold))
-        placeholder_label.setStyleSheet("QLabel { color: #6c757d; border: none; }")
+        main_layout.addLayout(top_row_layout)
         
-        details_label = QLabel("This area will contain:\n• Relay status monitoring\n• Current measurements\n• Temperature sensors\n• Power supply status\n• System health indicators")
-        details_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        details_label.setFont(QFont("Arial", 12))
-        details_label.setStyleSheet("QLabel { color: #6c757d; border: none; }")
-        
-        placeholder_layout.addStretch()
-        placeholder_layout.addWidget(placeholder_label)
-        placeholder_layout.addSpacing(10)
-        placeholder_layout.addWidget(details_label)
-        placeholder_layout.addStretch()
-        
-        main_layout.addWidget(placeholder_frame)
+        # PBoB (Power Distribution Box) Widget (now includes connection status)
+        pbob_layout = QHBoxLayout()
+        self.pbob_widget = PBoBWidget(parent=self, oph_client=self.oph_client)
+        pbob_layout.addWidget(self.pbob_widget)
+        pbob_layout.addStretch()  # Push PBoB widget to left, no stretching
+        main_layout.addLayout(pbob_layout)
         
         # Add stretch at the end
         main_layout.addStretch()
@@ -95,13 +87,15 @@ class HousekeepingWindow(QMainWindow):
         self.setMinimumSize(800, 600)
         self.resize(900, 700)
     
-    def setup_data_logging_panel(self, parent_layout):
-        """Setup the data logging control panel (extracted from main_window.py)"""
-        # Create data logging panel frame
+    def setup_compact_data_logging_panel(self, parent_layout):
+        """Setup the compact data logging control panel"""
+        # Create compact data logging panel frame
         data_logging_frame = QFrame()
         data_logging_frame.setFrameStyle(QFrame.Shape.StyledPanel)
-        data_logging_frame.setMinimumHeight(140)
-        data_logging_frame.setMaximumHeight(160)
+        data_logging_frame.setMinimumHeight(100)
+        data_logging_frame.setMaximumHeight(120)
+        data_logging_frame.setMinimumWidth(280)
+        data_logging_frame.setMaximumWidth(320)
         data_logging_frame.setStyleSheet("""
             QFrame {
                 background-color: #f8f9fa;
@@ -113,33 +107,33 @@ class HousekeepingWindow(QMainWindow):
         
         # Layout for the data logging panel
         panel_layout = QVBoxLayout(data_logging_frame)
-        panel_layout.setContentsMargins(15, 10, 15, 10)
-        panel_layout.setSpacing(10)
+        panel_layout.setContentsMargins(10, 8, 10, 8)
+        panel_layout.setSpacing(6)
         
         # Title label
-        title_label = QLabel("📊 Data Logging Control")
-        title_label.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        title_label = QLabel("📊 Data Logging")
+        title_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
         title_label.setStyleSheet("QLabel { color: #495057; border: none; margin: 0px; }")
         panel_layout.addWidget(title_label)
         
         # Button and status layout
         button_layout = QHBoxLayout()
-        button_layout.setSpacing(15)
+        button_layout.setSpacing(10)
         
         # Toggle button
         self.data_logging_toggle_button = QPushButton("Start Logging")
-        self.data_logging_toggle_button.setMinimumHeight(40)
-        self.data_logging_toggle_button.setMinimumWidth(130)
+        self.data_logging_toggle_button.setMinimumHeight(35)
+        self.data_logging_toggle_button.setMinimumWidth(110)
         self.data_logging_toggle_button.clicked.connect(self.toggle_data_logging)
         self.data_logging_toggle_button.setStyleSheet("""
             QPushButton {
                 background-color: #28a745;
                 color: white;
                 border: none;
-                padding: 10px 20px;
+                padding: 8px 16px;
                 border-radius: 4px;
                 font-weight: bold;
-                font-size: 12px;
+                font-size: 11px;
             }
             QPushButton:hover {
                 background-color: #218838;
@@ -150,26 +144,28 @@ class HousekeepingWindow(QMainWindow):
         """)
         
         # Status label
-        self.data_logging_status_text = QLabel("Status: Stopped")
-        self.data_logging_status_text.setFont(QFont("Arial", 11))
+        self.data_logging_status_text = QLabel("Stopped")
+        self.data_logging_status_text.setFont(QFont("Arial", 10))
         self.data_logging_status_text.setStyleSheet("QLabel { color: #6c757d; border: none; margin: 0px; }")
-        self.data_logging_status_text.setWordWrap(True)
         
         button_layout.addWidget(self.data_logging_toggle_button)
-        button_layout.addWidget(self.data_logging_status_text, 1)  # Allow text to expand
-        button_layout.addStretch()
+        button_layout.addWidget(self.data_logging_status_text)
         
         panel_layout.addLayout(button_layout)
         
-        # File info label
-        self.data_logging_file_label = QLabel("No active log file")
-        self.data_logging_file_label.setFont(QFont("Arial", 10))
+        # File info label (compact)
+        self.data_logging_file_label = QLabel("No log file")
+        self.data_logging_file_label.setFont(QFont("Arial", 9))
         self.data_logging_file_label.setStyleSheet("QLabel { color: #868e96; border: none; margin: 0px; }")
-        self.data_logging_file_label.setWordWrap(True)
         panel_layout.addWidget(self.data_logging_file_label)
         
         # Add the panel to the parent layout
         parent_layout.addWidget(data_logging_frame)
+    
+        # Setup a timer to update the Oph client status (now handled by PBoB widget)
+        self.oph_status_timer = QTimer()
+        self.oph_status_timer.timeout.connect(self.update_oph_status)
+        self.oph_status_timer.start(1000)  # Update every second
     
     def setup_data_logger(self):
         """Setup the comprehensive data logger (adapted from main_window.py)"""
@@ -293,7 +289,7 @@ class HousekeepingWindow(QMainWindow):
                 
             # Update status text
             if hasattr(self, 'data_logging_status_text'):
-                self.data_logging_status_text.setText("Status: Logging Active")
+                self.data_logging_status_text.setText("Active")
                 self.data_logging_status_text.setStyleSheet("QLabel { color: #28a745; border: none; margin: 0px; font-weight: bold; }")
                 
             # Update file label
@@ -301,7 +297,10 @@ class HousekeepingWindow(QMainWindow):
                 log_file = self.data_logger.get_log_file_path()
                 if log_file:
                     filename = os.path.basename(log_file)
-                    self.data_logging_file_label.setText(f"Logging to: {filename}")
+                    # Truncate filename if too long
+                    if len(filename) > 20:
+                        filename = filename[:17] + "..."
+                    self.data_logging_file_label.setText(f"{filename}")
         else:
             # Update menu action
             self.toggle_logging_action.setText('&Start Data Logging')
@@ -330,12 +329,12 @@ class HousekeepingWindow(QMainWindow):
                 
             # Update status text
             if hasattr(self, 'data_logging_status_text'):
-                self.data_logging_status_text.setText("Status: Stopped")
+                self.data_logging_status_text.setText("Stopped")
                 self.data_logging_status_text.setStyleSheet("QLabel { color: #6c757d; border: none; margin: 0px; }")
                 
             # Update file label
             if hasattr(self, 'data_logging_file_label'):
-                self.data_logging_file_label.setText("No active log file")
+                self.data_logging_file_label.setText("No log file")
     
     def show_log_file_location(self):
         """Show the current log file location (adapted from main_window.py)"""
@@ -364,6 +363,11 @@ class HousekeepingWindow(QMainWindow):
                 "Data Log File Location", 
                 "No active log file. Start data logging to create a new log file."
             )
+    
+    def update_oph_status(self):
+        """Update the Oph client status (now handled by PBoB widget)"""
+        # The PBoB widget now handles its own connection status display
+        pass
     
     # Add methods that the DataLogger expects (mimicking MainWindow interface)
     def get_gps_widget(self):
@@ -411,12 +415,26 @@ class HousekeepingWindow(QMainWindow):
         """Handle window close event"""
         self.logger.info("Housekeeping window shutting down...")
         
+        # Stop status timer
+        if hasattr(self, 'oph_status_timer'):
+            self.oph_status_timer.stop()
+        
         # Cleanup components
         try:
             # Data logger cleanup
             if hasattr(self, 'data_logger') and self.data_logger:
                 self.data_logger.stop_logging()
                 self.logger.info("Data logging stopped during shutdown")
+            
+            # PBoB widget cleanup
+            if hasattr(self, 'pbob_widget') and self.pbob_widget:
+                self.pbob_widget.cleanup()
+                self.logger.info("PBoB widget cleaned up during shutdown")
+            
+            # Oph client cleanup
+            if hasattr(self, 'oph_client') and self.oph_client:
+                self.oph_client.stop()
+                self.logger.info("Oph client cleaned up during shutdown")
             
             self.logger.info("Housekeeping window cleanup completed")
             

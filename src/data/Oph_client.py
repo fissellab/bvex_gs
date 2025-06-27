@@ -59,6 +59,19 @@ class OphData:
     target_lon: float = 0.0  # Target coordinate longitude (e.g. RA)
     target_lat: float = 0.0  # Target coordinate latitude (e.g. DEC)
     target_type: str = "None"  # Target coordinate type (eg. RaDec)
+    # PBoB relay states and current measurements
+    sc_state: int = 0  # Star camera relay state (0=OFF, 1=ON)
+    sc_curr: float = 0.0  # Star camera current (A)
+    m_state: int = 0  # Motor relay state (0=OFF, 1=ON)
+    m_curr: float = 0.0  # Motor current (A)
+    lp_state: int = 0  # Lock pin relay state (0=OFF, 1=ON)
+    lp_curr: float = 0.0  # Lock pin current (A)
+    lna_state: int = 0  # LNA relay state (0=OFF, 1=ON)
+    lna_curr: float = 0.0  # LNA current (A)
+    mix_state: int = 0  # Mixer relay state (0=OFF, 1=ON)
+    mix_curr: float = 0.0  # Mixer current (A)
+    rfsoc_state: int = 0  # RF SoC relay state (0=OFF, 1=ON)
+    rfsoc_curr: float = 0.0  # RF SoC current (A)
     valid: bool = False  # indicates if data is valid
 
 class OphClient:
@@ -69,7 +82,7 @@ class OphClient:
         self.oph_data = OphData()
         self.data_lock = threading.Lock()
         self.running = False
-        self.paused = True
+        self.paused = False  # Start unpaused so data flows immediately
         self.thread = None
         self.socket = None
 
@@ -128,6 +141,10 @@ class OphClient:
         """Resume data requests"""
         self.paused = False
         self.logger.debug("Oph client resumed - starting data requests")
+    
+    def is_paused(self) -> bool:
+        """Check if client is paused"""
+        return self.paused
 
     def get_data_rate_kbps(self) -> float:
         """Get current data rate in KB/s"""
@@ -188,6 +205,18 @@ class OphClient:
                 target_lon=self.oph_data.target_lon,
                 target_lat=self.oph_data.target_lat,
                 target_type=self.oph_data.target_type,
+                sc_state=self.oph_data.sc_state,
+                sc_curr=self.oph_data.sc_curr,
+                m_state=self.oph_data.m_state,
+                m_curr=self.oph_data.m_curr,
+                lp_state=self.oph_data.lp_state,
+                lp_curr=self.oph_data.lp_curr,
+                lna_state=self.oph_data.lna_state,
+                lna_curr=self.oph_data.lna_curr,
+                mix_state=self.oph_data.mix_state,
+                mix_curr=self.oph_data.mix_curr,
+                rfsoc_state=self.oph_data.rfsoc_state,
+                rfsoc_curr=self.oph_data.rfsoc_curr,
                 valid=self.oph_data.valid
             )
 
@@ -335,6 +364,14 @@ class OphClient:
                     'sc_alt': self.oph_data.sc_alt,
                     'mc_curr': self.oph_data.mc_curr,
                     'mc_pos': self.oph_data.mc_pos,
-                    'target_type': self.oph_data.target_type
+                    'target_type': self.oph_data.target_type,
+                    'pbob_data': {
+                        'sc_state': self.oph_data.sc_state,
+                        'sc_curr': self.oph_data.sc_curr,
+                        'm_state': self.oph_data.m_state,
+                        'm_curr': self.oph_data.m_curr,
+                        'lna_state': self.oph_data.lna_state,
+                        'lna_curr': self.oph_data.lna_curr
+                    }
                 }
             }

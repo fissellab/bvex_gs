@@ -117,8 +117,7 @@ def main():
         
         # Start shared OphClient 
         if shared_oph_client.start():
-            shared_oph_client.pause()  # Start paused - widgets will resume when needed
-            logger.info("Shared OphClient started successfully (paused)")
+            logger.info("Shared OphClient started successfully")
         else:
             logger.error("Failed to start shared OphClient")
         
@@ -129,7 +128,8 @@ def main():
         telescope_data_window = TelescopeDataWindow()
         housekeeping_window = HousekeepingWindow(
             pointing_window=pointing_window, 
-            telescope_data_window=telescope_data_window
+            telescope_data_window=telescope_data_window,
+            shared_oph_client=shared_oph_client
         )
         
         # Position windows to avoid overlap
