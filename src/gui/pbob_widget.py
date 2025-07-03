@@ -19,7 +19,7 @@ class StatusCircle(QLabel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.is_on = False
-        self.setFixedSize(16, 16)
+        self.setFixedSize(12, 12)  # Reduced from 16x16 to 12x12 for more compact display
     
     def set_status(self, is_on):
         """Set the status and update the display"""
@@ -39,7 +39,7 @@ class StatusCircle(QLabel):
         
         painter.setBrush(color)
         painter.setPen(color)
-        painter.drawEllipse(1, 1, 14, 14)
+        painter.drawEllipse(1, 1, 10, 10)  # Adjusted circle size for smaller widget
 
 
 class PBoBWidget(QWidget):
@@ -88,9 +88,9 @@ class PBoBWidget(QWidget):
         
         main_layout.addWidget(self.container)
         
-        # Set proper size - bigger as requested
-        self.setMinimumSize(500, 280)
-        self.setMaximumSize(550, 320)
+        # Set proper size - wider and adjusted height for better proportions
+        self.setMinimumSize(650, 320)  # Increased width from 500 to 650
+        self.setMaximumSize(750, 380)  # Increased width from 550 to 750
     
     def setup_active_display(self):
         """Setup the active subsystem power display with clean grid layout"""
@@ -150,9 +150,9 @@ class PBoBWidget(QWidget):
         data_frame.setFrameStyle(QFrame.Shape.NoFrame)
         data_frame.setStyleSheet("QFrame { border: none; background-color: transparent; }")
         
-        # Use a simple grid layout with clean spacing like motor controller
+        # Use a simple grid layout with tighter spacing for compact design
         layout = QGridLayout(data_frame)
-        layout.setSpacing(8)
+        layout.setSpacing(6)  # Reduced from 8 to 6 for more compact layout
         layout.setContentsMargins(8, 4, 8, 4)
         
         # Create field labels storage
@@ -160,9 +160,11 @@ class PBoBWidget(QWidget):
         self.status_circles = {}
         
         # Subsystem data - clean 3-column layout: Name, State (circle), Current
+        # Added GPS (connected to relay 2 of PBoB 1)
         subsystems = [
             ("Star Camera", "sc_state", "sc_curr"),
             ("Motor", "m_state", "m_curr"),
+            ("GPS", "gps_state", "gps_curr"),  # Added GPS subsystem
             ("Lock Pin", "lp_state", "lp_curr"),
             ("LNA", "lna_state", "lna_curr"),
             ("Mixer", "mix_state", "mix_curr"),
@@ -177,32 +179,27 @@ class PBoBWidget(QWidget):
             header_label.setStyleSheet("QLabel { color: #495057; border: none; background: transparent; }")
             if col == 0:
                 header_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
+            elif col == 1:
+                header_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             else:
                 header_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             layout.addWidget(header_label, 0, col)
         
         # Subsystem rows
         for row, (name, state_field, current_field) in enumerate(subsystems, 1):
-            # Subsystem name label - clean typography like motor controller
+            # Subsystem name label - clean typography
             name_label = QLabel(f"{name}:")
             name_label.setFont(QFont("Arial", 10))
-            name_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            name_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
             name_label.setStyleSheet("QLabel { color: #6c757d; border: none; background: transparent; }")
-            name_label.setWordWrap(True)
-            name_label.setMaximumWidth(100)
+            name_label.setMaximumWidth(120)  # Increased from 100 to accommodate wider widget
             layout.addWidget(name_label, row, 0)
             
-            # Status circle - centered like motor controller values
+            # Status circle - more compact without extra widget wrapper
             circle = StatusCircle()
-            circle_widget = QWidget()
-            circle_layout = QHBoxLayout(circle_widget)
-            circle_layout.setContentsMargins(0, 0, 0, 0)
-            circle_layout.addStretch()
-            circle_layout.addWidget(circle)
-            circle_layout.addStretch()
-            layout.addWidget(circle_widget, row, 1)
+            layout.addWidget(circle, row, 1, Qt.AlignmentFlag.AlignCenter)
             
-            # Current value label - clean, no-border style like GPS widget
+            # Current value label - clean, no-border style
             current_label = QLabel("-- A")
             current_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
             current_label.setAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
@@ -213,6 +210,11 @@ class PBoBWidget(QWidget):
             # Store references
             self.status_circles[state_field] = circle
             self.field_labels[current_field] = current_label
+        
+        # Set column stretch to distribute space better
+        layout.setColumnStretch(0, 2)  # Subsystem name gets more space
+        layout.setColumnStretch(1, 1)  # State column minimal space
+        layout.setColumnStretch(2, 1)  # Current column moderate space
         
         return data_frame
     
@@ -240,6 +242,7 @@ class PBoBWidget(QWidget):
                 subsystems = [
                     ("Star Camera", "sc_state", "sc_curr"),
                     ("Motor", "m_state", "m_curr"),
+                    ("GPS", "gps_state", "gps_curr"),  # Added GPS subsystem
                     ("Lock Pin", "lp_state", "lp_curr"),
                     ("LNA", "lna_state", "lna_curr"),
                     ("Mixer", "mix_state", "mix_curr"),

@@ -64,6 +64,8 @@ class OphData:
     sc_curr: float = 0.0  # Star camera current (A)
     m_state: int = 0  # Motor relay state (0=OFF, 1=ON)
     m_curr: float = 0.0  # Motor current (A)
+    gps_state: int = 0  # GPS relay state (0=OFF, 1=ON) - connected to relay 2 of PBoB 1
+    gps_curr: float = 0.0  # GPS current (A) - connected to relay 2 of PBoB 1
     lp_state: int = 0  # Lock pin relay state (0=OFF, 1=ON)
     lp_curr: float = 0.0  # Lock pin current (A)
     lna_state: int = 0  # LNA relay state (0=OFF, 1=ON)
@@ -209,6 +211,8 @@ class OphClient:
                 sc_curr=self.oph_data.sc_curr,
                 m_state=self.oph_data.m_state,
                 m_curr=self.oph_data.m_curr,
+                gps_state=self.oph_data.gps_state,
+                gps_curr=self.oph_data.gps_curr,
                 lp_state=self.oph_data.lp_state,
                 lp_curr=self.oph_data.lp_curr,
                 lna_state=self.oph_data.lna_state,
