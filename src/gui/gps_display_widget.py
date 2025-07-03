@@ -229,25 +229,25 @@ class GPSDisplayWidget(QWidget):
         data_frame.setFrameStyle(QFrame.Shape.NoFrame)
         data_frame.setStyleSheet("QFrame { border: none; background-color: transparent; }")
         
-        # Main horizontal layout for Position | Orientation
-        main_layout = QHBoxLayout(data_frame)
+        # Use QGridLayout: 1 row, 3 columns (Position | Separator | Orientation)
+        main_layout = QGridLayout(data_frame)
         main_layout.setSpacing(6)
         main_layout.setContentsMargins(0, 0, 0, 0)
         
-        # Position section (left side)
+        # Position section (left side) - column 0
         position_section = self._create_position_section()
-        main_layout.addWidget(position_section)
+        main_layout.addWidget(position_section, 0, 0)
         
-        # Vertical separator line
+        # Vertical separator line - column 1
         separator = QFrame()
         separator.setFrameShape(QFrame.Shape.VLine)
         separator.setFrameShadow(QFrame.Shadow.Sunken)
         separator.setStyleSheet("QFrame { color: #dee2e6; }")
-        main_layout.addWidget(separator)
+        main_layout.addWidget(separator, 0, 1)
         
-        # Orientation section (right side)
+        # Orientation section (right side) - column 2
         orientation_section = self._create_orientation_section()
-        main_layout.addWidget(orientation_section)
+        main_layout.addWidget(orientation_section, 0, 2)
         
         return data_frame
     

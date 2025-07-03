@@ -6,11 +6,10 @@ Contains sky chart, star camera, GPS display, and motor controller widgets
 import sys
 import os
 import logging
-from PyQt6.QtWidgets import (QMainWindow, QHBoxLayout, QVBoxLayout, 
+from PyQt6.QtWidgets import (QMainWindow, QHBoxLayout, QVBoxLayout, QGridLayout,
                              QWidget, QMenuBar, QStatusBar)
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QIcon, QAction
-
 from src.gui.sky_chart_widget import SkyChartWidget
 from src.gui.gps_display_widget import GPSDisplayWidget
 from src.gui.star_camera_widget import StarCameraWidget
@@ -65,49 +64,51 @@ class PointingWindow(QMainWindow):
         
         # Left side - Sky chart and GPS + Motor Controller
         left_widget = QWidget()
-        left_layout = QVBoxLayout(left_widget)
-        left_layout.setContentsMargins(15, 0, 5, 0)
-        left_layout.setSpacing(15)  # Increased spacing
+        left_layout = QGridLayout()#left_widget
+        left_widget.setLayout(left_layout)
+        #left_layout.setContentsMargins(15, 0, 5, 0)
+        #left_layout.setSpacing(15)  # Increased spacing
         
         # Sky chart widget (MUCH LARGER - this should be the dominant widget)
         self.sky_chart_widget = SkyChartWidget(oph_client=self.shared_oph_client)
-        self.sky_chart_widget.setMinimumSize(750, 500)  # Much larger - was 650x350
-        self.sky_chart_widget.setMaximumSize(900, 600)  # Much larger - was 750x400
-        left_layout.addWidget(self.sky_chart_widget, 5)  # Give it 5 parts (more space)
+        #self.sky_chart_widget.setGeometry(5,5,600,600)
+        #self.sky_chart_widget.setMinimumSize(750, 500)  # Much larger - was 650x350
+        #self.sky_chart_widget.setMaximumSize(900, 600)  # Much larger - was 750x400
+        left_layout.addWidget(self.sky_chart_widget,0,0,3,3)  
         
         # GPS widget (compact - keep current good size)
         self.gps_widget = GPSDisplayWidget()
-        self.gps_widget.setMinimumHeight(220)  # Compact size
-        self.gps_widget.setMaximumHeight(250)  # Compact size
-        left_layout.addWidget(self.gps_widget, 1)  # Give it 1 part
+        #self.gps_widget.setMinimumHeight(220)  # Compact size
+        #self.gps_widget.setMaximumHeight(250)  # Compact size
+        left_layout.addWidget(self.gps_widget, 3,0,3,1)
         
         # Motor Controller widget (adequate space for information)
         self.motor_controller_widget = MotorControllerWidget(oph_client=self.shared_oph_client)
-        self.motor_controller_widget.setMinimumSize(450, 240)  # Keep good size for info
-        self.motor_controller_widget.setMaximumSize(500, 270)  # Keep good size for info
-        left_layout.addWidget(self.motor_controller_widget, 1)  # Give it 1 part
-        
+        #self.motor_controller_widget.setMinimumSize(450, 240)  # Keep good size for info
+        #self.motor_controller_widget.setMaximumSize(500, 270)  # Keep good size for info
+        left_layout.addWidget(self.motor_controller_widget,3,1,3,2) 
         # Remove the stretch to prevent squishing
         # left_layout.addStretch()
         
         # Right side - Star Camera and Scanning Operations (much larger now)
         right_widget = QWidget()
-        right_layout = QVBoxLayout(right_widget)
-        right_layout.setContentsMargins(5, 0, 5, 0)
-        right_layout.setSpacing(10)
+        right_layout = QGridLayout()
+        right_widget.setLayout(right_layout)
+        #right_layout.setContentsMargins(5, 0, 5, 0)
+        #right_layout.setSpacing(10)
         
         self.star_camera_widget = StarCameraWidget(oph_client=self.shared_oph_client)
-        self.star_camera_widget.setMinimumSize(700, 600)  # Larger - information rich widget
-        self.star_camera_widget.setMaximumSize(800, 700)  # Larger - information rich widget  
-        right_layout.addWidget(self.star_camera_widget, 4)  # Give it 4 parts (more space)
+        #self.star_camera_widget.setMinimumSize(700, 600)  # Larger - information rich widget
+        #self.star_camera_widget.setMaximumSize(800, 700)  # Larger - information rich widget  
+        right_layout.addWidget(self.star_camera_widget, 0,0,3,3) 
         
         # Scanning Operations widget (below star camera - adequate space for info)
         self.scanning_operations_widget = ScanningOperationsWidget(oph_client=self.shared_oph_client)
         self.scanning_operations_widget.setMinimumSize(700, 200)  # Adequate size for info
         self.scanning_operations_widget.setMaximumSize(800, 240)  # Adequate size for info
-        right_layout.addWidget(self.scanning_operations_widget, 1)  # Give it 1 part
+        right_layout.addWidget(self.scanning_operations_widget, 3,0,2,3) 
         
-        right_layout.addStretch()
+        #right_layout.addStretch()
         
         # Add widgets to main layout
         main_layout.addWidget(left_widget, 1)  # Left side gets 1 part

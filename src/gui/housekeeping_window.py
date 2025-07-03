@@ -7,7 +7,7 @@ import sys
 import os
 import logging
 from PyQt6.QtWidgets import (QMainWindow, QVBoxLayout, QHBoxLayout,
-                             QWidget, QMenuBar, QStatusBar, QFrame, QPushButton, QLabel, QMessageBox)
+                             QWidget, QMenuBar, QStatusBar, QFrame, QPushButton, QLabel, QMessageBox, QGridLayout)
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QIcon, QAction
 
@@ -57,38 +57,30 @@ class HousekeepingWindow(QMainWindow):
         central_widget.setStyleSheet("QWidget { background-color: white; }")
         self.setCentralWidget(central_widget)
         
-        # Main layout
-        main_layout = QVBoxLayout(central_widget)
+        # Use QGridLayout: 3 rows, 2 columns (Data Logging | PBoB | Stretch)
+        main_layout = QGridLayout(central_widget)
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(15)
         
-        # Top row layout for compact controls
-        top_row_layout = QHBoxLayout()
+        # Data logging panel (compact) - Row 0, Column 0 (left-aligned)
+        self.setup_compact_data_logging_panel_grid(main_layout)
         
-        # Data logging panel (compact)
-        self.setup_compact_data_logging_panel(top_row_layout)
-        
-        # Add stretch to push data logger to left
-        top_row_layout.addStretch()
-        
-        main_layout.addLayout(top_row_layout)
-        
-        # PBoB (Power Distribution Box) Widget (now includes connection status)
-        pbob_layout = QHBoxLayout()
+        # PBoB (Power Distribution Box) Widget - Row 1, Column 0 (left-aligned)
         self.pbob_widget = PBoBWidget(parent=self, oph_client=self.oph_client)
-        pbob_layout.addWidget(self.pbob_widget)
-        pbob_layout.addStretch()  # Push PBoB widget to left, no stretching
-        main_layout.addLayout(pbob_layout)
+        main_layout.addWidget(self.pbob_widget, 1, 0, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         
-        # Add stretch at the end
-        main_layout.addStretch()
+        # Set column stretch to allow horizontal expansion (empty column 1 stretches)
+        main_layout.setColumnStretch(1, 1)
+        
+        # Set row stretch to push widgets to top (row 2 stretches)
+        main_layout.setRowStretch(2, 1)
         
         # Set window properties
         self.setMinimumSize(800, 600)
         self.resize(900, 700)
     
-    def setup_compact_data_logging_panel(self, parent_layout):
-        """Setup the compact data logging control panel"""
+    def setup_compact_data_logging_panel_grid(self, main_layout):
+        """Setup the compact data logging control panel for grid layout"""
         # Create compact data logging panel frame
         data_logging_frame = QFrame()
         data_logging_frame.setFrameStyle(QFrame.Shape.StyledPanel)
@@ -159,8 +151,8 @@ class HousekeepingWindow(QMainWindow):
         self.data_logging_file_label.setStyleSheet("QLabel { color: #868e96; border: none; margin: 0px; }")
         panel_layout.addWidget(self.data_logging_file_label)
         
-        # Add the panel to the parent layout
-        parent_layout.addWidget(data_logging_frame)
+        # Add the panel to the grid layout - Row 0, Column 0 (left-aligned)
+        main_layout.addWidget(data_logging_frame, 0, 0, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
     
         # Setup a timer to update the Oph client status (now handled by PBoB widget)
         self.oph_status_timer = QTimer()

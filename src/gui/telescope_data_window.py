@@ -7,7 +7,7 @@ import sys
 import os
 import logging
 from PyQt6.QtWidgets import (QMainWindow, QVBoxLayout, 
-                             QWidget, QMenuBar, QStatusBar)
+                             QWidget, QMenuBar, QStatusBar, QGridLayout)
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QIcon, QAction
 
@@ -35,20 +35,17 @@ class TelescopeDataWindow(QMainWindow):
         central_widget.setStyleSheet("QWidget { background-color: white; }")
         self.setCentralWidget(central_widget)
         
-        # Main layout - simple vertical layout for now
-        main_layout = QVBoxLayout(central_widget)
+        # Use QGridLayout: 1 row, 1 column with widget centering
+        main_layout = QGridLayout(central_widget)
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(10)
         
-        # Spectra display widget (much larger now)
+        # Spectra display widget (much larger now) - Row 0, Column 0
         self.spectra_widget = SpectraDisplayWidget()
         self.spectra_widget.setMinimumSize(1200, 800)  # Much larger than before
         self.spectra_widget.setMaximumSize(1600, 1000)
         
-        main_layout.addWidget(self.spectra_widget)
-        
-        # Add stretch to center the widget
-        main_layout.addStretch()
+        main_layout.addWidget(self.spectra_widget, 0, 0, Qt.AlignmentFlag.AlignCenter)
         
         # Set window properties - larger for expanded spectra display
         self.setMinimumSize(1300, 900)

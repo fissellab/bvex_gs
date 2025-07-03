@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame, QSizePolicy, QComboBox, QSlider
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame, QSizePolicy, QComboBox, QSlider, QGridLayout
 from PyQt6.QtCore import QTimer, Qt, pyqtSignal, QObject, QThread
 from PyQt6.QtGui import QFont
 import datetime as dt
@@ -127,11 +127,12 @@ class SpectraDisplayWidget(QWidget):
 
     def setup_ui(self):
         """Initialize the matplotlib figure and canvas"""
-        layout = QVBoxLayout()
+        # Use QGridLayout: 5 rows, 1 column (Control | Info | Canvas | Integration | Description)
+        layout = QGridLayout()
         layout.setContentsMargins(5, 5, 5, 5)  # Reduced margins
         layout.setSpacing(5)  # Reduced spacing
         
-        # Control panel
+        # Control panel - Row 0
         control_layout = QHBoxLayout()
         
         # Status label
@@ -161,9 +162,12 @@ class SpectraDisplayWidget(QWidget):
         control_layout.addStretch()
         control_layout.addWidget(self.toggle_button)
         
-        layout.addLayout(control_layout)
+        # Create widget container for control layout
+        control_widget = QWidget()
+        control_widget.setLayout(control_layout)
+        layout.addWidget(control_widget, 0, 0)
         
-        # Create info panel
+        # Create info panel - Row 1
         info_layout = QHBoxLayout()
         info_layout.setContentsMargins(0, 0, 0, 0)
         info_layout.setSpacing(10)
@@ -191,9 +195,12 @@ class SpectraDisplayWidget(QWidget):
         info_layout.addWidget(self.points_label)
         info_layout.addStretch()
         
-        layout.addLayout(info_layout)
+        # Create widget container for info layout
+        info_widget = QWidget()
+        info_widget.setLayout(info_layout)
+        layout.addWidget(info_widget, 1, 0)
         
-        # Create matplotlib figure with two subplots
+        # Create matplotlib figure with two subplots - Row 2
         self.figure = Figure(figsize=(10, 8), tight_layout=True)
         self.figure.patch.set_facecolor('white')
         self.ax_spectrum, self.ax_power = self.figure.subplots(2, 1, gridspec_kw={'height_ratios': [3, 1]})
@@ -201,9 +208,9 @@ class SpectraDisplayWidget(QWidget):
         self.canvas = FigureCanvas(self.figure)
         self.canvas.setMinimumHeight(400) # Increased height for two plots
         
-        layout.addWidget(self.canvas, 1)
+        layout.addWidget(self.canvas, 2, 0)
         
-        # Add integration time control below the plot
+        # Add integration time control below the plot - Row 3
         integration_layout = QHBoxLayout()
         integration_layout.setContentsMargins(10, 5, 10, 5)
         
@@ -228,9 +235,13 @@ class SpectraDisplayWidget(QWidget):
         integration_layout.addWidget(self.integration_value_label)
         
         integration_layout.addStretch()
-        layout.addLayout(integration_layout)
         
-        # Add description label below the slider
+        # Create widget container for integration layout
+        integration_widget = QWidget()
+        integration_widget.setLayout(integration_layout)
+        layout.addWidget(integration_widget, 3, 0)
+        
+        # Add description label below the slider - Row 4
         description_layout = QHBoxLayout()
         description_layout.setContentsMargins(10, 0, 10, 5)
         
@@ -240,7 +251,13 @@ class SpectraDisplayWidget(QWidget):
         description_layout.addWidget(description_label)
         description_layout.addStretch()
         
-        layout.addLayout(description_layout)
+        # Create widget container for description layout
+        description_widget = QWidget()
+        description_widget.setLayout(description_layout)
+        layout.addWidget(description_widget, 4, 0)
+        
+        # Set row stretch to make canvas expand
+        layout.setRowStretch(2, 1)
         
         self.setLayout(layout)
         

@@ -89,9 +89,9 @@ class MotorControllerWidget(QWidget):
         
         self.setLayout(main_layout)
         # Set proper size that fits content - increased height to show all fields properly
-        self.setMinimumHeight(200)  # Significantly increased to show all 3 rows of data
-        self.setMaximumHeight(220)  # Allow some flexibility
-        self.setMinimumWidth(450)
+        #self.setMinimumHeight(200)  # Significantly increased to show all 3 rows of data
+        #self.setMaximumHeight(220)  # Allow some flexibility
+        #self.setMinimumWidth(450)
         
     def toggle_state(self):
         """Toggle between active and inactive states"""
@@ -272,12 +272,12 @@ class MotorControllerWidget(QWidget):
                     ("ax_mode", "Mode", "", 0, 0),
                      # Row 1 and 2: Motor essentials
                     ("mc_curr", "Current", "A", 1, 0),
-                    ("mc_pos", "Position", "deg", 1, 2),
-                    ("mc_vel", "Velocity", "deg/s", 1, 4),
+                    ("mc_pos", "Position", '°', 1, 2),
+                    ("mc_vel", "Velocity", '°/s', 1, 4),
                 
                     ("mc_temp", "Temp", "°C", 2, 0),
-                    ("ax_dest", "Target EL", "deg", 2, 2),
-                    ("ax_dest_az", "Target AZ", "deg", 2, 4),
+                    ("ax_dest", "Target EL", '°', 2, 2),
+                    ("ax_dest_az", "Target AZ", '°', 2, 4),
             
                     # Row 3 and 4: Status
                     ("mc_lf", "Fault","", 3, 0),
@@ -294,11 +294,11 @@ class MotorControllerWidget(QWidget):
                     ("ax_mode", "Mode", "", 0, 0),
                      # Row 1 and 2: Motor essentials
                     ("mc_curr", "Current", "A", 1, 0),
-                    ("mc_pos", "Position", "deg", 1, 2),
-                    ("mc_vel", "Velocity", "deg/s", 1, 4),
+                    ("mc_pos", "Position", '°', 1, 2),
+                    ("mc_vel", "Velocity", '°/s', 1, 4),
                 
                     ("mc_temp", "Temp", "°C", 2, 0),
-                    ("ax_dest", "Target EL", "deg", 2, 2),
+                    ("ax_dest", "Target EL", '°', 2, 2),
             
                     # Row 3 and 4: Status
                     ("mc_lf", "Fault","", 3, 0),
@@ -316,12 +316,12 @@ class MotorControllerWidget(QWidget):
                     ("ax_mode", "Mode", "", 0, 0),
                      # Row 1 and 2: Motor essentials
                     ("mc_curr", "Current", "A", 1, 0),
-                    ("mc_pos", "Position", "deg", 1, 2),
-                    ("mc_vel", "Velocity", "deg/s", 1, 4),
+                    ("mc_pos", "Position", '°', 1, 2),
+                    ("mc_vel", "Velocity", '°/s', 1, 4),
                 
                     ("mc_temp", "Temp", "°C", 2, 0),
-                    ("ax_vel", "Target EL Vel", "deg/s", 2, 2),
-                    ("ax_vel_az", "Target AZ Vel", "deg/s", 2, 4),
+                    ("ax_vel", "Target EL Vel", '°/s', 2, 2),
+                    ("ax_vel_az", "Target AZ Vel", '°/s', 2, 4),
             
                     # Row 3 and 4: Status
                     ("mc_lf", "Fault", "",3, 0),
@@ -338,11 +338,11 @@ class MotorControllerWidget(QWidget):
                     ("ax_mode", "Mode", "", 0, 0),
                      # Row 1 and 2: Motor essentials
                     ("mc_curr", "Current", "A", 1, 0),
-                    ("mc_pos", "Position", "deg", 1, 2),
-                    ("mc_vel", "Velocity", "deg/s", 1, 4),
+                    ("mc_pos", "Position", '°', 1, 2),
+                    ("mc_vel", "Velocity", '°/s', 1, 4),
                 
                     ("mc_temp", "Temp", "°C", 2, 0),
-                    ("ax_vel", "Target EL Vel", "deg/s", 2, 2),
+                    ("ax_vel", "Target EL Vel", '°/s', 2, 2),
                     
             
                     # Row 3 and 4: Status
@@ -449,9 +449,9 @@ class MotorControllerWidget(QWidget):
         
         mode_text = "Position" if telemetry.ax_mode == 1 else "Velocity"
         update_field("ax_mode", mode_text)
-        update_field("mc_curr", telemetry.mc_curr, "{:.3f}")
+        update_field("mc_curr", telemetry.mc_curr, "{:.2f}")
         update_field("mc_pos", telemetry.mc_pos, "{:.2f}")
-        update_field("mc_vel", telemetry.mc_vel, "{:.3f}")
+        update_field("mc_vel", telemetry.mc_vel, "{:.2f}")
         update_field("mc_temp", telemetry.mc_temp)
         update_field("mc_sw", telemetry.mc_sw)
         update_field("mc_sr", telemetry.mc_sr)
@@ -465,9 +465,9 @@ class MotorControllerWidget(QWidget):
             if GUI['lazisusan_enabled'] == 1:
                 update_field("ax_dest_az", telemetry.ax_dest_az, "{:.2f}")
         else:
-            update_field("ax_vel", telemetry.ax_vel, "{:.3f}")
+            update_field("ax_vel", telemetry.ax_vel, "{:.2f}")
             if GUI['lazisusan_enabled'] == 1:
-                update_field("ax_vel_az", telemetry.ax_vel_az, "{:.3f}")
+                update_field("ax_vel_az", telemetry.ax_vel_az, "{:.2f}")
         
     
     def is_motor_controller_active(self) -> bool:

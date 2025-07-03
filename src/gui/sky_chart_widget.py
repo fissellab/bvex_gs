@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import matplotlib.animation as animation
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QCheckBox
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QCheckBox, QGridLayout
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 
@@ -17,6 +17,7 @@ from astropy.time import Time
 import astropy.units as u
 import datetime as dt
 import logging
+from scipy.interpolate import interp1d
 
 from src.config.settings import OBSERVATORY, CELESTIAL_OBJECTS, GUI
 from src.data.Oph_client import OphClient, OphData
@@ -58,9 +59,10 @@ class SkyChartWidget(QWidget):
     
     def setup_ui(self):
         """Initialize the matplotlib figure and canvas"""
-        layout = QVBoxLayout()
+        # Use QGridLayout: 2 rows, 1 column (Control panel | Canvas)
+        layout = QGridLayout()
         
-        # Control panel
+        # Control panel - Row 0
         control_layout = QHBoxLayout()
         
         # Status label
@@ -125,14 +127,21 @@ class SkyChartWidget(QWidget):
         control_layout.addStretch()
         control_layout.addWidget(self.toggle_button)
         
-        layout.addLayout(control_layout)
+        # Create widget container for control layout and add to grid
+        control_widget = QWidget()
+        control_widget.setLayout(control_layout)
+        layout.addWidget(control_widget, 0, 0)
         
-        # Create matplotlib figure with polar projection
+        # Create matplotlib figure with polar projection - Row 1
         self.figure = Figure(figsize=GUI['sky_chart_size'], tight_layout=True)
         self.ax = self.figure.add_subplot(111, projection='polar')
         self.canvas = FigureCanvas(self.figure)
         
-        layout.addWidget(self.canvas)
+        layout.addWidget(self.canvas, 1, 0)
+        
+        # Set row stretch to make canvas expand
+        layout.setRowStretch(1, 1)
+        
         self.setLayout(layout)
     
     def toggle_state(self):
@@ -271,6 +280,9 @@ class SkyChartWidget(QWidget):
         # Draw celestial objects
         self._draw_solar_system_objects(tel_frame)
         
+        #Draw miky way
+        self._draw_milky_way(tel_frame)
+        
         # Draw observation targets
         self._draw_targets(tel_frame)
         
@@ -352,15 +364,19 @@ class SkyChartWidget(QWidget):
             vis = np.where(line_AltAz.alt.deg > 0)
             alt = line_AltAz.alt.deg[vis]
             az = line_AltAz.az.deg[vis]
+            if(d<self.current_location.lat.degree):
+                sort_idx = np.argsort(az)
+                alt = alt[sort_idx]
+                az = az[sort_idx]
             self.ax.plot(az * np.pi / 180, alt, 'b-', alpha=0.5, linewidth=0.5)
-            # Keep the original buggy condition exactly as it was
+                # Keep the original buggy condition exactly as it was
             if len(alt) > 11:
                 try:
                     # Place label at the middle of the visible arc
                     label_idx = len(alt) // 2
                     self.ax.annotate(text=f"{int(d)}$^\\circ$",
-                                   xy=(az[label_idx] * np.pi / 180, alt[label_idx]),
-                                   color="blue", size=9, alpha=0.8, weight='normal')
+                                xy=(az[label_idx] * np.pi / 180, alt[label_idx]),
+                                color="blue", size=9, alpha=0.8, weight='normal')
                 except IndexError:
                     pass  # Skip annotation if not enough points
     
@@ -440,7 +456,16 @@ class SkyChartWidget(QWidget):
             self.ax.plot(q_3C84_AltAz.az.deg * np.pi / 180, q_3C84_AltAz.alt.deg, 'rd', markersize=9)
             self.ax.annotate('3C 84', xy=((q_3C84_AltAz.az.deg + 5) * np.pi / 180, q_3C84_AltAz.alt.deg + 5), 
                            size=11, color='red', weight='bold')
-    
+    def _draw_milky_way(self, tel_frame):
+        gal_lats = np.linspace(-10,10,num=30)
+        for bs in gal_lats:
+            mw = SkyCoord(l=np.linspace(0,360,num=1000)*u.degree,b = bs*u.degree, frame='galactic')
+            mw_AltAz = mw.transform_to(tel_frame)
+            vis = np.where(mw_AltAz.alt.deg>0)
+            if len(vis[0])>2:
+                self.ax.plot(mw_AltAz.az.deg * np.pi/180,mw_AltAz.alt.deg,'k-',alpha=0.2)
+        
+        
     def _draw_star_camera_crosshair(self, tel_frame):
         """Draw crosshair showing star camera pointing direction with persistence during data outages"""
         # Try to update crosshair position with new valid data
@@ -517,16 +542,15 @@ class SkyChartWidget(QWidget):
             try:
                 # Use motor poisiton for alt and gps heading for az
                gps_az = self.gps_data.head  # degrees
-               mc_alt = self.star_camera_data.sc_alt  # degrees (altitude/elevation)
+               mc_alt = self.star_camera_data.mc_pos  # degrees (altitude/elevation)
                 
 
                az_rad = gps_az * np.pi / 180
-               alt_deg = mc_alt
                 
             
-               if alt_deg > 0:
+               if mc_alt > 0:
                    # Draw crosshair - simple cross design
-                   self.ax.plot(az_rad, alt_deg, 'b+', markersize=20, alpha=0.9)
+                   self.ax.plot(az_rad, mc_alt, 'b+', markersize=20, alpha=0.9)
             
                                
             except Exception as e:
