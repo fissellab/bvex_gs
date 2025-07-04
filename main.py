@@ -20,7 +20,7 @@ from src.gui.pointing_window import PointingWindow
 from src.gui.telescope_data_window import TelescopeDataWindow  
 from src.gui.housekeeping_window import HousekeepingWindow
 from src.data.gps_client import GPSClient
-from src.data.Oph_client import OphClient
+from src.data.shared_oph_client_manager import get_shared_oph_manager, cleanup_shared_oph_manager
 
 
 def setup_logging():
@@ -110,26 +110,24 @@ def main():
     cleanup_old_logs('logs')
     
     try:
-        # Create shared clients
-        logger.info("Creating shared clients...")
+        # Initialize the shared Oph client manager (singleton)
+        logger.info("Initializing shared Oph client manager...")
+        oph_manager = get_shared_oph_manager()
+        logger.info("✅ Shared Oph client manager initialized")
+        
+        # Create GPS client
+        logger.info("Creating GPS client...")
         gps_client = GPSClient()
-        shared_oph_client = OphClient()
         
-        # Start shared OphClient 
-        if shared_oph_client.start():
-            logger.info("Shared OphClient started successfully")
-        else:
-            logger.error("Failed to start shared OphClient")
-        
-        # Create the three windows
+        # Create the three windows (they will use the shared manager automatically)
         logger.info("Creating application windows...")
         
-        pointing_window = PointingWindow(gps_client=gps_client, shared_oph_client=shared_oph_client)
+        pointing_window = PointingWindow(gps_client=gps_client, shared_oph_client=None)
         telescope_data_window = TelescopeDataWindow()
         housekeeping_window = HousekeepingWindow(
             pointing_window=pointing_window, 
             telescope_data_window=telescope_data_window,
-            shared_oph_client=shared_oph_client
+            shared_oph_client=None  # Windows will use shared manager
         )
         
         # Position windows to avoid overlap
@@ -148,16 +146,21 @@ def main():
         print("1. Pointing Window - Sky chart, star camera, GPS, motor control")
         print("2. Telescope Data Window - Spectrometer and scientific data")
         print("3. Housekeeping Window - Data logging and system monitoring")
+        print("")
+        print("🔗 All widgets now use a centralized shared client manager")
+        print("   This eliminates connection conflicts and provides rock-solid connectivity!")
         
         # Start event loop
         result = app.exec()
         
         # Cleanup on exit
         logger.info("Application shutting down...")
-        if shared_oph_client:
-            shared_oph_client.cleanup()
         if gps_client:
             gps_client.cleanup()
+        
+        # Cleanup shared manager
+        cleanup_shared_oph_manager()
+        logger.info("✅ All clients cleaned up successfully")
             
         logger.info("BVEX Ground Station shutdown complete")
         sys.exit(result)

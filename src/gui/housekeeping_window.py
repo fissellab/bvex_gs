@@ -31,16 +31,9 @@ class HousekeepingWindow(QMainWindow):
         # Data logger will be initialized after UI setup
         self.data_logger = None
         
-        # Use the shared Oph client passed from main.py
-        self.oph_client = shared_oph_client
-        if not self.oph_client:
-            self.logger.error("No shared Oph client provided to housekeeping window")
-            # Fallback: create our own client
-            from src.data.Oph_client import OphClient
-            self.oph_client = OphClient()
-            self.oph_client.start()
-        else:
-            self.logger.info("Using shared Oph client for housekeeping window")
+        # The PBoB widget will handle its own connection to the shared manager
+        # No need to manage the Oph client directly in this window
+        self.logger.info("Housekeeping window initialized - widgets will use shared Oph client manager")
         
         self.setup_ui()
         self.setup_menu_bar()
@@ -66,7 +59,7 @@ class HousekeepingWindow(QMainWindow):
         self.setup_compact_data_logging_panel_grid(main_layout)
         
         # PBoB (Power Distribution Box) Widget - Row 1, Column 0 (left-aligned)
-        self.pbob_widget = PBoBWidget(parent=self, oph_client=self.oph_client)
+        self.pbob_widget = PBoBWidget(parent=self, oph_client=None)
         main_layout.addWidget(self.pbob_widget, 1, 0, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         
         # Set column stretch to allow horizontal expansion (empty column 1 stretches)
@@ -153,11 +146,6 @@ class HousekeepingWindow(QMainWindow):
         
         # Add the panel to the grid layout - Row 0, Column 0 (left-aligned)
         main_layout.addWidget(data_logging_frame, 0, 0, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
-    
-        # Setup a timer to update the Oph client status (now handled by PBoB widget)
-        self.oph_status_timer = QTimer()
-        self.oph_status_timer.timeout.connect(self.update_oph_status)
-        self.oph_status_timer.start(1000)  # Update every second
     
     def setup_data_logger(self):
         """Setup the comprehensive data logger (adapted from main_window.py)"""
@@ -356,60 +344,9 @@ class HousekeepingWindow(QMainWindow):
                 "No active log file. Start data logging to create a new log file."
             )
     
-    def update_oph_status(self):
-        """Update the Oph client status (now handled by PBoB widget)"""
-        # The PBoB widget now handles its own connection status display
-        pass
-    
-    # Add methods that the DataLogger expects (mimicking MainWindow interface)
-    def get_gps_widget(self):
-        """Get GPS widget from pointing window"""
-        return getattr(self.pointing_window, 'gps_widget', None) if self.pointing_window else None
-    
-    def get_spectra_widget(self):
-        """Get spectra widget from telescope data window"""
-        return getattr(self.telescope_data_window, 'spectra_widget', None) if self.telescope_data_window else None
-    
-    def get_star_camera_widget(self):
-        """Get star camera widget from pointing window"""
-        return getattr(self.pointing_window, 'star_camera_widget', None) if self.pointing_window else None
-    
-    def get_motor_controller_widget(self):
-        """Get motor controller widget from pointing window"""
-        return getattr(self.pointing_window, 'motor_controller_widget', None) if self.pointing_window else None
-    
-    def get_scanning_operations_widget(self):
-        """Get scanning operations widget from pointing window"""
-        return getattr(self.pointing_window, 'scanning_operations_widget', None) if self.pointing_window else None
-    
-    # Properties that DataLogger expects
-    @property
-    def gps_widget(self):
-        return self.get_gps_widget()
-    
-    @property  
-    def spectra_widget(self):
-        return self.get_spectra_widget()
-    
-    @property
-    def star_camera_widget(self):
-        return self.get_star_camera_widget()
-    
-    @property
-    def motor_controller_widget(self):
-        return self.get_motor_controller_widget()
-    
-    @property
-    def scanning_operations_widget(self):
-        return self.get_scanning_operations_widget()
-    
     def closeEvent(self, event):
         """Handle window close event"""
         self.logger.info("Housekeeping window shutting down...")
-        
-        # Stop status timer
-        if hasattr(self, 'oph_status_timer'):
-            self.oph_status_timer.stop()
         
         # Cleanup components
         try:
@@ -423,10 +360,8 @@ class HousekeepingWindow(QMainWindow):
                 self.pbob_widget.cleanup()
                 self.logger.info("PBoB widget cleaned up during shutdown")
             
-            # Oph client cleanup
-            if hasattr(self, 'oph_client') and self.oph_client:
-                self.oph_client.stop()
-                self.logger.info("Oph client cleaned up during shutdown")
+            # The PBOB widget handles its own unregistration from shared manager
+            # No need to manage the shared Oph client directly
             
             self.logger.info("Housekeeping window cleanup completed")
             

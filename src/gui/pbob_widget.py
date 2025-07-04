@@ -11,7 +11,7 @@ from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtGui import QFont, QPainter, QColor
 from datetime import datetime
 
-# No additional imports needed - using shared client
+from src.data.shared_oph_client_manager import get_shared_oph_manager, ClientUser
 
 class StatusCircle(QLabel):
     """Custom widget to display colored circle for ON/OFF status"""
@@ -47,8 +47,28 @@ class PBoBWidget(QWidget):
     
     def __init__(self, parent=None, oph_client=None):
         super().__init__(parent)
-        self.oph_client = oph_client
+        
+        # Use the new shared client manager instead of direct client access
+        self.oph_manager = get_shared_oph_manager()
+        self.client_user: ClientUser = None
         self.logger = logging.getLogger(__name__)
+        
+        # Determine our window name for registration
+        window_name = "unknown"
+        if hasattr(parent, 'windowTitle'):
+            title = parent.windowTitle()
+            if 'Housekeeping' in title:
+                window_name = "housekeeping"
+            elif 'Pointing' in title:
+                window_name = "pointing"
+            elif 'Main' in title or 'Ground Station' in title:
+                window_name = "main"
+        
+        # Register with the shared manager
+        self.client_user = self.oph_manager.register_user("pbob", window_name)
+        
+        # Automatically activate since PBOB should always show power status
+        self.oph_manager.activate_user(self.client_user)
         
         # Setup the UI
         self.setup_ui()
@@ -58,7 +78,7 @@ class PBoBWidget(QWidget):
         self.update_timer.timeout.connect(self.update_display)
         self.update_timer.start(1000)  # Update every second
         
-        self.logger.info("PBoB Widget initialized")
+        self.logger.info("PBoB Widget initialized with shared client manager")
     
     def setup_ui(self):
         """Initialize the clean user interface matching GPS/Motor Controller style"""
@@ -220,16 +240,20 @@ class PBoBWidget(QWidget):
     
     def update_display(self):
         """Update the display with current data"""
-        if not self.oph_client:
-            return
-            
         try:
-            data = self.oph_client.get_data()
+            # Get data from shared manager
+            data = self.oph_manager.get_data()
             
             if data.valid:
-                # Update connection status
-                self.connection_label.setText("Connected")
-                self.connection_label.setStyleSheet("QLabel { color: green; }")
+                # Update connection status using shared manager
+                status = self.oph_manager.get_connection_status()
+                self.connection_label.setText(status)
+                if status == "Connected":
+                    self.connection_label.setStyleSheet("QLabel { color: green; }")
+                elif status in ["Connecting...", "Paused"]:
+                    self.connection_label.setStyleSheet("QLabel { color: orange; }")
+                else:
+                    self.connection_label.setStyleSheet("QLabel { color: red; }")
                 
                 # Update last update time
                 try:
@@ -268,12 +292,14 @@ class PBoBWidget(QWidget):
                     else:
                         current_label.setStyleSheet("QLabel { color: #28a745; border: none; background: transparent; }")
             else:
-                # No valid data - check connection status
-                if self.oph_client.running:
-                    self.connection_label.setText("Connecting")
+                # No valid data - use detailed status from shared manager
+                status = self.oph_manager.get_connection_status()
+                self.connection_label.setText(status)
+                if status == "Connected":
+                    self.connection_label.setStyleSheet("QLabel { color: green; }")
+                elif status in ["Connecting...", "Paused"]:
                     self.connection_label.setStyleSheet("QLabel { color: orange; }")
                 else:
-                    self.connection_label.setText("Disconnected")
                     self.connection_label.setStyleSheet("QLabel { color: red; }")
                 
                 self.last_update_label.setText("Last Update: No data")
@@ -295,8 +321,13 @@ class PBoBWidget(QWidget):
 
     def cleanup(self):
         """Clean up resources"""
+        # Stop our timer
         if hasattr(self, 'update_timer'):
             self.update_timer.stop()
+        
+        # Unregister from shared manager
+        if self.client_user:
+            self.oph_manager.unregister_user(self.client_user)
 
 
 # Test the widget standalone

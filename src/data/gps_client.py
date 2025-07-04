@@ -30,7 +30,7 @@ class GPSClient:
         self.gps_data = GPSData()
         self.data_lock = threading.Lock()
         self.running = False
-        self.paused = True  # Start in paused state
+        self.paused = False  # Start unpaused by default to fix connectivity issues
         self.thread = None
         self.socket = None
         

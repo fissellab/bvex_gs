@@ -230,22 +230,33 @@ class OphClient:
             return self.running and not self.paused and self.oph_data.valid
 
     def _client_loop(self):
-        """Main client loop"""
+        """Main client loop running in separate thread"""
+        # Define all parameters to request with their expected types
+        request_msgs = ['sc_ra', 'sc_dec', 'sc_fr', 'sc_ir', 'sc_az', 'sc_alt', 'sc_texp',
+                       'sc_start_focus', 'sc_end_focus', 'sc_curr_focus', 'sc_focus_step',
+                       'sc_focus_mode', 'sc_solve', 'sc_save',
+                       'mc_curr', 'mc_sw', 'mc_lf', 'mc_sr', 'mc_pos', 'mc_temp', 'mc_vel', 
+                       'mc_cwr', 'mc_cww', 'mc_np', 'mc_pt', 'mc_it', 'mc_dt',
+                       'ax_mode', 'ax_dest', 'ax_vel', 'ax_dest_az', 'ax_vel_az', 'ax_ot',
+                       'scan_mode', 'scan_start', 'scan_stop', 'scan_vel', 'scan_scan', 'scan_nscans', 'scan_offset', 'scan_op', 'scan_time',
+                       'target_lon', 'target_lat', 'target_type',
+                       'sc_state', 'sc_curr', 'm_state', 'm_curr', 'gps_state', 'gps_curr',
+                       'lp_state', 'lp_curr', 'lna_state', 'lna_curr', 'mix_state', 'mix_curr', 'rfsoc_state', 'rfsoc_curr']
+        
+        types = [float, float, float, float, float, float, float,
+                 int, int, int, int,
+                 int, int, int,
+                 float, int, int, int, float, int, float,
+                 int, int, int, float, float, float,
+                 int, float, float, float, float, int,
+                 int, float, float, float, int, int, float, int, float,
+                 float, float, str,
+                 int, float, int, float, int, float,
+                 int, float, int, float, int, float, int, float]
+        
         server_addr = (OPH_SERVER['host'], OPH_SERVER['port'])
-        
-        # Get all fields from OphData EXCEPT 'valid' which is internal only
-        all_fields = asdict(self.oph_data)
-        # Remove 'valid' field - it's internal, not a server parameter
-        if 'valid' in all_fields:
-            del all_fields['valid']
-        
-        request_msgs = list(all_fields.keys())
-        types = [str(type(all_fields[key])) for key in request_msgs]
-
-        self.logger.debug(f"Starting client loop with {len(request_msgs)} parameters to request")
-        self.logger.debug(f"Server address: {server_addr}")
         self.logger.debug(f"Parameters to request: {request_msgs}")
-        self.logger.debug(f"Excluded 'valid' field from server requests (internal flag only)")
+        self.logger.debug(f"Timeout: {OPH_SERVER['timeout']}s, Update interval: {OPH_SERVER['update_interval']}s")
 
         while self.running:
             try:
@@ -259,6 +270,12 @@ class OphClient:
                     # Loop through all metrics
                     for i, (request_msg, data_type) in enumerate(zip(request_msgs, types)):
                         try:
+                            # Use shorter timeout for individual requests, especially for problematic ones
+                            if request_msg in ['gps_state', 'gps_curr']:
+                                # These parameters seem to timeout frequently, use shorter timeout
+                                original_timeout = self.socket.gettimeout()
+                                self.socket.settimeout(2.0)  # 2 second timeout for GPS-related requests
+                            
                             # Send request
                             self.logger.debug(f"[{i+1}/{len(request_msgs)}] Sending request '{request_msg}' (type: {data_type}) to {server_addr}")
                             self.socket.sendto(request_msg.encode('utf-8'), server_addr)
@@ -273,65 +290,72 @@ class OphClient:
                             self.data_rate_tracker.add_data(bytes_received)
                             self.total_bytes_received += bytes_received
 
-                            # Parse and store data temporarily
+                            # Parse response based on type
                             try:
-                                if "float" in data_type:
-                                    parsed_value = float(response)
-                                    temp_data[request_msg] = parsed_value
-                                    self.logger.debug(f"Parsed {request_msg} as float: {parsed_value}")
-                                elif "int" in data_type:
-                                    # Handle case where server sends float string for int fields
-                                    try:
-                                        parsed_value = int(response)
-                                    except ValueError:
-                                        # If int() fails, try float() then convert to int
-                                        parsed_value = int(float(response))
-                                    temp_data[request_msg] = parsed_value
-                                    self.logger.debug(f"Parsed {request_msg} as int: {parsed_value}")
-                                elif "str" in data_type:
-                                    parsed_value = str(response)
-                                    temp_data[request_msg] = parsed_value
-                                    self.logger.debug(f"Parsed {request_msg} as str: {parsed_value}")
+                                if data_type == float:
+                                    value = float(response)
+                                    self.logger.debug(f"Parsed {request_msg} as float: {value}")
+                                elif data_type == int:
+                                    value = int(response)
+                                    self.logger.debug(f"Parsed {request_msg} as int: {value}")
+                                elif data_type == str:
+                                    value = response
+                                    self.logger.debug(f"Parsed {request_msg} as str: {value}")
                                 else:
-                                    self.logger.debug(f"Unknown data type for {request_msg}: {data_type}, treating as string")
-                                    parsed_value = str(response)
-                                    temp_data[request_msg] = parsed_value
-                                    
-                            except (ValueError, TypeError) as parse_error:
-                                self.logger.debug(f"Failed to parse {request_msg}: '{response}' as {data_type} - {parse_error}")
-                                all_successful = False
-                                break
+                                    self.logger.warning(f"Unknown data type for {request_msg}: {data_type}")
+                                    continue
                                 
-                        except socket.timeout:
-                            self.logger.debug(f"Timeout requesting {request_msg} from {server_addr}")
-                            all_successful = False
-                            break
-                        except Exception as req_error:
-                            self.logger.debug(f"Error requesting {request_msg} from {server_addr}: {req_error}")
-                            all_successful = False
-                            break
+                                temp_data[request_msg] = value
+                                
+                            except ValueError as e:
+                                self.logger.warning(f"Failed to parse {request_msg} response '{response}': {e}")
+                                all_successful = False
+                            
+                            # Restore original timeout if it was changed
+                            if request_msg in ['gps_state', 'gps_curr']:
+                                self.socket.settimeout(original_timeout)
 
-                    # Update data if all requests were successful
-                    if all_successful and temp_data:
+                        except socket.timeout:
+                            if request_msg in ['gps_state', 'gps_curr']:
+                                # Don't log warnings for GPS-related timeouts, they're common
+                                self.logger.debug(f"Timeout requesting {request_msg} from {server_addr} (expected for GPS parameters)")
+                                # Set default values for GPS parameters
+                                if request_msg == 'gps_state':
+                                    temp_data[request_msg] = 0  # Default to OFF
+                                elif request_msg == 'gps_curr':
+                                    temp_data[request_msg] = 0.0  # Default to 0 current
+                                # Restore timeout
+                                self.socket.settimeout(original_timeout)
+                            else:
+                                self.logger.debug(f"Timeout requesting {request_msg} from {server_addr}")
+                                all_successful = False
+                        except Exception as e:
+                            self.logger.debug(f"Error requesting {request_msg}: {e}")
+                            all_successful = False
+
+                    # Update the data structure with all successful values
+                    if temp_data:  # If we got at least some data
                         with self.data_lock:
-                            updated_count = 0
-                            for key, value in temp_data.items():
-                                if hasattr(self.oph_data, key):
-                                    setattr(self.oph_data, key, value)
-                                    updated_count += 1
-                                else:
-                                    self.logger.debug(f"Field {key} not found in OphData")
-                            # Set valid to True since we successfully got data
-                            self.oph_data.valid = True
-                            self.logger.debug(f"Successfully updated {updated_count}/{len(temp_data)} fields. Data is now valid.")
+                            # Update all successfully received values
+                            for param, value in temp_data.items():
+                                if hasattr(self.oph_data, param):
+                                    setattr(self.oph_data, param, value)
+                            
+                            # Mark data as valid if we got most of the important parameters
+                            # Consider data valid if we got motor, star camera, and PBOB data (even if GPS times out)
+                            critical_params = ['mc_curr', 'sc_state', 'sc_curr', 'm_state', 'm_curr']
+                            critical_received = sum(1 for param in critical_params if param in temp_data)
+                            
+                            if critical_received >= 4:  # If we got at least 4 out of 5 critical parameters
+                                self.oph_data.valid = True
+                                self.logger.debug(f"Data marked as valid - received {len(temp_data)}/{len(request_msgs)} parameters including {critical_received}/{len(critical_params)} critical ones")
+                            else:
+                                self.oph_data.valid = False
+                                self.logger.debug(f"Data marked invalid - only received {critical_received}/{len(critical_params)} critical parameters")
                     else:
-                        # Mark data as invalid if any request failed
                         with self.data_lock:
                             self.oph_data.valid = False
-                        if not all_successful:
-                            self.logger.debug(f"Data marked invalid due to failed requests")
-                        else:
-                            self.logger.debug(f"Data marked invalid - no data received")
+                        self.logger.debug("No data received - marking invalid")
 
                 else:
                     # If paused, mark data as invalid

@@ -46,8 +46,8 @@ class PointingWindow(QMainWindow):
             else:
                 self.logger.error("Failed to start shared OphClient")
         
-        # Don't auto-start GPS - let user turn it on manually
-        # self.start_gps()
+        # Auto-start GPS since the widget now starts active by default
+        self.start_gps()
     
     def setup_ui(self):
         """Setup the pointing window UI layout"""

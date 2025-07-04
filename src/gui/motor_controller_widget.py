@@ -9,24 +9,68 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QPalette, QColor
 import time
 
-from src.data.Oph_client import OphClient, OphData
+from src.data.Oph_client import OphData
+from src.data.shared_oph_client_manager import get_shared_oph_manager, ClientUser
 from src.config.settings import GUI
+
 class MotorControllerWidget(QWidget):
     """Widget for displaying motor controller and axis control telemetry"""
     
     def __init__(self, parent=None, oph_client=None):
         super().__init__(parent)
         
-        # Use shared Ophiuchus client for telemetry if provided
-        self.oph_client = oph_client if oph_client else OphClient()
-        self.owns_client = oph_client is None  # Track if we own the client
+        # Use the new shared client manager instead of direct client access
+        self.oph_manager = get_shared_oph_manager()
+        self.client_user: ClientUser = None
+        
+        # Determine our window name for registration
+        window_name = "unknown"
+        if hasattr(parent, 'windowTitle'):
+            title = parent.windowTitle()
+            if 'Pointing' in title:
+                window_name = "pointing"
+            elif 'Main' in title or 'Ground Station' in title:
+                window_name = "main"
+            elif 'Housekeeping' in title:
+                window_name = "housekeeping"
+        
+        # Register with the shared manager
+        self.client_user = self.oph_manager.register_user("motor_controller", window_name)
         
         # Current data and state
         self.current_telemetry = OphData()
-        self.is_active = False
+        self.is_active = True  # Start active by default to fix connectivity issues
         self.last_update_time = None
         self.prev_mode = self.current_telemetry.ax_mode
         self.setup_ui()
+        
+        # Auto-activate motor controller if we start in active state
+        if self.is_active:
+            self.control_status_label.setText("Motor Controller: ON")
+            self.control_status_label.setStyleSheet("QLabel { color: green; }")
+            self.toggle_button.setText("Turn OFF")
+            self.toggle_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #dc3545;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #c82333;
+                }
+            """)
+            
+            # Activate our usage of the shared client
+            self.oph_manager.activate_user(self.client_user)
+            
+            # Setup active display
+            self.setup_active_display()
+            
+            # Start update timer
+            self.start_update_timer()
         
     def setup_ui(self):
         """Setup the motor controller display interface"""
@@ -121,11 +165,8 @@ class MotorControllerWidget(QWidget):
                 }
             """)
             
-            # Start Oph client if not already running (only if we own it)
-            if self.owns_client and not self.oph_client.running:
-                self.oph_client.start()
-            # Always resume our client (shared or owned)
-            self.oph_client.resume()
+            # Activate our usage of the shared client
+            self.oph_manager.activate_user(self.client_user)
             
             # Setup active display
             self.setup_active_display()
@@ -154,8 +195,8 @@ class MotorControllerWidget(QWidget):
                 }
             """)
             
-            # Pause Oph client
-            self.oph_client.pause()
+            # Deactivate our usage of the shared client
+            self.oph_manager.deactivate_user(self.client_user)
             
             # Stop update timer
             self.stop_update_timer()
@@ -402,18 +443,25 @@ class MotorControllerWidget(QWidget):
         if not self.is_active:
             return
         
-        # Get current telemetry data
-        telemetry = self.oph_client.get_data()
+        # Get current telemetry data from shared manager
+        telemetry = self.oph_manager.get_data()
         self.current_telemetry = telemetry
         
-        # Update connection status
-        if telemetry.valid and self.oph_client.is_connected():
+        # Update connection status using shared manager
+        if telemetry.valid and self.oph_manager.is_connected():
             self.connection_label.setText("Connected")
             self.connection_label.setStyleSheet("QLabel { color: green; }")
             self.last_update_time = time.time()
         else:
-            self.connection_label.setText("Disconnected")
-            self.connection_label.setStyleSheet("QLabel { color: red; }")
+            # Use detailed status from shared manager
+            status = self.oph_manager.get_connection_status()
+            self.connection_label.setText(status)
+            if status == "Connected":
+                self.connection_label.setStyleSheet("QLabel { color: green; }")
+            elif status in ["Connecting...", "Paused"]:
+                self.connection_label.setStyleSheet("QLabel { color: orange; }")
+            else:
+                self.connection_label.setStyleSheet("QLabel { color: red; }")
         
         # Update last update time
         if self.last_update_time:
@@ -476,8 +524,17 @@ class MotorControllerWidget(QWidget):
     
     def is_connected(self) -> bool:
         """Check if motor controller is connected"""
-        return self.oph_client.is_connected()
+        return self.oph_manager.is_connected()
     
     def get_current_telemetry(self) -> OphData:
         """Get current motor controller telemetry"""
-        return self.current_telemetry 
+        return self.current_telemetry
+    
+    def cleanup(self):
+        """Clean up motor controller widget"""
+        # Stop our timer
+        self.stop_update_timer()
+        
+        # Unregister from shared manager
+        if self.client_user:
+            self.oph_manager.unregister_user(self.client_user) 

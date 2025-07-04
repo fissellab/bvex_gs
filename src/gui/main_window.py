@@ -497,6 +497,9 @@ class MainWindow(QMainWindow):
         if self.gps_widget.is_gps_active():
             if self.gps_client.is_paused():
                 self.gps_client.resume()
+            # Ensure GPS client is running
+            if not self.gps_client.running:
+                self.gps_client.start()
         else:
             if not self.gps_client.is_paused():
                 self.gps_client.pause()

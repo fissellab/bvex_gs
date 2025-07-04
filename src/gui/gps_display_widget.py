@@ -18,8 +18,28 @@ class GPSDisplayWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.last_gps_data = GPSData()
-        self.is_active = False
+        self.is_active = True  # Start active by default to fix connectivity issues
         self.setup_ui()
+        
+        # Auto-activate GPS if we start in active state
+        if self.is_active:
+            self.control_status_label.setText("GPS Display: ON")
+            self.control_status_label.setStyleSheet("QLabel { color: green; }")
+            self.toggle_button.setText("Turn OFF")
+            self.toggle_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #dc3545;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #c82333;
+                }
+            """)
+            self.setup_active_display()
         
     def setup_ui(self):
         """Setup the GPS display interface with clean, professional layout"""
