@@ -35,6 +35,14 @@ STAR_CAMERA = {
     'update_interval': 10.0   # 10 seconds between image requests due to bandwidth limits
 }
 
+# PR59 Temperature Controller Configuration
+PR59_SERVER = {
+    'host': '100.70.234.8',  # BCP system IP (same as spectrometer)
+    'port': 8082,
+    'timeout': 2.0,
+    'update_interval': 1.0   # 1 second between requests
+}
+
 # GPS Data Processing
 GPS_PROCESSING = {
     'heading_offset': 0.0,  # degrees - constant offset to add to GPS heading

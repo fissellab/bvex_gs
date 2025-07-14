@@ -12,8 +12,9 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QIcon, QAction
 
 from src.data.data_logger import DataLogger
-from src.config.settings import GUI
+from src.config.settings import GUI, PR59_SERVER
 from src.gui.pbob_widget import PBoBWidget
+from src.gui.pr59_widget import PR59Widget
 
 
 class HousekeepingWindow(QMainWindow):
@@ -50,7 +51,7 @@ class HousekeepingWindow(QMainWindow):
         central_widget.setStyleSheet("QWidget { background-color: white; }")
         self.setCentralWidget(central_widget)
         
-        # Use QGridLayout: 3 rows, 2 columns (Data Logging | PBoB | Stretch)
+        # Use QGridLayout: 4 rows, 2 columns (Data Logging | PBoB | PR59 | Stretch)
         main_layout = QGridLayout(central_widget)
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(15)
@@ -62,15 +63,23 @@ class HousekeepingWindow(QMainWindow):
         self.pbob_widget = PBoBWidget(parent=self, oph_client=None)
         main_layout.addWidget(self.pbob_widget, 1, 0, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         
+        # PR59 Temperature Controller Widget - Row 2, Column 0 (left-aligned)
+        self.pr59_widget = PR59Widget(
+            parent=self, 
+            server_ip=PR59_SERVER['host'], 
+            server_port=PR59_SERVER['port']
+        )
+        main_layout.addWidget(self.pr59_widget, 2, 0, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        
         # Set column stretch to allow horizontal expansion (empty column 1 stretches)
         main_layout.setColumnStretch(1, 1)
         
-        # Set row stretch to push widgets to top (row 2 stretches)
-        main_layout.setRowStretch(2, 1)
+        # Set row stretch to push widgets to top (row 3 stretches)
+        main_layout.setRowStretch(3, 1)
         
-        # Set window properties
-        self.setMinimumSize(800, 600)
-        self.resize(900, 700)
+        # Set window properties - increased height for PR59 widget
+        self.setMinimumSize(800, 900)
+        self.resize(900, 1100)
     
     def setup_compact_data_logging_panel_grid(self, main_layout):
         """Setup the compact data logging control panel for grid layout"""
@@ -359,6 +368,11 @@ class HousekeepingWindow(QMainWindow):
             if hasattr(self, 'pbob_widget') and self.pbob_widget:
                 self.pbob_widget.cleanup()
                 self.logger.info("PBoB widget cleaned up during shutdown")
+            
+            # PR59 widget cleanup
+            if hasattr(self, 'pr59_widget') and self.pr59_widget:
+                self.pr59_widget.cleanup()
+                self.logger.info("PR59 widget cleaned up during shutdown")
             
             # The PBOB widget handles its own unregistration from shared manager
             # No need to manage the shared Oph client directly
