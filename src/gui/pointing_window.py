@@ -15,7 +15,7 @@ from src.gui.gps_display_widget import GPSDisplayWidget
 from src.gui.star_camera_widget import StarCameraWidget
 from src.gui.motor_controller_widget import MotorControllerWidget
 from src.gui.scanning_operations_widget import ScanningOperationsWidget
-from src.data.gps_client import GPSClient
+# GPS client removed - GPS widget manages its own client
 from src.data.Oph_client import OphClient
 from src.config.settings import GUI, GPS_SERVER, OPH_SERVER
 
@@ -28,26 +28,13 @@ class PointingWindow(QMainWindow):
         
         self.logger = logging.getLogger(__name__)
         
-        # Use provided clients or create new ones
-        self.gps_client = gps_client if gps_client else GPSClient()
-        self.shared_oph_client = shared_oph_client if shared_oph_client else OphClient()
-        self.owns_oph_client = shared_oph_client is None
+        # GPS widget now manages its own client
+        # No need for window-level GPS management
         
         self.setup_ui()
         self.setup_menu_bar()
         self.setup_status_bar()
         self.setup_timers()
-        
-        # Start shared OphClient if we own it
-        if self.owns_oph_client:
-            if self.shared_oph_client.start():
-                self.shared_oph_client.pause()  # Start paused
-                self.logger.info("Shared OphClient started successfully (paused)")
-            else:
-                self.logger.error("Failed to start shared OphClient")
-        
-        # Auto-start GPS since the widget now starts active by default
-        self.start_gps()
     
     def setup_ui(self):
         """Setup the pointing window UI layout"""
@@ -70,7 +57,7 @@ class PointingWindow(QMainWindow):
         #left_layout.setSpacing(15)  # Increased spacing
         
         # Sky chart widget (MUCH LARGER - this should be the dominant widget)
-        self.sky_chart_widget = SkyChartWidget(oph_client=self.shared_oph_client)
+        self.sky_chart_widget = SkyChartWidget()
         #self.sky_chart_widget.setGeometry(5,5,600,600)
         #self.sky_chart_widget.setMinimumSize(750, 500)  # Much larger - was 650x350
         #self.sky_chart_widget.setMaximumSize(900, 600)  # Much larger - was 750x400
@@ -83,7 +70,7 @@ class PointingWindow(QMainWindow):
         left_layout.addWidget(self.gps_widget, 3,0,3,1)
         
         # Motor Controller widget (adequate space for information)
-        self.motor_controller_widget = MotorControllerWidget(oph_client=self.shared_oph_client)
+        self.motor_controller_widget = MotorControllerWidget()
         #self.motor_controller_widget.setMinimumSize(450, 240)  # Keep good size for info
         #self.motor_controller_widget.setMaximumSize(500, 270)  # Keep good size for info
         left_layout.addWidget(self.motor_controller_widget,3,1,3,2) 
@@ -97,13 +84,13 @@ class PointingWindow(QMainWindow):
         #right_layout.setContentsMargins(5, 0, 5, 0)
         #right_layout.setSpacing(10)
         
-        self.star_camera_widget = StarCameraWidget(oph_client=self.shared_oph_client)
+        self.star_camera_widget = StarCameraWidget()
         #self.star_camera_widget.setMinimumSize(700, 600)  # Larger - information rich widget
         #self.star_camera_widget.setMaximumSize(800, 700)  # Larger - information rich widget  
         right_layout.addWidget(self.star_camera_widget, 0,0,3,3) 
         
         # Scanning Operations widget (below star camera - adequate space for info)
-        self.scanning_operations_widget = ScanningOperationsWidget(oph_client=self.shared_oph_client)
+        self.scanning_operations_widget = ScanningOperationsWidget()
         self.scanning_operations_widget.setMinimumSize(700, 200)  # Adequate size for info
         self.scanning_operations_widget.setMaximumSize(800, 240)  # Adequate size for info
         right_layout.addWidget(self.scanning_operations_widget, 3,0,2,3) 
@@ -126,13 +113,7 @@ class PointingWindow(QMainWindow):
         file_menu = menubar.addMenu('&File')
         
         # Start/Stop GPS
-        self.start_gps_action = QAction('&Start GPS', self)
-        self.start_gps_action.triggered.connect(self.start_gps)
-        file_menu.addAction(self.start_gps_action)
-        
-        self.stop_gps_action = QAction('&Stop GPS', self)
-        self.stop_gps_action.triggered.connect(self.stop_gps)
-        file_menu.addAction(self.stop_gps_action)
+        # GPS menu items removed - GPS widget manages its own state
         
         file_menu.addSeparator()
         
@@ -180,57 +161,18 @@ class PointingWindow(QMainWindow):
     
     def setup_timers(self):
         """Setup update timers"""
-        # GPS update timer
-        self.gps_update_timer = QTimer()
-        self.gps_update_timer.timeout.connect(self.update_gps_data)
-        self.gps_update_timer.start(int(GPS_SERVER['update_interval'] * 1000))
-        
         # Status update timer
         self.status_update_timer = QTimer()
         self.status_update_timer.timeout.connect(self.update_status)
         self.status_update_timer.start(GUI['update_interval'])
     
-    def start_gps(self):
-        """Start GPS client"""
-        if self.gps_client.start():
-            self.gps_client.resume()  # Resume data collection
-            self.status_bar.showMessage("GPS started successfully", 3000)
-            self.logger.info("GPS started")
-        else:
-            self.status_bar.showMessage("Failed to start GPS", 3000)
-            self.logger.warning("GPS start failed")
-    
-    def stop_gps(self):
-        """Stop GPS client"""
-        self.gps_client.stop()
-        self.status_bar.showMessage("GPS stopped", 3000)
-        self.logger.info("GPS stopped")
-    
-    def update_gps_data(self):
-        """Update GPS data from server"""
-        # Only try to update GPS data if the client is running and not paused
-        if hasattr(self, 'gps_client') and self.gps_client.running and not self.gps_client.is_paused():
-            try:
-                gps_data = self.gps_client.get_gps_data()
-                if gps_data and gps_data.valid:
-                    # Update GPS display
-                    self.gps_widget.update_gps_data(gps_data, self.gps_client)
-                    
-                    # Update sky chart with GPS data
-                    self.sky_chart_widget.set_gps_data(gps_data)
-                    
-            except Exception as e:
-                self.logger.error(f"Error updating GPS data: {e}")
-        # If GPS is not running, just skip silently (no warnings)
+    # GPS methods removed - GPS widget manages its own client
     
     def update_status(self):
         """Update status information"""
         try:
-            # Update sky chart with star camera data if available
-            if self.shared_oph_client.is_connected():
-                oph_data = self.shared_oph_client.get_data()
-                if oph_data.valid:
-                    self.sky_chart_widget.set_star_camera_data(oph_data)
+            # Widgets now manage their own data access and updates
+            pass
                     
         except Exception as e:
             self.logger.error(f"Error updating status: {e}")
@@ -240,16 +182,12 @@ class PointingWindow(QMainWindow):
         self.logger.info("Pointing window shutting down...")
         
         # Stop timers
-        if hasattr(self, 'gps_update_timer'):
-            self.gps_update_timer.stop()
         if hasattr(self, 'status_update_timer'):
             self.status_update_timer.stop()
         
         # Cleanup components
         try:
-            # GPS cleanup
-            if hasattr(self, 'gps_client'):
-                self.gps_client.cleanup()
+            # Widgets now manage their own clients
             
             # Star camera widget cleanup
             if hasattr(self, 'star_camera_widget'):
@@ -267,8 +205,7 @@ class PointingWindow(QMainWindow):
                 self.scanning_operations_widget.stop_scanning_operations()
             
             # Cleanup shared Oph client only if we own it
-            if self.owns_oph_client and hasattr(self, 'shared_oph_client'):
-                self.shared_oph_client.cleanup()
+                    # Widgets now manage their own OphClients
             
             # Sky chart cleanup
             if hasattr(self, 'sky_chart_widget') and self.sky_chart_widget.is_sky_chart_active():

@@ -43,6 +43,14 @@ PR59_SERVER = {
     'update_interval': 1.0   # 1 second between requests
 }
 
+# Heater System Configuration
+HEATER_SERVER = {
+    'host': '172.20.3.16',  # Heater system IP as specified in the guide
+    'port': 8006,
+    'timeout': 1.0,  # 1 second timeout as suggested in the guide
+    'update_interval': 2.0   # 2 second between requests (relay toggles don't need frequent updates)
+}
+
 # GPS Data Processing
 GPS_PROCESSING = {
     'heading_offset': 0.0,  # degrees - constant offset to add to GPS heading

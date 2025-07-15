@@ -4,13 +4,12 @@ Displays motor controller and axis control telemetry (goes below GPS widget)
 """
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QGroupBox, QGridLayout, QFrame, QPushButton, QSizePolicy)
+                             QGroupBox, QGridLayout, QFrame, QPushButton, QSizePolicy, QComboBox)
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QPalette, QColor
 import time
 
-from src.data.Oph_client import OphData
-from src.data.shared_oph_client_manager import get_shared_oph_manager, ClientUser
+from src.data.Oph_client import OphClient, OphData
 from src.config.settings import GUI
 
 class MotorControllerWidget(QWidget):
@@ -19,58 +18,19 @@ class MotorControllerWidget(QWidget):
     def __init__(self, parent=None, oph_client=None):
         super().__init__(parent)
         
-        # Use the new shared client manager instead of direct client access
-        self.oph_manager = get_shared_oph_manager()
-        self.client_user: ClientUser = None
-        
-        # Determine our window name for registration
-        window_name = "unknown"
-        if hasattr(parent, 'windowTitle'):
-            title = parent.windowTitle()
-            if 'Pointing' in title:
-                window_name = "pointing"
-            elif 'Main' in title or 'Ground Station' in title:
-                window_name = "main"
-            elif 'Housekeeping' in title:
-                window_name = "housekeeping"
-        
-        # Register with the shared manager
-        self.client_user = self.oph_manager.register_user("motor_controller", window_name)
+        # Create our own independent OphClient instance
+        self.oph_client = OphClient()
         
         # Current data and state
         self.current_telemetry = OphData()
-        self.is_active = True  # Start active by default to fix connectivity issues
+        self.is_active = False  # Start inactive by default
         self.last_update_time = None
         self.prev_mode = self.current_telemetry.ax_mode
-        self.setup_ui()
         
-        # Auto-activate motor controller if we start in active state
-        if self.is_active:
-            self.control_status_label.setText("Motor Controller: ON")
-            self.control_status_label.setStyleSheet("QLabel { color: green; }")
-            self.toggle_button.setText("Turn OFF")
-            self.toggle_button.setStyleSheet("""
-                QPushButton {
-                    background-color: #dc3545;
-                    color: white;
-                    border: none;
-                    padding: 8px 16px;
-                    border-radius: 4px;
-                    font-weight: bold;
-                }
-                QPushButton:hover {
-                    background-color: #c82333;
-                }
-            """)
-            
-            # Activate our usage of the shared client
-            self.oph_manager.activate_user(self.client_user)
-            
-            # Setup active display
-            self.setup_active_display()
-            
-            # Start update timer
-            self.start_update_timer()
+        # Frequency control - default to 5 Hz
+        self.update_frequency_hz = 5
+        
+        self.setup_ui()
         
     def setup_ui(self):
         """Setup the motor controller display interface"""
@@ -85,6 +45,39 @@ class MotorControllerWidget(QWidget):
         self.control_status_label = QLabel("Motor Controller: OFF")
         self.control_status_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
         self.control_status_label.setStyleSheet("QLabel { color: red; }")
+        
+        # Frequency dropdown
+        self.frequency_combo = QComboBox()
+        self.frequency_combo.addItems(["1 Hz", "5 Hz", "10 Hz"])
+        self.frequency_combo.setCurrentText("5 Hz")  # Default to 5 Hz
+        self.frequency_combo.setMinimumWidth(80)
+        self.frequency_combo.setMaximumWidth(100)
+        self.frequency_combo.currentTextChanged.connect(self.on_frequency_changed)
+        self.frequency_combo.setStyleSheet("""
+            QComboBox {
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                padding: 4px 8px;
+                font-size: 10px;
+                background-color: white;
+                color: black;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 20px;
+            }
+            QComboBox::down-arrow {
+                width: 12px;
+                height: 12px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: white;
+                color: black;
+                border: 1px solid #ccc;
+                selection-background-color: #3daee9;
+                selection-color: white;
+            }
+        """)
         
         # Toggle button
         self.toggle_button = QPushButton("Turn ON")
@@ -106,6 +99,7 @@ class MotorControllerWidget(QWidget):
         
         control_layout.addWidget(self.control_status_label)
         control_layout.addStretch()
+        control_layout.addWidget(self.frequency_combo)
         control_layout.addWidget(self.toggle_button)
         
         main_layout.addLayout(control_layout)
@@ -132,10 +126,6 @@ class MotorControllerWidget(QWidget):
         main_layout.addWidget(self.container)
         
         self.setLayout(main_layout)
-        # Set proper size that fits content - increased height to show all fields properly
-        #self.setMinimumHeight(200)  # Significantly increased to show all 3 rows of data
-        #self.setMaximumHeight(220)  # Allow some flexibility
-        #self.setMinimumWidth(450)
         
     def toggle_state(self):
         """Toggle between active and inactive states"""
@@ -165,8 +155,13 @@ class MotorControllerWidget(QWidget):
                 }
             """)
             
-            # Activate our usage of the shared client
-            self.oph_manager.activate_user(self.client_user)
+            # Update frequency from current dropdown selection
+            current_freq_text = self.frequency_combo.currentText()
+            self.update_frequency_hz = int(current_freq_text.split()[0])
+            
+            # Start our independent OphClient
+            if self.oph_client.start():
+                self.oph_client.resume()  # Ensure it's not paused
             
             # Setup active display
             self.setup_active_display()
@@ -195,14 +190,15 @@ class MotorControllerWidget(QWidget):
                 }
             """)
             
-            # Deactivate our usage of the shared client
-            self.oph_manager.deactivate_user(self.client_user)
-            
             # Stop update timer
             self.stop_update_timer()
             
+            # Stop our independent OphClient
+            self.oph_client.stop()
+            
             # Show static display
             self.setup_static_display()
+    
     def clear_widget(self,layout):
         """Recursively clear all widgets and layouts from the given layout"""
         for i in reversed(range(layout.count())):
@@ -431,37 +427,44 @@ class MotorControllerWidget(QWidget):
         """Start the telemetry update timer"""
         self.update_timer = QTimer()
         self.update_timer.timeout.connect(self.update_telemetry)
-        self.update_timer.start(1000)  # Update every second
+        # Calculate interval in milliseconds based on selected frequency
+        interval_ms = int(1000 / self.update_frequency_hz)
+        self.update_timer.start(interval_ms)
     
     def stop_update_timer(self):
         """Stop the telemetry update timer"""
         if hasattr(self, 'update_timer'):
             self.update_timer.stop()
     
+    def on_frequency_changed(self, frequency_text: str):
+        """Handle frequency dropdown change"""
+        # Extract the Hz value from the text (e.g., "5 Hz" -> 5)
+        frequency_hz = int(frequency_text.split()[0])
+        self.update_frequency_hz = frequency_hz
+        
+        # If motor controller is active, restart the timer with new frequency
+        if self.is_active and hasattr(self, 'update_timer') and self.update_timer.isActive():
+            self.stop_update_timer()
+            self.start_update_timer()
+    
     def update_telemetry(self):
         """Update motor controller telemetry display"""
         if not self.is_active:
             return
         
-        # Get current telemetry data from shared manager
-        telemetry = self.oph_manager.get_data()
+        # Get current telemetry data from OphClient
+        telemetry = self.oph_client.get_data()
         self.current_telemetry = telemetry
         
-        # Update connection status using shared manager
-        if telemetry.valid and self.oph_manager.is_connected():
+        # Update connection status - simplified logic
+        if telemetry.valid and self.oph_client.is_connected():
             self.connection_label.setText("Connected")
             self.connection_label.setStyleSheet("QLabel { color: green; }")
             self.last_update_time = time.time()
         else:
-            # Use detailed status from shared manager
-            status = self.oph_manager.get_connection_status()
-            self.connection_label.setText(status)
-            if status == "Connected":
-                self.connection_label.setStyleSheet("QLabel { color: green; }")
-            elif status in ["Connecting...", "Paused"]:
-                self.connection_label.setStyleSheet("QLabel { color: orange; }")
-            else:
-                self.connection_label.setStyleSheet("QLabel { color: red; }")
+            # Simple disconnected state
+            self.connection_label.setText("Disconnected")
+            self.connection_label.setStyleSheet("QLabel { color: red; }")
         
         # Update last update time
         if self.last_update_time:
@@ -470,6 +473,8 @@ class MotorControllerWidget(QWidget):
                 self.last_update_label.setText(f"Last Update: {elapsed:.1f}s ago")
             else:
                 self.last_update_label.setText(f"Last Update: {elapsed/60:.1f}m ago")
+        else:
+            self.last_update_label.setText("Last Update: Never")
         
         # Update all telemetry fields
         self._update_fields_display(telemetry)
@@ -524,7 +529,7 @@ class MotorControllerWidget(QWidget):
     
     def is_connected(self) -> bool:
         """Check if motor controller is connected"""
-        return self.oph_manager.is_connected()
+        return self.oph_client.is_connected()
     
     def get_current_telemetry(self) -> OphData:
         """Get current motor controller telemetry"""
@@ -535,6 +540,5 @@ class MotorControllerWidget(QWidget):
         # Stop our timer
         self.stop_update_timer()
         
-        # Unregister from shared manager
-        if self.client_user:
-            self.oph_manager.unregister_user(self.client_user) 
+        # Stop our independent OphClient
+        self.oph_client.stop() 

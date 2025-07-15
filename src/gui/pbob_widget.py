@@ -6,12 +6,12 @@ Clean display of relay states and current measurements for all subsystems
 import sys
 import logging
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QFrame, QGridLayout, QApplication)
+                             QFrame, QGridLayout, QApplication, QPushButton)
 from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtGui import QFont, QPainter, QColor
 from datetime import datetime
 
-from src.data.shared_oph_client_manager import get_shared_oph_manager, ClientUser
+from src.data.Oph_client import OphClient, OphData
 
 class StatusCircle(QLabel):
     """Custom widget to display colored circle for ON/OFF status"""
@@ -48,37 +48,21 @@ class PBoBWidget(QWidget):
     def __init__(self, parent=None, oph_client=None):
         super().__init__(parent)
         
-        # Use the new shared client manager instead of direct client access
-        self.oph_manager = get_shared_oph_manager()
-        self.client_user: ClientUser = None
+        # Create our own independent OphClient instance
+        self.oph_client = OphClient()
         self.logger = logging.getLogger(__name__)
         
-        # Determine our window name for registration
-        window_name = "unknown"
-        if hasattr(parent, 'windowTitle'):
-            title = parent.windowTitle()
-            if 'Housekeeping' in title:
-                window_name = "housekeeping"
-            elif 'Pointing' in title:
-                window_name = "pointing"
-            elif 'Main' in title or 'Ground Station' in title:
-                window_name = "main"
-        
-        # Register with the shared manager
-        self.client_user = self.oph_manager.register_user("pbob", window_name)
-        
-        # Automatically activate since PBOB should always show power status
-        self.oph_manager.activate_user(self.client_user)
+        # Control state - start OFF by default
+        self.is_active = False
         
         # Setup the UI
         self.setup_ui()
         
-        # Setup update timer
+        # Setup update timer but don't start it yet
         self.update_timer = QTimer()
         self.update_timer.timeout.connect(self.update_display)
-        self.update_timer.start(1000)  # Update every second
         
-        self.logger.info("PBoB Widget initialized with shared client manager")
+        self.logger.info("PBoB Widget initialized with independent OphClient (OFF by default)")
     
     def setup_ui(self):
         """Initialize the clean user interface matching GPS/Motor Controller style"""
@@ -86,6 +70,38 @@ class PBoBWidget(QWidget):
         main_layout = QVBoxLayout(self)
         main_layout.setSpacing(2)
         main_layout.setContentsMargins(2, 2, 2, 2)
+        
+        # Control panel
+        control_layout = QHBoxLayout()
+        
+        # Status label
+        self.control_status_label = QLabel("PBoB Monitor: OFF")
+        self.control_status_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+        self.control_status_label.setStyleSheet("QLabel { color: red; }")
+        
+        # Toggle button
+        self.toggle_button = QPushButton("Turn ON")
+        self.toggle_button.setMinimumWidth(100)
+        self.toggle_button.clicked.connect(self.toggle_state)
+        self.toggle_button.setStyleSheet("""
+            QPushButton {
+                background-color: #28a745;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #218838;
+            }
+        """)
+        
+        control_layout.addWidget(self.control_status_label)
+        control_layout.addStretch()
+        control_layout.addWidget(self.toggle_button)
+        
+        main_layout.addLayout(control_layout)
         
         # Create the main container with clean styling like GPS widget
         self.container = QFrame()
@@ -111,6 +127,121 @@ class PBoBWidget(QWidget):
         # Set proper size - wider and adjusted height for better proportions
         self.setMinimumSize(650, 320)  # Increased width from 500 to 650
         self.setMaximumSize(750, 380)  # Increased width from 550 to 750
+        
+        # Initially show static display
+        self.setup_static_display()
+    
+    def toggle_state(self):
+        """Toggle between active and inactive states"""
+        if self.is_active:
+            self.stop_pbob_monitor()
+        else:
+            self.start_pbob_monitor()
+    
+    def start_pbob_monitor(self):
+        """Start PBoB monitoring"""
+        if not self.is_active:
+            self.is_active = True
+            self.control_status_label.setText("PBoB Monitor: ON")
+            self.control_status_label.setStyleSheet("QLabel { color: green; }")
+            self.toggle_button.setText("Turn OFF")
+            self.toggle_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #dc3545;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #c82333;
+                }
+            """)
+            
+            # Start our independent OphClient
+            if self.oph_client.start():
+                self.oph_client.resume()  # Ensure it's not paused
+                self.logger.info("PBoB OphClient started successfully")
+            else:
+                self.logger.error("Failed to start PBoB OphClient")
+            
+            # Setup active display
+            self.setup_active_display()
+            
+            # Start update timer
+            self.update_timer.start(1000)  # Update every second
+    
+    def stop_pbob_monitor(self):
+        """Stop PBoB monitoring"""
+        if self.is_active:
+            self.is_active = False
+            self.control_status_label.setText("PBoB Monitor: OFF")
+            self.control_status_label.setStyleSheet("QLabel { color: red; }")
+            self.toggle_button.setText("Turn ON")
+            self.toggle_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #28a745;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #218838;
+                }
+            """)
+            
+            # Stop update timer
+            self.update_timer.stop()
+            
+            # Stop our independent OphClient
+            self.oph_client.stop()
+            
+            # Show static display
+            self.setup_static_display()
+    
+    def setup_static_display(self):
+        """Show static 'waiting for user input' display"""
+        # Clear existing widgets
+        self.clear_widget(self.container_layout)
+        
+        # Add centered message
+        message_label = QLabel("PBoB Monitor - Waiting for User Input")
+        message_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        message_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+        message_label.setStyleSheet("QLabel { color: #6c757d; }")
+        
+        instruction_label = QLabel('Click "Turn ON" to start power monitoring')
+        instruction_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        instruction_label.setFont(QFont("Arial", 10))
+        instruction_label.setStyleSheet("QLabel { color: #6c757d; }")
+        
+        self.container_layout.addStretch()
+        self.container_layout.addWidget(message_label)
+        self.container_layout.addWidget(instruction_label)
+        self.container_layout.addStretch()
+    
+    def clear_widget(self, layout):
+        """Recursively clear all widgets and layouts from the given layout"""
+        for i in reversed(range(layout.count())):
+            layoutItem = layout.itemAt(i)
+            if layoutItem.widget() is not None:
+                widgetToRemove = layoutItem.widget()
+                widgetToRemove.setParent(None)
+                layout.removeWidget(widgetToRemove)
+            elif layoutItem.spacerItem() is not None:
+                # Remove spacer item from layout
+                layout.removeItem(layoutItem)
+            else:
+                # Handle nested layout
+                layoutToRemove = layoutItem.layout()
+                if layoutToRemove is not None:
+                    # Recursively clear the nested layout
+                    self.clear_widget(layoutToRemove)
+                    # Remove the layout item from parent
+                    layout.removeItem(layoutItem)
     
     def setup_active_display(self):
         """Setup the active subsystem power display with clean grid layout"""
@@ -240,27 +371,21 @@ class PBoBWidget(QWidget):
     
     def update_display(self):
         """Update the display with current data"""
-        try:
-            # Get data from shared manager
-            data = self.oph_manager.get_data()
+        if not self.is_active:
+            return
             
-            if data.valid:
-                # Update connection status using shared manager
-                status = self.oph_manager.get_connection_status()
-                self.connection_label.setText(status)
-                if status == "Connected":
-                    self.connection_label.setStyleSheet("QLabel { color: green; }")
-                elif status in ["Connecting...", "Paused"]:
-                    self.connection_label.setStyleSheet("QLabel { color: orange; }")
-                else:
-                    self.connection_label.setStyleSheet("QLabel { color: red; }")
+        try:
+            # Get data from OphClient
+            data = self.oph_client.get_data()
+            
+            if data.valid and self.oph_client.is_connected():
+                # Update connection status - simplified logic
+                self.connection_label.setText("Connected")
+                self.connection_label.setStyleSheet("QLabel { color: green; }")
                 
                 # Update last update time
-                try:
-                    current_time = datetime.now().strftime("%H:%M:%S")
-                    self.last_update_label.setText(f"Last Update: {current_time}")
-                except:
-                    self.last_update_label.setText(f"Last Update: {data.timestamp}")
+                current_time = datetime.now().strftime("%H:%M:%S")
+                self.last_update_label.setText(f"Last Update: {current_time}")
                 
                 # Update subsystem data
                 subsystems = [
@@ -292,16 +417,9 @@ class PBoBWidget(QWidget):
                     else:
                         current_label.setStyleSheet("QLabel { color: #28a745; border: none; background: transparent; }")
             else:
-                # No valid data - use detailed status from shared manager
-                status = self.oph_manager.get_connection_status()
-                self.connection_label.setText(status)
-                if status == "Connected":
-                    self.connection_label.setStyleSheet("QLabel { color: green; }")
-                elif status in ["Connecting...", "Paused"]:
-                    self.connection_label.setStyleSheet("QLabel { color: orange; }")
-                else:
-                    self.connection_label.setStyleSheet("QLabel { color: red; }")
-                
+                # No valid data - simple disconnected state
+                self.connection_label.setText("Disconnected")
+                self.connection_label.setStyleSheet("QLabel { color: red; }")
                 self.last_update_label.setText("Last Update: No data")
                 
                 # Reset all displays
@@ -325,9 +443,9 @@ class PBoBWidget(QWidget):
         if hasattr(self, 'update_timer'):
             self.update_timer.stop()
         
-        # Unregister from shared manager
-        if self.client_user:
-            self.oph_manager.unregister_user(self.client_user)
+        # Stop our independent OphClient
+        self.oph_client.stop()
+        self.logger.info("PBoB OphClient stopped.")
 
 
 # Test the widget standalone

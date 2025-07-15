@@ -20,7 +20,7 @@ from src.gui.pointing_window import PointingWindow
 from src.gui.telescope_data_window import TelescopeDataWindow  
 from src.gui.housekeeping_window import HousekeepingWindow
 from src.data.gps_client import GPSClient
-from src.data.shared_oph_client_manager import get_shared_oph_manager, cleanup_shared_oph_manager
+# Shared manager removed - widgets use independent OphClients
 
 
 def setup_logging():
@@ -110,24 +110,18 @@ def main():
     cleanup_old_logs('logs')
     
     try:
-        # Initialize the shared Oph client manager (singleton)
-        logger.info("Initializing shared Oph client manager...")
-        oph_manager = get_shared_oph_manager()
-        logger.info("✅ Shared Oph client manager initialized")
-        
         # Create GPS client
         logger.info("Creating GPS client...")
         gps_client = GPSClient()
         
-        # Create the three windows (they will use the shared manager automatically)
+        # Create the three windows (widgets use independent OphClients)
         logger.info("Creating application windows...")
         
-        pointing_window = PointingWindow(gps_client=gps_client, shared_oph_client=None)
+        pointing_window = PointingWindow()
         telescope_data_window = TelescopeDataWindow()
         housekeeping_window = HousekeepingWindow(
             pointing_window=pointing_window, 
-            telescope_data_window=telescope_data_window,
-            shared_oph_client=None  # Windows will use shared manager
+            telescope_data_window=telescope_data_window
         )
         
         # Position windows to avoid overlap
@@ -159,7 +153,7 @@ def main():
             gps_client.cleanup()
         
         # Cleanup shared manager
-        cleanup_shared_oph_manager()
+        # Widgets cleanup their own OphClients
         logger.info("✅ All clients cleaned up successfully")
             
         logger.info("BVEX Ground Station shutdown complete")

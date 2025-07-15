@@ -9,37 +9,29 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QPalette, QColor
 import time
 
-from src.data.gps_client import GPSData
+from src.data.gps_client import GPSData, GPSClient
 from src.config.settings import GPS_PROCESSING
+import logging
 
 class GPSDisplayWidget(QWidget):
     """Compact widget for displaying GPS data"""
     
     def __init__(self, parent=None):
         super().__init__(parent)
+        
+        # Create our own independent GPS client
+        self.gps_client = GPSClient()
+        self.logger = logging.getLogger(__name__)
+        
         self.last_gps_data = GPSData()
-        self.is_active = True  # Start active by default to fix connectivity issues
+        self.is_active = False  # Start OFF by default
         self.setup_ui()
         
-        # Auto-activate GPS if we start in active state
-        if self.is_active:
-            self.control_status_label.setText("GPS Display: ON")
-            self.control_status_label.setStyleSheet("QLabel { color: green; }")
-            self.toggle_button.setText("Turn OFF")
-            self.toggle_button.setStyleSheet("""
-                QPushButton {
-                    background-color: #dc3545;
-                    color: white;
-                    border: none;
-                    padding: 8px 16px;
-                    border-radius: 4px;
-                    font-weight: bold;
-                }
-                QPushButton:hover {
-                    background-color: #c82333;
-                }
-            """)
-            self.setup_active_display()
+        # Setup update timer but don't start it yet
+        self.update_timer = QTimer()
+        self.update_timer.timeout.connect(self.update_gps_from_client)
+        
+        self.logger.info("GPS Widget initialized with independent GPSClient (OFF by default)")
         
     def setup_ui(self):
         """Setup the GPS display interface with clean, professional layout"""
@@ -133,8 +125,18 @@ class GPSDisplayWidget(QWidget):
                 }
             """)
             
+            # Start our independent GPS client
+            if self.gps_client.start():
+                self.gps_client.resume()  # Ensure it's not paused
+                self.logger.info("GPS client started successfully")
+            else:
+                self.logger.error("Failed to start GPS client")
+            
             # Setup active GPS display
             self.setup_active_display()
+            
+            # Start update timer
+            self.update_timer.start(1000)  # Update every second
     
     def stop_gps_display(self):
         """Stop GPS display updates and show static display"""
@@ -156,6 +158,12 @@ class GPSDisplayWidget(QWidget):
                     background-color: #218838;
                 }
             """)
+            
+            # Stop update timer
+            self.update_timer.stop()
+            
+            # Stop our independent GPS client
+            self.gps_client.stop()
             
             # Show static display
             self.setup_static_display()
@@ -461,13 +469,14 @@ class GPSDisplayWidget(QWidget):
         
         return f"{value:.2f} ({cardinal})"
     
-    def update_gps_data(self, gps_data: GPSData, gps_client=None):
-        """Update the display with new GPS data"""
-        self.last_gps_data = gps_data
-        
-        # Only update display if GPS display is active
+    def update_gps_from_client(self):
+        """Update GPS data from our own client"""
         if not self.is_active:
             return
+        
+        # Get data from our independent GPS client
+        gps_data = self.gps_client.get_gps_data()
+        self.last_gps_data = gps_data
         
         # Update status
         self._update_status_display(gps_data.valid)
@@ -481,6 +490,12 @@ class GPSDisplayWidget(QWidget):
         # Force widget refresh
         self.update()
     
+    def update_gps_data(self, gps_data: GPSData, gps_client=None):
+        """Update the display with new GPS data (legacy method for compatibility)"""
+        # This method is kept for backwards compatibility but no longer used
+        # since the widget now manages its own GPS client
+        pass
+    
     def get_current_coordinates(self) -> tuple:
         """Return current coordinates for sky chart updates"""
         if self.last_gps_data.valid:
@@ -489,5 +504,15 @@ class GPSDisplayWidget(QWidget):
     
     def is_gps_active(self) -> bool:
         """Return whether GPS display is currently active"""
-        return self.is_active 
+        return self.is_active
+    
+    def cleanup(self):
+        """Clean up resources"""
+        # Stop our timer
+        if hasattr(self, 'update_timer'):
+            self.update_timer.stop()
+        
+        # Stop our independent GPS client
+        self.gps_client.stop()
+        self.logger.info("GPS client stopped.") 
  
