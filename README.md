@@ -145,10 +145,10 @@ git clone [repository-url]
 cd bvex_gs
 
 # Create virtual environment
-python3 -m venv venv
+python3 -m venv bvex_gs_env
 
 # Activate virtual environment
-source venv/bin/activate
+source bvex_gs_env/bin/activate
 
 # Upgrade pip
 pip install --upgrade pip
@@ -166,7 +166,7 @@ After initial setup, to run the application:
 
 ```bash
 cd bvex_gs
-source venv/bin/activate  # Activate virtual environment
+source bvex_gs_env/bin/activate  # Activate virtual environment
 python main.py            # Run application
 deactivate                # When done (optional)
 ```
@@ -293,8 +293,8 @@ python3 --version
 **2. Virtual Environment Activation Issues:**
 ```bash
 # If activation fails, try:
-python3 -m venv --clear venv
-source venv/bin/activate
+python3 -m venv --clear bvex_gs_env
+source bvex_gs_env/bin/activate
 ```
 
 **3. Permission Errors:**

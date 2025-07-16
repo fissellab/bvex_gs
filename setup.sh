@@ -18,7 +18,7 @@ echo "=========================================="
 # Function to print colored output
 print_green() {
     echo -e "\033[32m$1\033[0m"
-}
+ }
 
 print_red() {
     echo -e "\033[31m$1\033[0m"
@@ -156,7 +156,7 @@ install_ubuntu_dependencies() {
         libxcb-keysyms1-dev \
         libxcb-image0-dev \
         libxcb-shm0-dev \
-        libxcb-util1-dev \
+        libxcb-util-dev \
         libxcb-icccm4-dev \
         libxcb-render0-dev \
         libxcb-render-util0-dev \
@@ -252,32 +252,32 @@ setup_virtual_environment() {
     fi
     
     # Handle existing virtual environment
-    if [ -d "venv" ]; then
-        print_yellow "Virtual environment 'venv' already exists"
+    if [ -d "bvex_gs_env" ]; then
+        print_yellow "Virtual environment 'bvex_gs_env' already exists"
         if [ "${AUTO_FIX:-}" = "1" ]; then
             print_yellow "AUTO_FIX=1: Recreating virtual environment..."
-            rm -rf venv
+            rm -rf bvex_gs_env
         else
             read -p "Do you want to recreate it? This will delete all installed packages. (y/N): " -r
             if [[ $REPLY =~ ^[Yy]$ ]]; then
                 print_yellow "Removing existing virtual environment..."
-                rm -rf venv
+                rm -rf bvex_gs_env
             else
-                print_green "Using existing virtual environment"
+                print_green "Using existing virtual environment 'bvex_gs_env'"
             fi
         fi
     fi
     
     # Create virtual environment if it doesn't exist
-    if [ ! -d "venv" ]; then
-        print_yellow "Creating new virtual environment..."
-        python3 -m venv venv
-        print_green "✓ Virtual environment created"
+    if [ ! -d "bvex_gs_env" ]; then
+        print_yellow "Creating new virtual environment 'bvex_gs_env'..."
+        python3 -m venv bvex_gs_env
+        print_green "✓ Virtual environment 'bvex_gs_env' created"
     fi
     
     # Activate virtual environment
-    print_yellow "Activating virtual environment..."
-    source venv/bin/activate
+    print_yellow "Activating virtual environment 'bvex_gs_env'..."
+    source bvex_gs_env/bin/activate
     
     # Verify activation
     if [[ "${VIRTUAL_ENV:-}" == "" ]]; then
@@ -299,7 +299,7 @@ setup_qt_environment() {
     print_blue "⚙️ Configuring Qt environment for Ubuntu 24.04..."
     
     # Create Qt environment setup script
-    cat > venv/bin/qt_setup.sh << 'EOF'
+    cat > bvex_gs_env/bin/qt_setup.sh << 'EOF'
 #!/bin/bash
 # Qt6 Environment Setup for BVEX Ground Station on Ubuntu 24.04
 
@@ -322,10 +322,10 @@ export QT_LOGGING_RULES="*.debug=false"
 echo "Qt environment configured for Ubuntu 24.04"
 EOF
 
-    chmod +x venv/bin/qt_setup.sh
+    chmod +x bvex_gs_env/bin/qt_setup.sh
     
     # Add Qt setup to activation script
-    cat >> venv/bin/activate << 'EOF'
+    cat >> bvex_gs_env/bin/activate << 'EOF'
 
 # BVEX Ground Station Qt6 Setup
 if [ -f "$VIRTUAL_ENV/bin/qt_setup.sh" ]; then
@@ -456,7 +456,7 @@ show_final_instructions() {
     echo "📋 Next steps:"
     echo ""
     echo "1. Activate the virtual environment:"
-    print_blue "   source venv/bin/activate"
+    print_blue "   source bvex_gs_env/bin/activate"
     echo ""
     echo "2. Run the BVEX Ground Station:"
     print_blue "   python main.py"
@@ -466,7 +466,7 @@ show_final_instructions() {
     echo ""
     
     print_green "💡 Tips:"
-    echo "• The Qt environment is automatically configured when you activate venv"
+    echo "• The Qt environment is automatically configured when you activate bvex_gs_env"
     echo "• For SSH connections, use: ssh -X username@hostname"
     echo "• For headless systems, consider VNC or X11 forwarding"
     echo "• Run this script again anytime to update dependencies"
