@@ -7,7 +7,7 @@ import sys
 import os
 import logging
 from PyQt6.QtWidgets import (QMainWindow, QHBoxLayout, QVBoxLayout, QGridLayout,
-                             QWidget, QMenuBar, QStatusBar)
+                             QWidget, QMenuBar, QStatusBar, QApplication)
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QIcon, QAction
 from src.gui.sky_chart_widget import SkyChartWidget
@@ -35,6 +35,18 @@ class PointingWindow(QMainWindow):
         self.setup_menu_bar()
         self.setup_status_bar()
         self.setup_timers()
+    
+    def get_safe_window_size(self, width_percentage=0.75, height_percentage=0.75):
+        """Get a safe window size that won't be cut off on any reasonable monitor"""
+        screen = QApplication.primaryScreen()
+        if screen:
+            geometry = screen.availableGeometry()  # Excludes taskbars, etc.
+            width = int(geometry.width() * width_percentage)
+            height = int(geometry.height() * height_percentage)
+            return width, height
+        else:
+            # Fallback for safety
+            return 1200, 800
     
     def setup_ui(self):
         """Setup the pointing window UI layout"""
@@ -101,9 +113,10 @@ class PointingWindow(QMainWindow):
         main_layout.addWidget(left_widget, 1)  # Left side gets 1 part
         main_layout.addWidget(right_widget, 1)  # Right side gets 1 part
         
-        # Set window properties - optimized for large sky chart and star camera
-        self.setMinimumSize(1600, 1050)   # Increased to fit larger widgets properly
-        self.resize(1800, 1150)           # Increased to fit larger widgets properly
+        # Set window properties - adaptive sizing for multi-monitor setups
+        width, height = self.get_safe_window_size(0.80, 0.75)  # 80% width, 75% height
+        self.setMinimumSize(max(1200, width//2), max(800, height//2))  # Reasonable minimum
+        self.resize(width, height)
     
     def setup_menu_bar(self):
         """Create pointing window menu bar"""

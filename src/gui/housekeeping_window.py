@@ -7,7 +7,7 @@ import sys
 import os
 import logging
 from PyQt6.QtWidgets import (QMainWindow, QVBoxLayout, QHBoxLayout,
-                             QWidget, QMenuBar, QStatusBar, QFrame, QPushButton, QLabel, QMessageBox, QGridLayout)
+                             QWidget, QMenuBar, QStatusBar, QFrame, QPushButton, QLabel, QMessageBox, QGridLayout, QApplication)
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QIcon, QAction
 
@@ -16,6 +16,7 @@ from src.config.settings import GUI, PR59_SERVER, HEATER_SERVER
 from src.gui.pbob_widget import PBoBWidget
 from src.gui.pr59_widget import PR59Widget
 from src.gui.heater_widget import HeaterWidget
+from src.gui.network_traffic_widget import NetworkTrafficWidget
 
 
 class HousekeepingWindow(QMainWindow):
@@ -43,6 +44,18 @@ class HousekeepingWindow(QMainWindow):
         # Setup data logger after UI is ready
         self.setup_data_logger()
     
+    def get_safe_window_size(self, width_percentage=0.75, height_percentage=0.75):
+        """Get a safe window size that won't be cut off on any reasonable monitor"""
+        screen = QApplication.primaryScreen()
+        if screen:
+            geometry = screen.availableGeometry()  # Excludes taskbars, etc.
+            width = int(geometry.width() * width_percentage)
+            height = int(geometry.height() * height_percentage)
+            return width, height
+        else:
+            # Fallback for safety
+            return 1200, 800
+    
     def setup_ui(self):
         """Setup the housekeeping window UI layout"""
         self.setWindowTitle("BVEX Ground Station - Housekeeping")
@@ -51,13 +64,13 @@ class HousekeepingWindow(QMainWindow):
         central_widget.setStyleSheet("QWidget { background-color: white; }")
         self.setCentralWidget(central_widget)
         
-        # Use QGridLayout: 3 rows, 2 columns (Data Logging spans both | PBoB left, Heater right | PR59 left, empty right)
+        # Use QGridLayout: 3 rows, 2 columns (Data Logging + Network Traffic spans both | PBoB left, Heater right | PR59 left, empty right)
         main_layout = QGridLayout(central_widget)
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(15)
         
-        # Data logging panel (compact) - Row 0, spans both columns
-        self.setup_compact_data_logging_panel_grid(main_layout)
+        # Row 0: Data logging panel and Network Traffic Monitor side by side
+        self.setup_top_control_panels(main_layout)
         
         # PBoB (Power Distribution Box) Widget - Row 1, Column 0 (left side)
         self.pbob_widget = PBoBWidget(parent=self, oph_client=None)
@@ -86,20 +99,45 @@ class HousekeepingWindow(QMainWindow):
         # Set row stretch to push widgets to top (row 3 stretches)
         main_layout.setRowStretch(3, 1)
         
-        # Set window properties - optimized for side-by-side layout
-        self.setMinimumSize(1400, 900)  # Wider to accommodate side-by-side widgets
-        self.resize(1600, 1100)
+        # Set window properties - adaptive sizing for multi-monitor setups
+        width, height = self.get_safe_window_size(0.75, 0.65)  # 75% width, 65% height for housekeeping
+        self.setMinimumSize(max(1100, width//2), max(600, height//2))  # Reasonable minimum
+        self.resize(width, height)
     
-    def setup_compact_data_logging_panel_grid(self, main_layout):
-        """Setup the compact data logging control panel for grid layout"""
+    def setup_top_control_panels(self, main_layout):
+        """Setup the top row with data logging and network traffic panels"""
+        # Create container for top control panels
+        top_controls_widget = QWidget()
+        top_controls_layout = QHBoxLayout(top_controls_widget)
+        top_controls_layout.setContentsMargins(0, 0, 0, 0)
+        top_controls_layout.setSpacing(15)
+        
+        # Data logging panel (left side)
+        self.setup_compact_data_logging_panel_standalone()
+        top_controls_layout.addWidget(self.data_logging_panel)
+        
+        # Network Traffic Monitor (right side)
+        self.network_traffic_widget = NetworkTrafficWidget(
+            parent=self,
+            pointing_window=self.pointing_window,
+            telescope_data_window=self.telescope_data_window,
+            housekeeping_window=self
+        )
+        top_controls_layout.addWidget(self.network_traffic_widget)
+        
+        # Add the combined widget to the main layout spanning both columns
+        main_layout.addWidget(top_controls_widget, 0, 0, 1, 2)
+    
+    def setup_compact_data_logging_panel_standalone(self):
+        """Setup the compact data logging control panel as a standalone widget"""
         # Create compact data logging panel frame
-        data_logging_frame = QFrame()
-        data_logging_frame.setFrameStyle(QFrame.Shape.StyledPanel)
-        data_logging_frame.setMinimumHeight(100)
-        data_logging_frame.setMaximumHeight(120)
-        data_logging_frame.setMinimumWidth(280)
-        data_logging_frame.setMaximumWidth(320)
-        data_logging_frame.setStyleSheet("""
+        self.data_logging_panel = QFrame()
+        self.data_logging_panel.setFrameStyle(QFrame.Shape.StyledPanel)
+        self.data_logging_panel.setMinimumHeight(100)
+        self.data_logging_panel.setMaximumHeight(120)
+        self.data_logging_panel.setMinimumWidth(280)
+        self.data_logging_panel.setMaximumWidth(320)
+        self.data_logging_panel.setStyleSheet("""
             QFrame {
                 background-color: #f8f9fa;
                 border: 2px solid #dee2e6;
@@ -109,7 +147,7 @@ class HousekeepingWindow(QMainWindow):
         """)
         
         # Layout for the data logging panel
-        panel_layout = QVBoxLayout(data_logging_frame)
+        panel_layout = QVBoxLayout(self.data_logging_panel)
         panel_layout.setContentsMargins(10, 8, 10, 8)
         panel_layout.setSpacing(6)
         
@@ -136,24 +174,19 @@ class HousekeepingWindow(QMainWindow):
                 padding: 8px 16px;
                 border-radius: 4px;
                 font-weight: bold;
-                font-size: 11px;
             }
             QPushButton:hover {
                 background-color: #218838;
             }
-            QPushButton:pressed {
-                background-color: #1e7e34;
-            }
         """)
         
         # Status label
-        self.data_logging_status_text = QLabel("Stopped")
-        self.data_logging_status_text.setFont(QFont("Arial", 10))
-        self.data_logging_status_text.setStyleSheet("QLabel { color: #6c757d; border: none; margin: 0px; }")
+        self.data_logging_status_label = QLabel("Status: Ready")
+        self.data_logging_status_label.setFont(QFont("Arial", 9))
+        self.data_logging_status_label.setStyleSheet("QLabel { color: #6c757d; border: none; }")
         
         button_layout.addWidget(self.data_logging_toggle_button)
-        button_layout.addWidget(self.data_logging_status_text)
-        
+        button_layout.addWidget(self.data_logging_status_label)
         panel_layout.addLayout(button_layout)
         
         # File info label (compact)
@@ -161,9 +194,6 @@ class HousekeepingWindow(QMainWindow):
         self.data_logging_file_label.setFont(QFont("Arial", 9))
         self.data_logging_file_label.setStyleSheet("QLabel { color: #868e96; border: none; margin: 0px; }")
         panel_layout.addWidget(self.data_logging_file_label)
-        
-        # Add the panel to the grid layout - Row 0, spans both columns
-        main_layout.addWidget(data_logging_frame, 0, 0, 1, 2, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
     
     def setup_data_logger(self):
         """Setup the comprehensive data logger (adapted from main_window.py)"""
@@ -286,9 +316,9 @@ class HousekeepingWindow(QMainWindow):
                 """)
                 
             # Update status text
-            if hasattr(self, 'data_logging_status_text'):
-                self.data_logging_status_text.setText("Active")
-                self.data_logging_status_text.setStyleSheet("QLabel { color: #28a745; border: none; margin: 0px; font-weight: bold; }")
+            if hasattr(self, 'data_logging_status_label'):
+                self.data_logging_status_label.setText("Status: Active")
+                self.data_logging_status_label.setStyleSheet("QLabel { color: #28a745; border: none; margin: 0px; font-weight: bold; }")
                 
             # Update file label
             if hasattr(self, 'data_logging_file_label') and self.data_logger:
@@ -326,9 +356,9 @@ class HousekeepingWindow(QMainWindow):
                 """)
                 
             # Update status text
-            if hasattr(self, 'data_logging_status_text'):
-                self.data_logging_status_text.setText("Stopped")
-                self.data_logging_status_text.setStyleSheet("QLabel { color: #6c757d; border: none; margin: 0px; }")
+            if hasattr(self, 'data_logging_status_label'):
+                self.data_logging_status_label.setText("Status: Stopped")
+                self.data_logging_status_label.setStyleSheet("QLabel { color: #6c757d; border: none; margin: 0px; }")
                 
             # Update file label
             if hasattr(self, 'data_logging_file_label'):
@@ -387,6 +417,11 @@ class HousekeepingWindow(QMainWindow):
             if hasattr(self, 'heater_widget') and self.heater_widget:
                 self.heater_widget.cleanup()
                 self.logger.info("Heater widget cleaned up during shutdown")
+            
+            # Network traffic widget cleanup
+            if hasattr(self, 'network_traffic_widget') and self.network_traffic_widget:
+                self.network_traffic_widget.cleanup()
+                self.logger.info("Network traffic widget cleaned up during shutdown")
             
             # The PBOB widget handles its own unregistration from shared manager
             # No need to manage the shared Oph client directly
