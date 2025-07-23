@@ -15,8 +15,8 @@ GPS_SERVER = {
 OPH_SERVER = {
     'host': '100.85.84.122',
     'port': 8002,  # You'll need to verify this port
-    'timeout': 5.0,
-    'update_interval': 1.0  # 1 second between requests (1 Hz)
+    'timeout': 1.0,  # Increased from 0.1s to 1.0s for more reliable connections
+    'update_interval': 0.1  # Keep 10Hz base rate but with better timeout
 }
 
 # BCP Spectrometer Configuration
@@ -69,7 +69,7 @@ OBSERVATORY = {
 GUI = {
     'window_title': 'BVEX Ground Station with Spectrometer and Star Camera',
     'window_size': (1800, 950),  # Increased window size to accommodate star camera
-    'update_interval': 1000,  # ms for GUI updates
+    'update_interval': 100,  # ms for GUI updates
     'sky_chart_size': (10, 10),  # inches - increased for better visibility
     'gps_panel_width': 280,    # reduced from 350
     'spectra_panel_size': (8, 6),  # inches for spectra plot

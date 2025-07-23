@@ -103,7 +103,7 @@ class HousekeepingWindow(QMainWindow):
         width, height = self.get_safe_window_size(0.75, 0.65)  # 75% width, 65% height for housekeeping
         self.setMinimumSize(max(1100, width//2), max(600, height//2))  # Reasonable minimum
         self.resize(width, height)
-    
+            
     def setup_top_control_panels(self, main_layout):
         """Setup the top row with data logging and network traffic panels"""
         # Create container for top control panels

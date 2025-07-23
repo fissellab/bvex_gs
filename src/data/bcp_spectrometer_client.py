@@ -43,6 +43,15 @@ class BCPSpectrometerClient:
         
     def _send_request(self, request: str) -> Optional[str]:
         """Send UDP request and return response"""
+        
+        # CRITICAL: Enforce rate limiting (1 request per second max)
+        current_time = time.time()
+        time_since_last = current_time - self.last_request_time
+        if time_since_last < 1.0:
+            sleep_time = 1.0 - time_since_last
+            self.logger.debug(f"Rate limiting: sleeping {sleep_time:.3f}s to respect 1 req/sec limit")
+            time.sleep(sleep_time)
+        
         # Create socket if not exists or if previous connection failed
         if self.socket is None:
             try:
@@ -57,7 +66,7 @@ class BCPSpectrometerClient:
             self.socket.sendto(request.encode('utf-8'), (self.server_ip, self.server_port))
             response_data = self.socket.recv(32768)
             response = response_data.decode('utf-8')
-            self.last_request_time = time.time()
+            self.last_request_time = time.time()  # Update AFTER successful request
             self.connected = True
             
             # Track data rate
@@ -243,16 +252,29 @@ class BCPSpectrometerClient:
         response = self._send_request(request_cmd)
         
         if not response:
+            self.logger.warning("No response from BCP server - connection may be down")
             return SpectrumData(type='ERROR', timestamp=time.time(), points=0, data=[], valid=False)
 
         # Handle successful responses and update state
         if response.startswith("SPECTRA_STD:"):
             self.active_spectrometer_type = 'STANDARD'
-            return self.parse_standard_response(response)
+            parsed_data = self.parse_standard_response(response)
+            if parsed_data:
+                self.logger.debug(f"Successfully received STANDARD spectrum with {parsed_data.points} points")
+                return parsed_data
+            else:
+                self.logger.error("Failed to parse STANDARD spectrum response")
+                return SpectrumData(type='ERROR', timestamp=time.time(), points=0, data=[], valid=False)
         
         if response.startswith("SPECTRA_120KHZ:"):
             self.active_spectrometer_type = '120KHZ'
-            return self.parse_120khz_response(response)
+            parsed_data = self.parse_120khz_response(response)
+            if parsed_data:
+                self.logger.debug(f"Successfully received 120KHZ spectrum with {parsed_data.points} points")
+                return parsed_data
+            else:
+                self.logger.error("Failed to parse 120KHZ spectrum response")
+                return SpectrumData(type='ERROR', timestamp=time.time(), points=0, data=[], valid=False)
 
         # Handle errors that tell us to switch types for the *next* request
         if "ERROR:WRONG_SPECTROMETER_TYPE" in response:
@@ -265,13 +287,23 @@ class BCPSpectrometerClient:
                 self.active_spectrometer_type = 'STANDARD'
                 return SpectrumData(type='STANDARD', timestamp=time.time(), points=0, data=[], valid=False)
 
+        # Handle rate limiting error - this was likely causing the flat line issue
+        if "ERROR:RATE_LIMITED" in response:
+            self.logger.warning("Server returned RATE_LIMITED error - requests too frequent")
+            return SpectrumData(type='RATE_LIMITED', timestamp=time.time(), points=0, data=[], valid=False)
+            
+        # Handle authorization error
+        if "ERROR:UNAUTHORIZED" in response:
+            self.logger.error("Server returned UNAUTHORIZED - IP may not be in authorized list")
+            return SpectrumData(type='UNAUTHORIZED', timestamp=time.time(), points=0, data=[], valid=False)
+
         if response.startswith("ERROR:SPECTROMETER_NOT_RUNNING"):
             self.logger.info("No spectrometer is currently running")
             self.active_spectrometer_type = 'NONE'
             return SpectrumData(type='NONE', timestamp=time.time(), points=0, data=[], valid=False)
             
         # Handle other errors
-        self.logger.error(f"Unknown or error response: {response[:100]}...")
+        self.logger.error(f"Unknown or error response from BCP server: {response[:100]}...")
         return SpectrumData(type='ERROR', timestamp=time.time(), points=0, data=[], valid=False)
 
     def _close_socket(self):

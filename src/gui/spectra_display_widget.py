@@ -95,9 +95,13 @@ class SpectraDisplayWidget(QWidget):
             return
             
         current_time = dt.datetime.now().timestamp()
-        if current_time - self.last_fetch_time > 1.0: # 1 second cooldown
+        if current_time - self.last_fetch_time > 1.5: # 1.5 second cooldown for safety margin
             self.last_fetch_time = current_time
             self.trigger_fetch_signal.emit()
+        else:
+            # Log when we're being rate limited for debugging
+            time_left = 1.5 - (current_time - self.last_fetch_time)
+            self.logger.debug(f"Fetch request throttled - {time_left:.2f}s remaining in cooldown")
 
     def stop_worker(self):
         """Stop the worker thread"""
@@ -401,7 +405,7 @@ class SpectraDisplayWidget(QWidget):
         if not hasattr(self, 'timer'):
             self.timer = QTimer()
             self.timer.timeout.connect(self.trigger_fetch)
-        self.timer.start(2000)  # 2000 ms = 0.5 Hz
+        self.timer.start(2500)  # 2500 ms = 0.4 Hz (more conservative than 0.5 Hz)
     
     def handle_spectrum_update(self, new_spectrum):
         """Update spectrum display with new data"""

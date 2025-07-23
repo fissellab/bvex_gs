@@ -6,11 +6,11 @@ Clean display of relay states and current measurements for all subsystems
 import sys
 import logging
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QFrame, QGridLayout, QApplication, QPushButton)
+                             QFrame, QGridLayout, QApplication, QPushButton, QComboBox)
 from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtGui import QFont, QPainter, QColor
 from datetime import datetime
-
+from src.config.settings import GUI
 from src.data.Oph_client import OphClient, OphData
 
 class StatusCircle(QLabel):
@@ -79,6 +79,39 @@ class PBoBWidget(QWidget):
         self.control_status_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
         self.control_status_label.setStyleSheet("QLabel { color: red; }")
         
+        # Frequency dropdown
+        self.frequency_combo = QComboBox()
+        self.frequency_combo.addItems(["1 Hz", "5 Hz", "10 Hz"])
+        self.frequency_combo.setCurrentText("5 Hz")  # Default to 10 Hz
+        self.frequency_combo.setMinimumWidth(80)
+        self.frequency_combo.setMaximumWidth(100)
+        self.frequency_combo.currentTextChanged.connect(self.on_frequency_changed)
+        self.frequency_combo.setStyleSheet("""
+            QComboBox {
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                padding: 4px 8px;
+                font-size: 10px;
+                background-color: white;
+                color: black;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 20px;
+            }
+            QComboBox::down-arrow {
+                width: 12px;
+                height: 12px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: white;
+                color: black;
+                border: 1px solid #ccc;
+                selection-background-color: #3daee9;
+                selection-color: white;
+            }
+        """)
+        
         # Toggle button
         self.toggle_button = QPushButton("Turn ON")
         self.toggle_button.setMinimumWidth(100)
@@ -99,6 +132,7 @@ class PBoBWidget(QWidget):
         
         control_layout.addWidget(self.control_status_label)
         control_layout.addStretch()
+        control_layout.addWidget(self.frequency_combo)
         control_layout.addWidget(self.toggle_button)
         
         main_layout.addLayout(control_layout)
@@ -138,6 +172,12 @@ class PBoBWidget(QWidget):
         else:
             self.start_pbob_monitor()
     
+    def on_frequency_changed(self, frequency_text: str):
+        """Handle frequency dropdown change"""
+        # Extract the Hz value from the text (e.g., "5 Hz" -> 5)
+        frequency_hz = int(frequency_text.split()[0])
+        self.oph_client.set_metric_rate("pbob",frequency_hz)
+        
     def start_pbob_monitor(self):
         """Start PBoB monitoring"""
         if not self.is_active:
@@ -170,7 +210,7 @@ class PBoBWidget(QWidget):
             self.setup_active_display()
             
             # Start update timer
-            self.update_timer.start(1000)  # Update every second
+            self.update_timer.start(GUI['update_interval'])  # Update at the specified rate
     
     def stop_pbob_monitor(self):
         """Stop PBoB monitoring"""
@@ -245,6 +285,7 @@ class PBoBWidget(QWidget):
     
     def setup_active_display(self):
         """Setup the active subsystem power display with clean grid layout"""
+        self.clear_widget(self.container_layout)
         # Status header like motor controller widget
         self.status_header = self._create_status_header()
         self.container_layout.addWidget(self.status_header)

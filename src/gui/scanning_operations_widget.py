@@ -4,7 +4,7 @@ Displays scanning and target telemetry (goes below Star Camera widget)
 """
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QGroupBox, QGridLayout, QFrame, QPushButton)
+                             QGroupBox, QGridLayout, QFrame, QPushButton, QComboBox)
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QPalette, QColor
 import time
@@ -43,6 +43,39 @@ class ScanningOperationsWidget(QWidget):
         self.control_status_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
         self.control_status_label.setStyleSheet("QLabel { color: red; }")
         
+        # Frequency dropdown
+        self.frequency_combo = QComboBox()
+        self.frequency_combo.addItems(["1 Hz", "5 Hz", "10 Hz"])
+        self.frequency_combo.setCurrentText("5 Hz")  # Default to 10 Hz
+        self.frequency_combo.setMinimumWidth(80)
+        self.frequency_combo.setMaximumWidth(100)
+        self.frequency_combo.currentTextChanged.connect(self.on_frequency_changed)
+        self.frequency_combo.setStyleSheet("""
+            QComboBox {
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                padding: 4px 8px;
+                font-size: 10px;
+                background-color: white;
+                color: black;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 20px;
+            }
+            QComboBox::down-arrow {
+                width: 12px;
+                height: 12px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: white;
+                color: black;
+                border: 1px solid #ccc;
+                selection-background-color: #3daee9;
+                selection-color: white;
+            }
+        """)
+        
         # Toggle button
         self.toggle_button = QPushButton("Turn ON")
         self.toggle_button.setMinimumWidth(100)
@@ -63,7 +96,9 @@ class ScanningOperationsWidget(QWidget):
         
         control_layout.addWidget(self.control_status_label)
         control_layout.addStretch()
+        control_layout.addWidget(self.frequency_combo)
         control_layout.addWidget(self.toggle_button)
+        
         
         main_layout.addLayout(control_layout)
         
@@ -99,7 +134,12 @@ class ScanningOperationsWidget(QWidget):
             self.stop_scanning_operations()
         else:
             self.start_scanning_operations()
-    
+    def on_frequency_changed(self, frequency_text: str):
+        """Handle frequency dropdown change"""
+        # Extract the Hz value from the text (e.g., "5 Hz" -> 5)
+        frequency_hz = int(frequency_text.split()[0])
+        self.oph_client.set_metric_rate("scan",frequency_hz)
+        
     def start_scanning_operations(self):
         """Start scanning operations telemetry updates"""
         if not self.is_active:
@@ -339,7 +379,7 @@ class ScanningOperationsWidget(QWidget):
         """Start the telemetry update timer"""
         self.update_timer = QTimer()
         self.update_timer.timeout.connect(self.update_telemetry)
-        self.update_timer.start(1000)  # Update every second
+        self.update_timer.start(100)  # Update every 10th of a second
     
     def stop_update_timer(self):
         """Stop the telemetry update timer"""

@@ -157,7 +157,7 @@ class PR59Widget(QWidget):
             # Setup active display
             self.setup_active_display()
             
-            # Start update timer
+            # Start update timer - SIMPLE approach like other widgets
             self.update_timer = QTimer()
             self.update_timer.timeout.connect(self.update_display)
             self.update_timer.start(1000)  # Update every second
@@ -183,7 +183,7 @@ class PR59Widget(QWidget):
                 }
             """)
             
-            # Stop update timer
+            # Stop update timer - SIMPLE approach like other widgets
             if hasattr(self, 'update_timer'):
                 self.update_timer.stop()
             
@@ -192,11 +192,17 @@ class PR59Widget(QWidget):
     
     def setup_static_display(self):
         """Setup static display when PR59 controller is OFF"""
-        # Clear current layout
-        for i in reversed(range(self.container_layout.count())):
-            child = self.container_layout.itemAt(i).widget()
-            if child:
-                child.setParent(None)
+        # Clear current layout more safely without processEvents()
+        if hasattr(self, 'container_layout') and self.container_layout is not None:
+            # Clear layout safely using a simple approach
+            for i in reversed(range(self.container_layout.count())):
+                child = self.container_layout.itemAt(i).widget()
+                if child:
+                    child.setParent(None)
+        
+        # Ensure we have a valid container layout
+        if not hasattr(self, 'container_layout') or self.container_layout is None:
+            return
         
         # Static message
         static_label = QLabel("PR59 Temperature Controller")
@@ -545,7 +551,7 @@ class PR59Widget(QWidget):
 
     def cleanup(self):
         """Clean up resources"""
-        # Stop our timer
+        # Stop our timer - SIMPLE approach like other widgets
         if hasattr(self, 'update_timer'):
             self.update_timer.stop()
         

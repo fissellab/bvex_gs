@@ -87,10 +87,49 @@ class OphClient:
         self.paused = False  # Start unpaused so data flows immediately
         self.thread = None
         self.socket = None
-
+        self.reqs = {}
+        self.channels1Hz = {}
+        self.channels5Hz = {}
+        self.channels10Hz = {}
         # Data rate tracking
         self.data_rate_tracker = DataRateTracker(window_seconds=30)
         self.total_bytes_received = 0
+        
+        #requests and types sorted by 
+        self.reqs["sc"] = dict(msg = ['sc_ra', 'sc_dec', 'sc_fr', 'sc_ir', 'sc_az', 'sc_alt', 'sc_texp',
+                                        'sc_start_focus', 'sc_end_focus', 'sc_curr_focus', 'sc_focus_step',
+                                        'sc_focus_mode', 'sc_solve', 'sc_save'],
+                               types = [float, float, float, float, float, float, float,
+                                            int, int, int, int,
+                                            int, int, int],
+                                crit = [])
+        self.reqs["mc"] = dict(msg = ['mc_curr', 'mc_sw', 'mc_lf', 'mc_sr', 'mc_pos', 'mc_temp', 'mc_vel', 
+                                        'mc_cwr', 'mc_cww', 'mc_np', 'mc_pt', 'mc_it', 'mc_dt',
+                                        'ax_mode', 'ax_dest', 'ax_vel', 'ax_dest_az', 'ax_vel_az', 'ax_ot'],
+                               types = [float, int, int, int, float, int, float,
+                                            int, int, int, float, float, float,
+                                            int, float, float, float, float, int],
+                                crit = ['mc_curr'])
+        self.reqs["scan"]=dict(msg = ['scan_mode', 'scan_start', 'scan_stop', 'scan_vel', 'scan_scan', 'scan_nscans', 'scan_offset', 'scan_op', 'scan_time',
+                                        'target_lon', 'target_lat', 'target_type'],
+                               types = [ int, float, float, float, int, int, float, int, float,
+                                            float, float, str],
+                                            crit = [])
+                       
+        self.reqs["pbob"] = dict(msg = ['sc_state', 'sc_curr', 'm_state', 'm_curr', 'gps_state', 'gps_curr',
+                                            'lp_state', 'lp_curr', 'lna_state', 'lna_curr', 'mix_state', 'mix_curr', 'rfsoc_state', 'rfsoc_curr'],
+                                 types = [int, float, int, float, int, float,
+                                             int, float, int, float, int, float, int, float],
+                                             crit = ['sc_state', 'sc_curr'])
+        #Channels at different rates
+        self.channels1Hz["sc"] = self.reqs["sc"]
+        self.channels5Hz["pbob"] = self.reqs["pbob"]
+        self.channels5Hz["scan"] = self.reqs["scan"]
+        self.channels10Hz["mc"] = self.reqs["mc"]
+        
+        #counters
+        self.counter1Hz = 10
+        self.counter5Hz = 2
 
     def start(self) -> bool:
         """Start the Oph client thread"""
@@ -231,132 +270,259 @@ class OphClient:
 
     def _client_loop(self):
         """Main client loop running in separate thread"""
-        # Define all parameters to request with their expected types
-        request_msgs = ['sc_ra', 'sc_dec', 'sc_fr', 'sc_ir', 'sc_az', 'sc_alt', 'sc_texp',
-                       'sc_start_focus', 'sc_end_focus', 'sc_curr_focus', 'sc_focus_step',
-                       'sc_focus_mode', 'sc_solve', 'sc_save',
-                       'mc_curr', 'mc_sw', 'mc_lf', 'mc_sr', 'mc_pos', 'mc_temp', 'mc_vel', 
-                       'mc_cwr', 'mc_cww', 'mc_np', 'mc_pt', 'mc_it', 'mc_dt',
-                       'ax_mode', 'ax_dest', 'ax_vel', 'ax_dest_az', 'ax_vel_az', 'ax_ot',
-                       'scan_mode', 'scan_start', 'scan_stop', 'scan_vel', 'scan_scan', 'scan_nscans', 'scan_offset', 'scan_op', 'scan_time',
-                       'target_lon', 'target_lat', 'target_type',
-                       'sc_state', 'sc_curr', 'm_state', 'm_curr', 'gps_state', 'gps_curr',
-                       'lp_state', 'lp_curr', 'lna_state', 'lna_curr', 'mix_state', 'mix_curr', 'rfsoc_state', 'rfsoc_curr']
-        
-        types = [float, float, float, float, float, float, float,
-                 int, int, int, int,
-                 int, int, int,
-                 float, int, int, int, float, int, float,
-                 int, int, int, float, float, float,
-                 int, float, float, float, float, int,
-                 int, float, float, float, int, int, float, int, float,
-                 float, float, str,
-                 int, float, int, float, int, float,
-                 int, float, int, float, int, float, int, float]
         
         server_addr = (OPH_SERVER['host'], OPH_SERVER['port'])
-        self.logger.debug(f"Parameters to request: {request_msgs}")
+        #self.logger.debug(f"Parameters to request: {request_msgs}")
         self.logger.debug(f"Timeout: {OPH_SERVER['timeout']}s, Update interval: {OPH_SERVER['update_interval']}s")
-
+        data10Hz_valid = True
+        data5Hz_valid = True
+        data1Hz_valid = True
+        
         while self.running:
             try:
                 # Only send requests if not paused
                 if not self.paused:
-                    temp_data = {}
+                    temp_data10Hz = {}
+                    temp_data5Hz = {}
+                    temp_data1Hz = {}
                     all_successful = True
                     
-                    self.logger.debug(f"Starting request cycle for {len(request_msgs)} parameters")
+                    #self.logger.debug(f"Starting request cycle for {len(request_msgs)} parameters")
                     
-                    # Loop through all metrics
-                    for i, (request_msg, data_type) in enumerate(zip(request_msgs, types)):
-                        try:
-                            # Use shorter timeout for individual requests, especially for problematic ones
-                            if request_msg in ['gps_state', 'gps_curr']:
-                                # These parameters seem to timeout frequently, use shorter timeout
-                                original_timeout = self.socket.gettimeout()
-                                self.socket.settimeout(2.0)  # 2 second timeout for GPS-related requests
-                            
-                            # Send request
-                            self.logger.debug(f"[{i+1}/{len(request_msgs)}] Sending request '{request_msg}' (type: {data_type}) to {server_addr}")
-                            self.socket.sendto(request_msg.encode('utf-8'), server_addr)
-
-                            # Receive response
-                            data, addr = self.socket.recvfrom(1024)
-                            response = data.decode('utf-8').strip()
-                            self.logger.debug(f"[{i+1}/{len(request_msgs)}] Received response for '{request_msg}': '{response}' from {addr}")
-
-                            # Track data rate
-                            bytes_received = len(data)
-                            self.data_rate_tracker.add_data(bytes_received)
-                            self.total_bytes_received += bytes_received
-
-                            # Parse response based on type
+                    # Loop through 10Hz metrics
+                    for key in self.channels10Hz.keys():
+                        for i, (request_msg, data_type) in enumerate(zip(self.channels10Hz[key]["msg"], self.channels10Hz[key]["types"])):
                             try:
-                                if data_type == float:
-                                    value = float(response)
-                                    self.logger.debug(f"Parsed {request_msg} as float: {value}")
-                                elif data_type == int:
-                                    value = int(response)
-                                    self.logger.debug(f"Parsed {request_msg} as int: {value}")
-                                elif data_type == str:
-                                    value = response
-                                    self.logger.debug(f"Parsed {request_msg} as str: {value}")
-                                else:
-                                    self.logger.warning(f"Unknown data type for {request_msg}: {data_type}")
-                                    continue
-                                
-                                temp_data[request_msg] = value
-                                
-                            except ValueError as e:
-                                self.logger.warning(f"Failed to parse {request_msg} response '{response}': {e}")
-                                all_successful = False
                             
-                            # Restore original timeout if it was changed
-                            if request_msg in ['gps_state', 'gps_curr']:
-                                self.socket.settimeout(original_timeout)
+                                # Send request
+                                self.logger.debug(f"[{i+1}] Sending request '{request_msg}' (type: {data_type}) to {server_addr}")
+                                self.socket.sendto(request_msg.encode('utf-8'), server_addr)
 
-                        except socket.timeout:
-                            if request_msg in ['gps_state', 'gps_curr']:
-                                # Don't log warnings for GPS-related timeouts, they're common
-                                self.logger.debug(f"Timeout requesting {request_msg} from {server_addr} (expected for GPS parameters)")
-                                # Set default values for GPS parameters
-                                if request_msg == 'gps_state':
-                                    temp_data[request_msg] = 0  # Default to OFF
-                                elif request_msg == 'gps_curr':
-                                    temp_data[request_msg] = 0.0  # Default to 0 current
-                                # Restore timeout
-                                self.socket.settimeout(original_timeout)
-                            else:
+                                # Receive response
+                                data, addr = self.socket.recvfrom(1024)
+                                response = data.decode('utf-8').strip()
+                                self.logger.debug(f"[{i+1}] Received response for '{request_msg}': '{response}' from {addr}")
+
+                                # Track data rate
+                                bytes_received = len(data)
+                                self.data_rate_tracker.add_data(bytes_received)
+                                self.total_bytes_received += bytes_received
+
+                                # Parse response based on type
+                                try:
+                                    if data_type == float:
+                                        value = float(response)
+                                        self.logger.debug(f"Parsed {request_msg} as float: {value}")
+                                    elif data_type == int:
+                                        value = int(response)
+                                        self.logger.debug(f"Parsed {request_msg} as int: {value}")
+                                    elif data_type == str:
+                                        value = response
+                                        self.logger.debug(f"Parsed {request_msg} as str: {value}")
+                                    else:
+                                        self.logger.warning(f"Unknown data type for {request_msg}: {data_type}")
+                                        continue
+                                
+                                    temp_data10Hz[request_msg] = value
+                                
+                                except ValueError as e:
+                                    self.logger.warning(f"Failed to parse {request_msg} response '{response}': {e}")
+                                    all_successful = False
+                            
+
+                            except socket.timeout:
                                 self.logger.debug(f"Timeout requesting {request_msg} from {server_addr}")
                                 all_successful = False
-                        except Exception as e:
-                            self.logger.debug(f"Error requesting {request_msg}: {e}")
-                            all_successful = False
+                            
+                            except Exception as e:
+                                self.logger.debug(f"Error requesting {request_msg}: {e}")
+                                all_successful = False
 
-                    # Update the data structure with all successful values
-                    if temp_data:  # If we got at least some data
-                        with self.data_lock:
-                            # Update all successfully received values
-                            for param, value in temp_data.items():
-                                if hasattr(self.oph_data, param):
-                                    setattr(self.oph_data, param, value)
+                        # Update the data structure with all successful values
+                        if temp_data10Hz:  # If we got at least some data
+                            with self.data_lock:
+                                # Update all successfully received values
+                                for param, value in temp_data10Hz.items():
+                                    if hasattr(self.oph_data, param):
+                                        setattr(self.oph_data, param, value)
                             
-                            # Mark data as valid if we got most of the important parameters
-                            # Consider data valid if we got motor, star camera, and PBOB data (even if GPS times out)
-                            critical_params = ['mc_curr', 'sc_state', 'sc_curr', 'm_state', 'm_curr']
-                            critical_received = sum(1 for param in critical_params if param in temp_data)
+                                # Mark data as valid if we got most of the important parameters
+                                # Consider data valid if we got motor, star camera, and PBOB data (even if GPS times out)
+                                critical_params = self.channels10Hz[key]["crit"]
+                                critical_received = sum(1 for param in critical_params if param in temp_data10Hz)
+                                
+                                if len(critical_params)>0:
+                                
+                                    if critical_received >= 1:  # If we got at least 1 critical parameter
+                                        data10Hz_valid = True
+                                        self.logger.debug(f"Data marked as valid - received {len(temp_data10Hz)} parameters including {critical_received}/{len(critical_params)} critical ones")
+                                    else:
+                                        data10Hz_valid = False
+                                        self.logger.debug(f"Data marked invalid - only received {critical_received}/{len(critical_params)} critical parameters")
+                                else:
+                                    data10Hz_valid = True
+                        else:
+                            data10Hz_valid = False
+                            self.logger.debug("No data received - marking invalid")
+                    
+                    #5Hz metrics
+                    if self.counter5Hz == 2:
+                        self.counter5Hz = 0;
+                        for key in self.channels5Hz.keys():
+                            for i, (request_msg, data_type) in enumerate(zip(self.channels5Hz[key]["msg"], self.channels5Hz[key]["types"])):
+                                try:
                             
-                            if critical_received >= 4:  # If we got at least 4 out of 5 critical parameters
-                                self.oph_data.valid = True
-                                self.logger.debug(f"Data marked as valid - received {len(temp_data)}/{len(request_msgs)} parameters including {critical_received}/{len(critical_params)} critical ones")
+                                    # Send request
+                                    self.logger.debug(f"[{i+1}] Sending request '{request_msg}' (type: {data_type}) to {server_addr}")
+                                    self.socket.sendto(request_msg.encode('utf-8'), server_addr)
+
+                                    # Receive response
+                                    data, addr = self.socket.recvfrom(1024)
+                                    response = data.decode('utf-8').strip()
+                                    self.logger.debug(f"[{i+1}] Received response for '{request_msg}': '{response}' from {addr}")
+
+                                    # Track data rate
+                                    bytes_received = len(data)
+                                    self.data_rate_tracker.add_data(bytes_received)
+                                    self.total_bytes_received += bytes_received
+
+                                    # Parse response based on type
+                                    try:
+                                        if data_type == float:
+                                            value = float(response)
+                                            self.logger.debug(f"Parsed {request_msg} as float: {value}")
+                                        elif data_type == int:
+                                            value = int(response)
+                                            self.logger.debug(f"Parsed {request_msg} as int: {value}")
+                                        elif data_type == str:
+                                            value = response
+                                            self.logger.debug(f"Parsed {request_msg} as str: {value}")
+                                        else:
+                                            self.logger.warning(f"Unknown data type for {request_msg}: {data_type}")
+                                            continue
+                                
+                                        temp_data5Hz[request_msg] = value
+                                
+                                    except ValueError as e:
+                                        self.logger.warning(f"Failed to parse {request_msg} response '{response}': {e}")
+                                        all_successful = False
+                            
+
+                                except socket.timeout:
+                                    self.logger.debug(f"Timeout requesting {request_msg} from {server_addr}")
+                                    all_successful = False
+                            
+                                except Exception as e:
+                                    self.logger.debug(f"Error requesting {request_msg}: {e}")
+                                    all_successful = False
+
+                            # Update the data structure with all successful values
+                            if temp_data5Hz:  # If we got at least some data
+                                with self.data_lock:
+                                    # Update all successfully received values
+                                    for param, value in temp_data5Hz.items():
+                                        if hasattr(self.oph_data, param):
+                                            setattr(self.oph_data, param, value)
+                            
+                                    # Mark data as valid if we got most of the important parameters
+                                    # Consider data valid if we got motor, star camera, and PBOB data (even if GPS times out)
+                                    critical_params = self.channels5Hz[key]["crit"]
+                                    critical_received = sum(1 for param in critical_params if param in temp_data5Hz)
+                                
+                                    if len(critical_params)>0:
+                                
+                                        if critical_received >= 1:  # If we got at least 1 critical parameter
+                                            data5Hz_valid = True
+                                            self.logger.debug(f"Data marked as valid - received {len(temp_data5Hz)} parameters including {critical_received}/{len(critical_params)} critical ones")
+                                        else:
+                                            data5Hz_valid = False
+                                            self.logger.debug(f"Data marked invalid - only received {critical_received}/{len(critical_params)} critical parameters")
+                                    else:
+                                        data5Hz_valid = True
                             else:
-                                self.oph_data.valid = False
-                                self.logger.debug(f"Data marked invalid - only received {critical_received}/{len(critical_params)} critical parameters")
-                    else:
-                        with self.data_lock:
-                            self.oph_data.valid = False
-                        self.logger.debug("No data received - marking invalid")
+                                data5Hz_valid = False
+                                self.logger.debug("No data received - marking invalid")
+                    #1Hz metrics
+                    if self.counter1Hz == 10:
+                        self.counter1Hz = 0;
+                        for key in self.channels1Hz.keys():
+                            for i, (request_msg, data_type) in enumerate(zip(self.channels1Hz[key]["msg"], self.channels1Hz[key]["types"])):
+                                try:
+                            
+                                    # Send request
+                                    self.logger.debug(f"[{i+1}] Sending request '{request_msg}' (type: {data_type}) to {server_addr}")
+                                    self.socket.sendto(request_msg.encode('utf-8'), server_addr)
 
+                                    # Receive response
+                                    data, addr = self.socket.recvfrom(1024)
+                                    response = data.decode('utf-8').strip()
+                                    self.logger.debug(f"[{i+1}] Received response for '{request_msg}': '{response}' from {addr}")
+
+                                    # Track data rate
+                                    bytes_received = len(data)
+                                    self.data_rate_tracker.add_data(bytes_received)
+                                    self.total_bytes_received += bytes_received
+
+                                    # Parse response based on type
+                                    try:
+                                        if data_type == float:
+                                            value = float(response)
+                                            self.logger.debug(f"Parsed {request_msg} as float: {value}")
+                                        elif data_type == int:
+                                            value = int(response)
+                                            self.logger.debug(f"Parsed {request_msg} as int: {value}")
+                                        elif data_type == str:
+                                            value = response
+                                            self.logger.debug(f"Parsed {request_msg} as str: {value}")
+                                        else:
+                                            self.logger.warning(f"Unknown data type for {request_msg}: {data_type}")
+                                            continue
+                                
+                                        temp_data1Hz[request_msg] = value
+                                
+                                    except ValueError as e:
+                                        self.logger.warning(f"Failed to parse {request_msg} response '{response}': {e}")
+                                        all_successful = False
+                            
+
+                                except socket.timeout:
+                                    self.logger.debug(f"Timeout requesting {request_msg} from {server_addr}")
+                                    all_successful = False
+                            
+                                except Exception as e:
+                                    self.logger.debug(f"Error requesting {request_msg}: {e}")
+                                    all_successful = False
+
+                            # Update the data structure with all successful values
+                            if temp_data1Hz:  # If we got at least some data
+                                with self.data_lock:
+                                    # Update all successfully received values
+                                    for param, value in temp_data1Hz.items():
+                                        if hasattr(self.oph_data, param):
+                                            setattr(self.oph_data, param, value)
+                            
+                                    # Mark data as valid if we got most of the important parameters
+                                    # Consider data valid if we got motor, star camera, and PBOB data (even if GPS times out)
+                                    critical_params = self.channels1Hz[key]["crit"]
+                                    critical_received = sum(1 for param in critical_params if param in temp_data1Hz)
+                                
+                                    if len(critical_params)>0:
+                                
+                                        if critical_received >= 1:  # If we got at least 1 critical parameter
+                                            data1Hz_valid = True
+                                            self.logger.debug(f"Data marked as valid - received {len(temp_data1Hz)} parameters including {critical_received}/{len(critical_params)} critical ones")
+                                        else:
+                                            data1Hz_valid = False
+                                            self.logger.debug(f"Data marked invalid - only received {critical_received}/{len(critical_params)} critical parameters")
+                                    else:
+                                        data1Hz_valid = True
+                            else:
+                                data1Hz_valid = False
+                                self.logger.debug("No data received - marking invalid")
+                    
+                    if(data10Hz_valid or data5Hz_valid or data1Hz_valid):
+                        with self.data_lock:
+                            self.oph_data.valid = True
                 else:
                     # If paused, mark data as invalid
                     with self.data_lock:
@@ -373,9 +539,26 @@ class OphClient:
                     self.logger.debug(f"Client error in main loop: {e}")
                 with self.data_lock:
                     self.oph_data.valid = False
-                    
+            
+            self.counter1Hz += 1
+            self.counter5Hz += 1      
             time.sleep(OPH_SERVER['update_interval'])
-
+    
+    def set_metric_rate(self,metric,rate):
+        if metric in self.channels10Hz:
+            self.channels10Hz.pop(metric)
+        elif metric in self.channels5Hz:
+            self.channels5Hz.pop(metric)
+        elif metric in self.channels1Hz:
+            self.channels1Hz.pop(metric)
+        
+        if rate == 10:
+            self.channels10Hz[metric] = self.reqs[metric]
+        elif rate == 5:
+            self.channels5Hz[metric] = self.reqs[metric]
+        elif rate == 1:
+            self.channels1Hz[metric] = self.reqs[metric]
+    
     def get_debug_info(self) -> dict:
         """Get debugging information about the client state"""
         with self.data_lock:

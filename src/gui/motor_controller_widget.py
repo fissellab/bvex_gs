@@ -28,7 +28,7 @@ class MotorControllerWidget(QWidget):
         self.prev_mode = self.current_telemetry.ax_mode
         
         # Frequency control - default to 5 Hz
-        self.update_frequency_hz = 5
+        self.update_frequency_hz = 10
         
         self.setup_ui()
         
@@ -49,7 +49,7 @@ class MotorControllerWidget(QWidget):
         # Frequency dropdown
         self.frequency_combo = QComboBox()
         self.frequency_combo.addItems(["1 Hz", "5 Hz", "10 Hz"])
-        self.frequency_combo.setCurrentText("5 Hz")  # Default to 5 Hz
+        self.frequency_combo.setCurrentText("10 Hz")  # Default to 10 Hz
         self.frequency_combo.setMinimumWidth(80)
         self.frequency_combo.setMaximumWidth(100)
         self.frequency_combo.currentTextChanged.connect(self.on_frequency_changed)
@@ -157,7 +157,6 @@ class MotorControllerWidget(QWidget):
             
             # Update frequency from current dropdown selection
             current_freq_text = self.frequency_combo.currentText()
-            self.update_frequency_hz = int(current_freq_text.split()[0])
             
             # Start our independent OphClient
             if self.oph_client.start():
@@ -440,12 +439,8 @@ class MotorControllerWidget(QWidget):
         """Handle frequency dropdown change"""
         # Extract the Hz value from the text (e.g., "5 Hz" -> 5)
         frequency_hz = int(frequency_text.split()[0])
-        self.update_frequency_hz = frequency_hz
+        self.oph_client.set_metric_rate("mc",frequency_hz)
         
-        # If motor controller is active, restart the timer with new frequency
-        if self.is_active and hasattr(self, 'update_timer') and self.update_timer.isActive():
-            self.stop_update_timer()
-            self.start_update_timer()
     
     def update_telemetry(self):
         """Update motor controller telemetry display"""
