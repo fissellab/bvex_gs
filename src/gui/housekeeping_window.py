@@ -74,7 +74,7 @@ class HousekeepingWindow(QMainWindow):
         
         # PBoB (Power Distribution Box) Widget - Row 1, Column 0 (left side)
         self.pbob_widget = PBoBWidget(parent=self, oph_client=None)
-        main_layout.addWidget(self.pbob_widget, 1, 0, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        main_layout.addWidget(self.pbob_widget, 1, 0,3,2,alignment=Qt.AlignmentFlag.AlignTop)
         
         # Heater System Widget - Row 1, Column 1 (right side, beside PBoB)
         self.heater_widget = HeaterWidget(
@@ -82,7 +82,7 @@ class HousekeepingWindow(QMainWindow):
             server_ip=HEATER_SERVER['host'],
             server_port=HEATER_SERVER['port']
         )
-        main_layout.addWidget(self.heater_widget, 1, 1, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        main_layout.addWidget(self.heater_widget, 0, 2,2,2,alignment=Qt.AlignmentFlag.AlignTop)
         
         # PR59 Temperature Controller Widget - Row 2, Column 0 (left side, undisturbed)
         self.pr59_widget = PR59Widget(
@@ -90,14 +90,14 @@ class HousekeepingWindow(QMainWindow):
             server_ip=PR59_SERVER['host'], 
             server_port=PR59_SERVER['port']
         )
-        main_layout.addWidget(self.pr59_widget, 2, 0, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        main_layout.addWidget(self.pr59_widget, 2, 2,2,2,alignment=Qt.AlignmentFlag.AlignTop)
         
         # Set column stretch to distribute space evenly between columns
-        main_layout.setColumnStretch(0, 1)  # Left column gets equal space
-        main_layout.setColumnStretch(1, 1)  # Right column gets equal space
+        #main_layout.setColumnStretch(0, 1)  # Left column gets equal space
+        #main_layout.setColumnStretch(1, 1)  # Right column gets equal space
         
         # Set row stretch to push widgets to top (row 3 stretches)
-        main_layout.setRowStretch(3, 1)
+        #main_layout.setRowStretch(3, 1)
         
         # Set window properties - adaptive sizing for multi-monitor setups
         width, height = self.get_safe_window_size(0.75, 0.65)  # 75% width, 65% height for housekeeping
@@ -107,14 +107,14 @@ class HousekeepingWindow(QMainWindow):
     def setup_top_control_panels(self, main_layout):
         """Setup the top row with data logging and network traffic panels"""
         # Create container for top control panels
-        top_controls_widget = QWidget()
-        top_controls_layout = QHBoxLayout(top_controls_widget)
-        top_controls_layout.setContentsMargins(0, 0, 0, 0)
-        top_controls_layout.setSpacing(15)
+        #top_controls_widget = QWidget()
+        #top_controls_layout = QHBoxLayout(top_controls_widget)
+        #top_controls_layout.setContentsMargins(0, 0, 0, 0)
+        #top_controls_layout.setSpacing(15)
         
         # Data logging panel (left side)
         self.setup_compact_data_logging_panel_standalone()
-        top_controls_layout.addWidget(self.data_logging_panel)
+        main_layout.addWidget(self.data_logging_panel,0,0,1,1)
         
         # Network Traffic Monitor (right side)
         self.network_traffic_widget = NetworkTrafficWidget(
@@ -123,10 +123,7 @@ class HousekeepingWindow(QMainWindow):
             telescope_data_window=self.telescope_data_window,
             housekeeping_window=self
         )
-        top_controls_layout.addWidget(self.network_traffic_widget)
-        
-        # Add the combined widget to the main layout spanning both columns
-        main_layout.addWidget(top_controls_widget, 0, 0, 1, 2)
+        main_layout.addWidget(self.network_traffic_widget,0,1,1,1)
     
     def setup_compact_data_logging_panel_standalone(self):
         """Setup the compact data logging control panel as a standalone widget"""

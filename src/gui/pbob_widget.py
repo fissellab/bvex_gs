@@ -360,7 +360,8 @@ class PBoBWidget(QWidget):
             ("Lock Pin", "lp_state", "lp_curr"),
             ("LNA", "lna_state", "lna_curr"),
             ("Mixer", "mix_state", "mix_curr"),
-            ("RF SoC", "rfsoc_state", "rfsoc_curr")
+            ("RF SoC", "rfsoc_state", "rfsoc_curr"),
+            ("Backend", "bkd_state","bkd_curr")
         ]
         
         # Headers
@@ -436,7 +437,8 @@ class PBoBWidget(QWidget):
                     ("Lock Pin", "lp_state", "lp_curr"),
                     ("LNA", "lna_state", "lna_curr"),
                     ("Mixer", "mix_state", "mix_curr"),
-                    ("RF SoC", "rfsoc_state", "rfsoc_curr")
+                    ("RF SoC", "rfsoc_state", "rfsoc_curr"),
+                    ("Backend", "bkd_state","bkd_curr")
                 ]
                 
                 for name, state_field, current_field in subsystems:

@@ -74,6 +74,8 @@ class OphData:
     mix_curr: float = 0.0  # Mixer current (A)
     rfsoc_state: int = 0  # RF SoC relay state (0=OFF, 1=ON)
     rfsoc_curr: float = 0.0  # RF SoC current (A)
+    bkd_state: int = 0  # Backend relay state (0=OFF, 1=ON)
+    bkd_curr: float = 0.0  # Backend current (A)
     valid: bool = False  # indicates if data is valid
 
 class OphClient:
@@ -117,9 +119,9 @@ class OphClient:
                                             crit = [])
                        
         self.reqs["pbob"] = dict(msg = ['sc_state', 'sc_curr', 'm_state', 'm_curr', 'gps_state', 'gps_curr',
-                                            'lp_state', 'lp_curr', 'lna_state', 'lna_curr', 'mix_state', 'mix_curr', 'rfsoc_state', 'rfsoc_curr'],
+                                            'lp_state', 'lp_curr', 'lna_state', 'lna_curr', 'mix_state', 'mix_curr', 'rfsoc_state', 'rfsoc_curr','bkd_state','bkd_curr'],
                                  types = [int, float, int, float, int, float,
-                                             int, float, int, float, int, float, int, float],
+                                             int, float, int, float, int, float, int, float,int,float],
                                              crit = ['sc_state', 'sc_curr'])
         #Channels at different rates
         self.channels1Hz["sc"] = self.reqs["sc"]
@@ -260,6 +262,8 @@ class OphClient:
                 mix_curr=self.oph_data.mix_curr,
                 rfsoc_state=self.oph_data.rfsoc_state,
                 rfsoc_curr=self.oph_data.rfsoc_curr,
+                bkd_state=self.oph_data.bkd_state,
+                bkd_curr=self.oph_data.bkd_curr,
                 valid=self.oph_data.valid
             )
 

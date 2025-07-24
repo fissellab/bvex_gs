@@ -109,10 +109,10 @@ class NetworkTrafficWidget(QWidget):
         
         # Show just the percentage - more compact
         self.percentage_label = QLabel("0%")
-        self.percentage_label.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        self.percentage_label.setFont(QFont("Arial", 11, QFont.Weight.Bold))
         self.percentage_label.setStyleSheet("QLabel { color: #6c757d; border: none; background: transparent; }")
         self.percentage_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.percentage_label.setMinimumHeight(16)
+        self.percentage_label.setMinimumHeight(24)
         self.percentage_label.setMinimumWidth(35)
         
         # Small limit label

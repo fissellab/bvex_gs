@@ -268,9 +268,9 @@ Heater System Control
 
 - Lock Pin Heater (Temp-controlled)
 - Star Camera Heater (Temp-controlled)  
-- PV Panel Heater (Temp-controlled)
+- PV Panel Heater (Manual-only)
 - Motor Heater (Temp-controlled)
-- Ethernet Switch Heater (Manual-only)
+- Ethernet Switch Heater (Temp-controlled)
 
 Total Current Limit: 3A
 Temperature Range: 28-30°C (auto)
@@ -309,6 +309,7 @@ Temperature Range: 28-30°C (auto)
             header_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
             header_label.setStyleSheet("QLabel { color: #495057; border: none; background: transparent; }")
             header_label.setAlignment(Qt.AlignmentFlag.AlignCenter if col > 0 else Qt.AlignmentFlag.AlignLeft)
+            header_label.setMinimumHeight(26)
             layout.addWidget(header_label, row, col)
         row += 1
         
@@ -316,9 +317,9 @@ Temperature Range: 28-30°C (auto)
         heaters = [
             ("Lock Pin", "lockpin", "Temp-Ctrl"),
             ("Star Camera", "starcamera", "Temp-Ctrl"),
-            ("PV Panel", "pv", "Temp-Ctrl"),
+            ("PV Panel", "pv",  "Manual"),
             ("Motor", "motor", "Temp-Ctrl"),
-            ("Ethernet", "ethernet", "Manual")
+            ("Ethernet", "ethernet", "Temp-Ctrl" )
         ]
         
         for heater_name, heater_key, heater_type in heaters:
@@ -372,6 +373,7 @@ Temperature Range: 28-30°C (auto)
         status_label = QLabel("System Status:")
         status_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
         status_label.setStyleSheet("QLabel { color: #495057; border: none; background: transparent; }")
+        status_label.setMinimumHeight(26)
         layout.addWidget(status_label, row, 0)
         
         self.system_status_label = QLabel("Unknown")
