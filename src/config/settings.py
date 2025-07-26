@@ -79,8 +79,16 @@ GUI = {
 # Celestial Objects to Display
 CELESTIAL_OBJECTS = {
     'solar_system': ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune'],
-    'targets': {
-        'W49N': {'ra': '19h11m28.37s', 'dec': '09d06m02.2s'}
+    'line': {
+        'W49N': {'ra': '19h11m28.37s', 'dec': '09d06m02.2s'},
+        'Orion KL': {'ra':'05h35m14.16s', 'dec':'-05d22m21.5s'}
+    },
+    'continuum': {
+        '3C 273': {'ra':'12h29m6.7s','dec':'02d03m09s'},
+        '3C 279': {'ra':'12h56m11.1s','dec':'-05d47m22s'},
+        '3C 454.3': {'ra':'22h53m57.7s','dec':'16d08m53.6s'},
+        '4C 11.69': {'ra': '22h32m36.4s','dec':'11d43m50.9s'},
+        '3C 84': {'ra': '03h19m48.2s','dec':'41d30m42.1s'}
     }
 } 
  

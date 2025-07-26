@@ -345,6 +345,24 @@ class ScanningOperationsWidget(QWidget):
                 ("scan_op", "Operation", "", 2, 2),
                 ("scan_scan", "Scan", "", 2, 4),
             ]
+        elif self.current_telemetry.scan_mode == 4:
+            fields = [
+                # Row 1: Scan mode
+                ("scan_mode", "Mode","",0,0),
+                
+                # Row 2:
+                ("target_lon", "RA", "deg", 1, 0),
+                ("target_lat", "DEC", "deg", 1, 2),
+                ("scan_len", "Length", "deg", 1, 4),
+                
+                #Row 3:
+                ("scan_start", "Start", "deg", 2, 0),
+                ("scan_stop", "Stop", "", 2, 2),
+                ("scan_vel", "Velocity", "deg/s", 2, 4),
+                #Row 4:
+                ("scan_scan", "Scan", "", 3, 0),
+                ("scan_nscans", "Total Scans", "", 3, 2)
+            ]
         
         for field, label_text, unit, row, col in fields:
             # Create label with clean typography and word wrapping
@@ -438,7 +456,7 @@ class ScanningOperationsWidget(QWidget):
                     label.setText(display_value)
         
         # Scanning fields
-        scan_modes = {0: "None", 1: "El Dither", 2: "Tracking", 3: "El On-Off"}
+        scan_modes = {0: "None", 1: "El Dither", 2: "Tracking", 3: "El On-Off", 4:"Tracking Dither"}
         mode_text = scan_modes.get(telemetry.scan_mode, "Unknown")
         update_field("scan_mode", mode_text)
         
@@ -465,6 +483,15 @@ class ScanningOperationsWidget(QWidget):
             # Scan operation status
             scan_op_text = {-1: "Off Position", 0: "Moving", 1: "On Position"}.get(telemetry.scan_op, "Unknown")
             update_field("scan_op", scan_op_text)
+        elif telemetry.scan_mode == 4:
+            update_field("scan_len", telemetry.scan_offset, "{:.2f}")
+            update_field("target_lon", telemetry.target_lon, "{:.4f}")
+            update_field("target_lat", telemetry.target_lat, "{:.4f}")
+            update_field("scan_start", telemetry.scan_start, "{:.2f}")
+            update_field("scan_stop", telemetry.scan_stop, "{:.2f}")
+            update_field("scan_vel", telemetry.scan_vel, "{:.3f}")
+            update_field("scan_scan", telemetry.scan_scan+1)
+            update_field("scan_nscans", telemetry.scan_nscans)
     
     def is_scanning_operations_active(self) -> bool:
         """Check if scanning operations display is active"""

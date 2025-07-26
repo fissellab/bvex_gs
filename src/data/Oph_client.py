@@ -56,6 +56,7 @@ class OphData:
     scan_offset: float = 0.0  # distance to 'off' position
     scan_op: int = 0  # -1 if on 'off' position 1 if on 'on' position and 0 if moving
     scan_time: float = 0.0  # 'on' time
+    scan_len: float = 0.0  # scan_length
     target_lon: float = 0.0  # Target coordinate longitude (e.g. RA)
     target_lat: float = 0.0  # Target coordinate latitude (e.g. DEC)
     target_type: str = "None"  # Target coordinate type (eg. RaDec)
@@ -113,9 +114,9 @@ class OphClient:
                                             int, float, float, float, float, int],
                                 crit = ['mc_curr'])
         self.reqs["scan"]=dict(msg = ['scan_mode', 'scan_start', 'scan_stop', 'scan_vel', 'scan_scan', 'scan_nscans', 'scan_offset', 'scan_op', 'scan_time',
-                                        'target_lon', 'target_lat', 'target_type'],
+                                        'target_lon', 'target_lat', 'target_type','scan_len'],
                                types = [ int, float, float, float, int, int, float, int, float,
-                                            float, float, str],
+                                            float, float, str, float],
                                             crit = [])
                        
         self.reqs["pbob"] = dict(msg = ['sc_state', 'sc_curr', 'm_state', 'm_curr', 'gps_state', 'gps_curr',
@@ -245,6 +246,7 @@ class OphClient:
                 scan_offset=self.oph_data.scan_offset,
                 scan_op=self.oph_data.scan_op,
                 scan_time=self.oph_data.scan_time,
+                scan_len=self.oph_data.scan_time,
                 target_lon=self.oph_data.target_lon,
                 target_lat=self.oph_data.target_lat,
                 target_type=self.oph_data.target_type,

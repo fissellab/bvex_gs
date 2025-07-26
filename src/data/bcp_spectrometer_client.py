@@ -57,16 +57,22 @@ class BCPSpectrometerClient:
             try:
                 self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                 self.socket.settimeout(self.timeout)
+                self.logger.debug(f"Created new UDP socket for {self.server_ip}:{self.server_port}")
             except Exception as e:
                 self.logger.error(f"Failed to create socket: {e}")
                 self.connected = False
                 return None
         
         try:
+            self.logger.debug(f"Sending request '{request}' to {self.server_ip}:{self.server_port}")
             self.socket.sendto(request.encode('utf-8'), (self.server_ip, self.server_port))
             response_data = self.socket.recv(32768)
             response = response_data.decode('utf-8')
             self.last_request_time = time.time()  # Update AFTER successful request
+            
+            # Mark as connected only after successful request-response cycle
+            if not self.connected:
+                self.logger.info(f"✅ BCP Spectrometer server connection established: {self.server_ip}:{self.server_port}")
             self.connected = True
             
             # Track data rate
@@ -82,13 +88,20 @@ class BCPSpectrometerClient:
                 
             return response
         except socket.timeout:
-            self.logger.warning(f"Request timeout after {self.timeout}s")
+            # Only log warning if we were previously connected (to avoid spam when server is off)
+            if self.connected:
+                self.logger.warning(f"❌ BCP server timeout after {self.timeout}s - server may be offline")
+            else:
+                self.logger.debug(f"Request timeout after {self.timeout}s (server still offline)")
             self.connected = False
             # Close and reset socket on timeout
             self._close_socket()
             return None
         except Exception as e:
-            self.logger.error(f"Request failed: {e}")
+            if self.connected:
+                self.logger.error(f"❌ BCP server connection lost: {e}")
+            else:
+                self.logger.debug(f"Request failed: {e}")
             self.connected = False
             # Close and reset socket on error
             self._close_socket()

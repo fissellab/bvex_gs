@@ -382,7 +382,7 @@ class SkyChartWidget(QWidget):
     
     def _draw_solar_system_objects(self, tel_frame):
         """Draw solar system objects - EXACT logic from original bvex_pointing.py"""
-        sso = ['sun','moon','mercury','venus', 'mars','jupiter','saturn', 'uranus','neptune']
+        sso = CELESTIAL_OBJECTS['solar_system'] 
         
         for obj in sso:
             try:
@@ -411,51 +411,20 @@ class SkyChartWidget(QWidget):
     
     def _draw_targets(self, tel_frame):
         """Draw observation targets - EXACT logic from original bvex_pointing.py"""
-        # W49N target - EXACT coordinates and logic from original
-        W49N = SkyCoord(ra='19h11m28.37s', dec='09d06m02.2s')
-        W49N_AltAz = W49N.transform_to(tel_frame)
-        OrionKL = SkyCoord(ra='05h35m14.16s', dec='-05d22m21.5s')
-        OrionKL_AltAz = OrionKL.transform_to(tel_frame)
-        q_3C273 = SkyCoord(ra='12h29m6.7s', dec='02d03m09s')
-        q_3C273_AltAz = q_3C273.transform_to(tel_frame)
-        q_3C279 = SkyCoord(ra='12h56m11.1s', dec='-05d47m22s')
-        q_3C279_AltAz = q_3C279.transform_to(tel_frame)
-        q_3C4543 = SkyCoord(ra='22h53m57.7s', dec='16d08m53.6s')
-        q_3C4543_AltAz = q_3C4543.transform_to(tel_frame)
-        q_4C1169 = SkyCoord(ra='22h32m36.4s', dec='11d43m50.9s')
-        q_4C1169_AltAz = q_4C1169.transform_to(tel_frame)
-        q_3C84 = SkyCoord(ra='03h19m48.2s', dec='41d30m42.1s')
-        q_3C84_AltAz = q_3C84.transform_to(tel_frame)
+        for key in CELESTIAL_OBJECTS['line'].keys():
+            target = SkyCoord(ra=CELESTIAL_OBJECTS['line'][key]['ra'],dec = CELESTIAL_OBJECTS['line'][key]['dec'])
+            target_AltAz = target.transform_to(tel_frame)
+            if target_AltAz.alt.deg >0:
+                self.ax.plot(target_AltAz.az.deg * np.pi / 180, target_AltAz.alt.deg, 'gv', markersize=9)
+                self.ax.annotate(key, xy=((target_AltAz.az.deg + 1) * np.pi / 180, target_AltAz.alt.deg + 1), size=11, color='green', weight='bold')
         
-        if(W49N_AltAz.alt.deg > 0):
-            self.ax.plot(W49N_AltAz.az.deg * np.pi / 180, W49N_AltAz.alt.deg, 'gv', markersize=9)
-            self.ax.annotate('W49N', xy=((W49N_AltAz.az.deg + 1) * np.pi / 180, W49N_AltAz.alt.deg + 1), 
-                           size=11, color='green', weight='bold')
-        if(OrionKL_AltAz.alt.deg > 0):
-            self.ax.plot(OrionKL_AltAz.az.deg * np.pi / 180, OrionKL_AltAz.alt.deg, 'gv', markersize=9)
-            self.ax.annotate('Orion KL', xy=((OrionKL_AltAz.az.deg + 1) * np.pi / 180, OrionKL_AltAz.alt.deg + 1), 
-                           size=11, color='green', weight='bold')
-                           
-        if(q_3C273_AltAz.alt.deg > 0):
-            self.ax.plot(q_3C273_AltAz.az.deg * np.pi / 180, q_3C273_AltAz.alt.deg, 'rd', markersize=9)
-            self.ax.annotate('3C 273', xy=((q_3C273_AltAz.az.deg + 5) * np.pi / 180, q_3C273_AltAz.alt.deg + 5), 
-                           size=11, color='red', weight='bold')
-        if(q_3C279_AltAz.alt.deg > 0):
-            self.ax.plot(q_3C279_AltAz.az.deg * np.pi / 180, q_3C279_AltAz.alt.deg, 'rd', markersize=9)
-            self.ax.annotate('3C 279', xy=((q_3C279_AltAz.az.deg + 5) * np.pi / 180, q_3C279_AltAz.alt.deg - 5), 
-                           size=11, color='red', weight='bold')
-        if(q_3C4543_AltAz.alt.deg > 0):
-            self.ax.plot(q_3C4543_AltAz.az.deg * np.pi / 180, q_3C4543_AltAz.alt.deg, 'rd', markersize=9)
-            self.ax.annotate('3C 454.3', xy=((q_3C4543_AltAz.az.deg + 5) * np.pi / 180, q_3C4543_AltAz.alt.deg + 5), 
-                           size=11, color='red', weight='bold')
-        if(q_4C1169_AltAz.alt.deg > 0):
-            self.ax.plot(q_4C1169_AltAz.az.deg * np.pi / 180, q_4C1169_AltAz.alt.deg, 'rd', markersize=9)
-            self.ax.annotate('4C 11.69', xy=((q_4C1169_AltAz.az.deg + 5) * np.pi / 180, q_4C1169_AltAz.alt.deg + 5), 
-                           size=11, color='red', weight='bold')
-        if(q_3C84_AltAz.alt.deg > 0):
-            self.ax.plot(q_3C84_AltAz.az.deg * np.pi / 180, q_3C84_AltAz.alt.deg, 'rd', markersize=9)
-            self.ax.annotate('3C 84', xy=((q_3C84_AltAz.az.deg + 5) * np.pi / 180, q_3C84_AltAz.alt.deg + 5), 
-                           size=11, color='red', weight='bold')
+        for key in CELESTIAL_OBJECTS['continuum'].keys():
+            target = SkyCoord(ra=CELESTIAL_OBJECTS['continuum'][key]['ra'],dec = CELESTIAL_OBJECTS['continuum'][key]['dec'])
+            target_AltAz = target.transform_to(tel_frame)
+            if target_AltAz.alt.deg>0:
+                self.ax.plot(target_AltAz.az.deg * np.pi / 180, target_AltAz.alt.deg, 'rd', markersize=9)
+                self.ax.annotate(key, xy=((target_AltAz.az.deg + 5) * np.pi / 180, target_AltAz.alt.deg + 5), size=11, color='red', weight='bold')
+        
     def _draw_milky_way(self, tel_frame):
         gal_lats = np.linspace(-10,10,num=30)
         for bs in gal_lats:
