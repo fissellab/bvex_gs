@@ -97,6 +97,7 @@ class StarCameraWidget(QWidget):
         # History for data rate calculation
         self.update_times = deque(maxlen=10)
         
+        
         self.setup_ui()
         self.setup_worker_thread()
         
@@ -247,6 +248,50 @@ class StarCameraWidget(QWidget):
             
             # Show static display
             self.setup_static_display()
+        """Save current image to disk for data logging"""
+        try:
+            if not self.current_image or not self.current_image.valid:
+                return
+                
+            # Import here to avoid circular imports
+            from src.data.data_logging_orchestrator import DataLoggingOrchestrator
+            
+            # Get the orchestrator from the main application
+            orchestrator = None
+            parent = self.parent()
+            while parent:
+                if hasattr(parent, 'data_logging_orchestrator'):
+                    orchestrator = parent.data_logging_orchestrator
+                    break
+                parent = parent.parent()
+            
+            if orchestrator and orchestrator.is_logging_active():
+                # Save image using ImageDataLogger
+                image_logger = orchestrator.get_image_logger('star_camera')
+                if image_logger:
+                    timestamp = dt.datetime.now()
+                    image_data = self.current_image.image_data
+                    
+                    # Save with metadata
+                    metadata = {
+                        'timestamp': timestamp.isoformat(),
+                        'width': self.current_image.width,
+                        'height': self.current_image.height,
+                        'compression_quality': self.current_image.compression_quality,
+                        'blob_count': self.current_image.blob_count,
+                        'telescope_ra': self.current_telemetry.sc_ra,
+                        'telescope_dec': self.current_telemetry.sc_dec,
+                        'telescope_az': self.current_telemetry.sc_az,
+                        'telescope_alt': self.current_telemetry.sc_alt,
+                        'exposure_time': self.current_telemetry.sc_texp,
+                        'focus_position': self.current_telemetry.sc_curr_focus
+                    }
+                    
+                    image_logger.save_image(image_data, metadata, quality=self.image_quality)
+                    
+        except Exception as e:
+            self.logger.error(f"Error saving image: {e}")
+    
     def clear_widget(self,layout):
         """Recursively clear all widgets and layouts from the given layout"""
         for i in reversed(range(layout.count())):
@@ -632,6 +677,7 @@ class StarCameraWidget(QWidget):
             self.display_image(new_image)
             self.update_info_labels()
             self.download_progress_label.setText("Download: Complete")
+            
             
         else:
             # Handle case where no image is available

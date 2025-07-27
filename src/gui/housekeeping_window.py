@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (QMainWindow, QVBoxLayout, QHBoxLayout,
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QIcon, QAction
 
-from src.data.data_logger import DataLogger
+from src.data.data_logging_orchestrator import DataLoggingOrchestrator
 from src.config.settings import GUI, PR59_SERVER, HEATER_SERVER
 from src.gui.pbob_widget import PBoBWidget
 from src.gui.pr59_widget import PR59Widget
@@ -31,8 +31,8 @@ class HousekeepingWindow(QMainWindow):
         self.pointing_window = pointing_window
         self.telescope_data_window = telescope_data_window
         
-        # Data logger will be initialized after UI setup
-        self.data_logger = None
+        # Data logging orchestrator will be initialized after UI setup
+        self.data_logging_orchestrator = None
         
         # Widgets now manage their own independent OphClients
         self.logger.info("Housekeeping window initialized - widgets use independent OphClients")
@@ -193,14 +193,86 @@ class HousekeepingWindow(QMainWindow):
         panel_layout.addWidget(self.data_logging_file_label)
     
     def setup_data_logger(self):
-        """Setup the comprehensive data logger (adapted from main_window.py)"""
+        """Setup the new data logging orchestrator"""
         try:
-            # Initialize data logger with reference to this housekeeping window
-            self.data_logger = DataLogger(main_window=self)
-            self.logger.info("Data logger initialized successfully - using GUI widget data sources")
+            from src.data.loggers.gps_logger import GPSDataLogger
+            from src.data.loggers.spectrometer_logger import SpectrometerDataLogger
+            from src.data.loggers.star_camera_logger import StarCameraDataLogger
+            from src.data.loggers.motor_controller_logger import MotorControllerDataLogger
+            from src.data.loggers.pr59_logger import PR59DataLogger
+            from src.data.loggers.heater_logger import HeaterDataLogger
+            from src.data.loggers.ophiuchus_logger import OphiuchusDataLogger
+
+            # Initialize orchestrator
+            self.data_logging_orchestrator = DataLoggingOrchestrator()
+            
+            # Register loggers for available widgets
+            if self.pointing_window:
+                if hasattr(self.pointing_window, 'gps_display_widget'):
+                    gps_logger = GPSDataLogger(
+                        self.data_logging_orchestrator.session_manager,
+                        self.pointing_window.gps_display_widget
+                    )
+                    self.data_logging_orchestrator.register_logger('gps', gps_logger)
+                
+                if hasattr(self.pointing_window, 'star_camera_widget'):
+                    star_camera_logger = StarCameraDataLogger(
+                        self.data_logging_orchestrator.session_manager,
+                        self.pointing_window.star_camera_widget
+                    )
+                    self.data_logging_orchestrator.register_logger('star_camera', star_camera_logger)
+                    self.data_logging_orchestrator.register_image_logger(
+                        'star_camera', star_camera_logger.image_logger
+                    )
+                
+                if hasattr(self.pointing_window, 'motor_controller_widget'):
+                    motor_logger = MotorControllerDataLogger(
+                        self.data_logging_orchestrator.session_manager,
+                        self.pointing_window.motor_controller_widget
+                    )
+                    self.data_logging_orchestrator.register_logger('motor_controller', motor_logger)
+                
+                if hasattr(self.pointing_window, 'scanning_operations_widget'):
+                    scanning_logger = OphiuchusDataLogger(
+                        self.data_logging_orchestrator.session_manager,
+                        self.pointing_window.scanning_operations_widget
+                    )
+                    self.data_logging_orchestrator.register_logger('ophiuchus_scanning', scanning_logger)
+            
+            if self.telescope_data_window:
+                if hasattr(self.telescope_data_window, 'spectra_widget'):
+                    spectrometer_logger = SpectrometerDataLogger(
+                        self.data_logging_orchestrator.session_manager,
+                        self.telescope_data_window.spectra_widget
+                    )
+                    self.data_logging_orchestrator.register_logger('spectrometer', spectrometer_logger)
+            
+            # Register household loggers
+            pr59_logger = PR59DataLogger(
+                self.data_logging_orchestrator.session_manager,
+                self.pr59_widget
+            )
+            self.data_logging_orchestrator.register_logger('pr59_temperature', pr59_logger)
+            
+            heater_logger = HeaterDataLogger(
+                self.data_logging_orchestrator.session_manager,
+                self.heater_widget
+            )
+            self.data_logging_orchestrator.register_logger('heater_system', heater_logger)
+            
+            # Register PBoB logger
+            from src.data.loggers.pbob_logger import PBoBDataLogger
+            pbob_logger = PBoBDataLogger(
+                self.data_logging_orchestrator.session_manager,
+                self.pbob_widget
+            )
+            self.data_logging_orchestrator.register_logger('pbob', pbob_logger)
+            
+            self.logger.info("Data logging orchestrator initialized successfully")
+            
         except Exception as e:
-            self.logger.error(f"Failed to initialize data logger: {e}")
-            self.data_logger = None
+            self.logger.error(f"Failed to initialize data logging orchestrator: {e}")
+            self.data_logging_orchestrator = None
     
     def setup_menu_bar(self):
         """Create housekeeping window menu bar"""
@@ -234,48 +306,43 @@ class HousekeepingWindow(QMainWindow):
         self.status_bar.showMessage("Housekeeping Window Ready", 3000)
     
     def toggle_data_logging(self):
-        """Toggle data logging on/off (adapted from main_window.py)"""
-        if not self.data_logger:
+        """Toggle data logging on/off using new orchestrator"""
+        if not self.data_logging_orchestrator:
             QMessageBox.warning(
                 self, 
-                "Data Logger Error", 
-                "Data logger is not initialized. Please restart the application."
+                "Data Logging Error", 
+                "Data logging orchestrator is not initialized. Please restart the application."
             )
             return
         
         try:
-            if self.data_logger.is_active():
+            if self.data_logging_orchestrator.is_logging_active():
                 # Stop logging
-                self.data_logger.stop_logging()
-                self.update_data_logging_ui(False)
-                self.status_bar.showMessage("Data logging stopped", 3000)
-                self.logger.info("Data logging stopped by user")
-            else:
-                # Start or resume logging
-                if self.data_logger.get_log_file_path():
-                    # Resume existing log
-                    if self.data_logger.resume_logging():
-                        self.update_data_logging_ui(True)
-                        self.status_bar.showMessage("Data logging resumed", 3000)
-                        self.logger.info("Data logging resumed by user")
-                    else:
-                        QMessageBox.warning(
-                            self, 
-                            "Data Logging Error", 
-                            "Failed to resume data logging. Check the logs for details."
-                        )
+                success = self.data_logging_orchestrator.stop_logging()
+                if success:
+                    self.update_data_logging_ui(False)
+                    self.status_bar.showMessage("Data logging stopped", 3000)
+                    self.logger.info("Data logging stopped by user")
                 else:
-                    # Start new log
-                    if self.data_logger.start_logging():
-                        self.update_data_logging_ui(True)
-                        self.status_bar.showMessage("Data logging started", 3000)
-                        self.logger.info("Data logging started by user")
-                    else:
-                        QMessageBox.warning(
-                            self, 
-                            "Data Logging Error", 
-                            "Failed to start data logging. Check the logs for details."
-                        )
+                    QMessageBox.warning(
+                        self, 
+                        "Data Logging Error", 
+                        "Failed to stop data logging. Check the logs for details."
+                    )
+            else:
+                # Start new session
+                success = self.data_logging_orchestrator.start_logging()
+                if success:
+                    self.update_data_logging_ui(True)
+                    session_path = self.data_logging_orchestrator.get_session_path()
+                    self.status_bar.showMessage(f"Data logging started: {session_path}", 3000)
+                    self.logger.info(f"Data logging started by user: {session_path}")
+                else:
+                    QMessageBox.warning(
+                        self, 
+                        "Data Logging Error", 
+                        "Failed to start data logging. Check the logs for details."
+                    )
         except Exception as e:
             self.logger.error(f"Error toggling data logging: {e}")
             QMessageBox.critical(
@@ -318,14 +385,14 @@ class HousekeepingWindow(QMainWindow):
                 self.data_logging_status_label.setStyleSheet("QLabel { color: #28a745; border: none; margin: 0px; font-weight: bold; }")
                 
             # Update file label
-            if hasattr(self, 'data_logging_file_label') and self.data_logger:
-                log_file = self.data_logger.get_log_file_path()
-                if log_file:
-                    filename = os.path.basename(log_file)
+            if hasattr(self, 'data_logging_file_label') and self.data_logging_orchestrator:
+                session_path = self.data_logging_orchestrator.get_session_path()
+                if session_path:
+                    session_name = os.path.basename(session_path)
                     # Truncate filename if too long
-                    if len(filename) > 20:
-                        filename = filename[:17] + "..."
-                    self.data_logging_file_label.setText(f"{filename}")
+                    if len(session_name) > 20:
+                        session_name = session_name[:17] + "..."
+                    self.data_logging_file_label.setText(f"{session_name}")
         else:
             # Update menu action
             self.toggle_logging_action.setText('&Start Data Logging')
@@ -362,31 +429,30 @@ class HousekeepingWindow(QMainWindow):
                 self.data_logging_file_label.setText("No log file")
     
     def show_log_file_location(self):
-        """Show the current log file location (adapted from main_window.py)"""
-        if not self.data_logger:
+        """Show the current session location"""
+        if not self.data_logging_orchestrator:
             QMessageBox.information(
                 self, 
                 "Data Logger", 
-                "Data logger is not initialized."
+                "Data logging orchestrator is not initialized."
             )
             return
         
-        log_file = self.data_logger.get_log_file_path()
-        if log_file:
-            log_dir = os.path.dirname(log_file)
-            log_filename = os.path.basename(log_file)
+        session_path = self.data_logging_orchestrator.get_session_path()
+        if session_path:
+            session_name = os.path.basename(session_path)
             
             msg = QMessageBox()
             msg.setIcon(QMessageBox.Icon.Information)
-            msg.setWindowTitle("Data Log File Location")
-            msg.setText(f"Current log file:\n{log_filename}")
-            msg.setDetailedText(f"Full path:\n{log_file}\n\nDirectory:\n{log_dir}")
+            msg.setWindowTitle("Data Log Session Location")
+            msg.setText(f"Current session:\n{session_name}")
+            msg.setDetailedText(f"Full path:\n{session_path}")
             msg.exec()
         else:
             QMessageBox.information(
                 self, 
                 "Data Log File Location", 
-                "No active log file. Start data logging to create a new log file."
+                "No active session. Start data logging to create a new session."
             )
     
     def closeEvent(self, event):
@@ -396,8 +462,8 @@ class HousekeepingWindow(QMainWindow):
         # Cleanup components
         try:
             # Data logger cleanup
-            if hasattr(self, 'data_logger') and self.data_logger:
-                self.data_logger.stop_logging()
+            if hasattr(self, 'data_logging_orchestrator') and self.data_logging_orchestrator:
+                self.data_logging_orchestrator.stop_logging()
                 self.logger.info("Data logging stopped during shutdown")
             
             # PBoB widget cleanup
