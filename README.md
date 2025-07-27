@@ -88,6 +88,53 @@ bvex_gs/
 └── README.md                   # This documentation
 ```
 
+## Data Logging System
+
+### Overview
+The BVEX Ground Station now features a comprehensive per-widget data logging system that replaces the previous monolithic CSV logger. This system provides timestamped session directories and widget-specific data logging with automatic cleanup.
+
+### Key Features
+- **Timestamped Session Directories**: `data/YYYY-MM-DD_HH-MM-SS_session/`
+- **Per-widget Data Logging**: Each instrument has its own dedicated logger
+- **Complete Spectra Logging**: Full 2048-point spectrometer data with timestamps
+- **Image Saving**: Star camera images saved as JPEG at 100% quality
+- **PBoB Logging**: Power distribution box relay states and current measurements
+- **Single Toggle Control**: One button in HousekeepingWindow controls all logging
+- **Active State Checking**: Only logs data when widgets are turned ON
+
+### Supported Loggers
+1. **GPS Data Logger** - Position and telemetry data
+2. **Spectrometer Logger** - Complete 2048-point spectra with timestamps
+3. **Star Camera Logger** - Image metadata and actual image files
+4. **Motor Controller Logger** - Motor positions and status
+5. **PR59 Logger** - Temperature controller data
+6. **Heater Logger** - Heater system relay states and temperatures
+7. **PBoB Logger** - Power distribution box relay states and currents
+8. **Ophiuchus Logger** - Integrated telescope telemetry
+
+### File Structure
+```
+data/
+└── 2025-07-27_00-01-47_session/
+    ├── gps_data.csv
+    ├── spectrometer_data.csv
+    ├── star_camera_data.csv
+    ├── motor_controller_data.csv
+    ├── pr59_temperature_data.csv
+    ├── heater_system_data.csv
+    ├── pbob_data.csv
+    ├── ophiuchus_data.csv
+    └── star_camera/
+        ├── image_20250727_000100.jpg
+        ├── image_20250727_000110.jpg
+        └── thumbnails/
+```
+
+### Usage
+- **Start Logging**: Toggle "Start Data Logging" in HousekeepingWindow
+- **Session Management**: Automatic creation and cleanup of old sessions
+- **Data Access**: All files accessible via session directory or through UI
+
 ## Technical Specifications
 
 ### Dependencies
@@ -101,6 +148,7 @@ bvex_gs/
 - **GPS Server**: UDP communication on configurable IP/port (default: 100.70.234.8:8080)
 - **BCP Spectrometer**: UDP communication on configurable IP/port (default: 100.70.234.8:8081)
 - **Star Camera**: UDP communication on configurable IP/port (default: 100.70.234.8:8001)
+- **PBoB System**: UDP communication via Ophiuchus server (default: 100.85.84.122:8002)
 - **Protocol**: Custom message formats with error handling and validation
 
 ### Data Processing
@@ -108,6 +156,7 @@ bvex_gs/
 - **Astronomical Calculations**: Astropy-based coordinate transformations and ephemeris data
 - **Spectrum Analysis**: Frequency domain processing with power integration
 - **Time Synchronization**: UTC-based timing for all astronomical calculations
+- **Data Logging**: Real-time collection and storage of all instrument data
 
 ## Installation and Setup
 
