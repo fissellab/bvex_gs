@@ -12,7 +12,7 @@ from PyQt6.QtGui import QFont, QPainter, QColor
 from datetime import datetime
 
 from src.data.heater_client import HeaterClient, HeaterData
-from src.config.settings import HEATER_SERVER
+from src.config.settings import HEATER_SERVER, HEATER_TELEMETRY
 
 
 class StatusIndicator(QLabel):
@@ -262,18 +262,21 @@ class HeaterWidget(QWidget):
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(8)
         
-        # Info text
+        # Info text - Updated to match guide specifications
         info_text = QLabel("""
-Heater System Control
+Heater System Control (HEATER_CLIENT_GUIDE.md)
 
-- Lock Pin Heater (Temp-controlled)
-- Star Camera Heater (Temp-controlled)  
-- PV Panel Heater (Manual-only)
-- Motor Heater (Temp-controlled)
-- Ethernet Switch Heater (Temp-controlled)
+Individual Heater Components:
+- Star Camera Heater (28-30°C auto)
+- Motor Heater (25-27°C auto)  
+- Ethernet Switch Heater (20-22°C auto)
+- Lock Pin Heater (15-17°C auto)
+- Spare/General Heater (Manual only)
 
-Total Current Limit: 3A
-Temperature Range: 28-30°C (auto)
+System Limits:
+• Total Current Limit: 3A
+• Priority-based control (coldest first)
+• Real-time telemetry monitoring
         """.strip())
         info_text.setFont(QFont("Arial", 10))
         info_text.setStyleSheet("QLabel { color: #6c757d; border: none; }")
@@ -298,32 +301,32 @@ Temperature Range: 28-30°C (auto)
         # Create field labels and button storage
         self.status_indicators = {}
         self.toggle_buttons = {}
-        
-        # Heater controls - organized by type
-        row = 0
+        self.temp_labels = {}
+        self.current_labels = {}
         
         # Headers
-        headers = ["Heater", "Status", "Control", "Type"]
+        headers = ["Component", "Status", "Temp (°C)", "Current (A)", "Control"]
         for col, header in enumerate(headers):
             header_label = QLabel(f"{header}:")
             header_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
             header_label.setStyleSheet("QLabel { color: #495057; border: none; background: transparent; }")
             header_label.setAlignment(Qt.AlignmentFlag.AlignCenter if col > 0 else Qt.AlignmentFlag.AlignLeft)
             header_label.setMinimumHeight(26)
-            layout.addWidget(header_label, row, col)
-        row += 1
+            layout.addWidget(header_label, 0, col)
         
-        # Heater definitions
+        # Heater definitions - CORRECTED according to guide
+        # Command -> Component mapping from guide
         heaters = [
-            ("Lock Pin", "lockpin", "Temp-Ctrl"),
-            ("Star Camera", "starcamera", "Temp-Ctrl"),
-            ("PV Panel", "pv",  "Manual"),
-            ("Motor", "motor", "Temp-Ctrl"),
-            ("Ethernet", "ethernet", "Temp-Ctrl" )
+            ("Star Camera", "starcam", "Auto (28-30°C)", "toggle_starcam_auto"),
+            ("Motor", "motor", "Auto (25-27°C)", "toggle_motor_auto"),
+            ("Ethernet Switch", "ethernet", "Auto (20-22°C)", "toggle_ethernet_auto"),
+            ("Lock Pin", "lockpin", "Auto (15-17°C)", "toggle_lockpin_auto"),
+            ("Spare/General", "spare", "Manual Only", "toggle_spare_heater")
         ]
         
-        for heater_name, heater_key, heater_type in heaters:
-            # Heater name
+        row = 1
+        for heater_name, heater_key, heater_type, method_name in heaters:
+            # Component name
             name_label = QLabel(f"{heater_name}:")
             name_label.setFont(QFont("Arial", 10))
             name_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
@@ -334,6 +337,22 @@ Temperature Range: 28-30°C (auto)
             indicator = StatusIndicator()
             layout.addWidget(indicator, row, 1, Qt.AlignmentFlag.AlignCenter)
             self.status_indicators[heater_key] = indicator
+            
+            # Temperature display
+            temp_label = QLabel("--")
+            temp_label.setFont(QFont("Arial", 9))
+            temp_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            temp_label.setStyleSheet("QLabel { color: #6c757d; border: none; background: transparent; }")
+            layout.addWidget(temp_label, row, 2)
+            self.temp_labels[heater_key] = temp_label
+            
+            # Current display
+            current_label = QLabel("--")
+            current_label.setFont(QFont("Arial", 9))
+            current_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            current_label.setStyleSheet("QLabel { color: #6c757d; border: none; background: transparent; }")
+            layout.addWidget(current_label, row, 3)
+            self.current_labels[heater_key] = current_label
             
             # Toggle button
             toggle_btn = QPushButton("Toggle")
@@ -352,16 +371,9 @@ Temperature Range: 28-30°C (auto)
                     background-color: #0056b3;
                 }
             """)
-            toggle_btn.clicked.connect(lambda checked, key=heater_key: self.toggle_heater(key))
-            layout.addWidget(toggle_btn, row, 2, Qt.AlignmentFlag.AlignCenter)
+            toggle_btn.clicked.connect(lambda checked, method=method_name: self.toggle_heater_new(method))
+            layout.addWidget(toggle_btn, row, 4, Qt.AlignmentFlag.AlignCenter)
             self.toggle_buttons[heater_key] = toggle_btn
-            
-            # Type label
-            type_label = QLabel(heater_type)
-            type_label.setFont(QFont("Arial", 9))
-            type_label.setAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
-            type_label.setStyleSheet("QLabel { color: #868e96; border: none; background: transparent; }")
-            layout.addWidget(type_label, row, 3)
             
             row += 1
         
@@ -379,12 +391,38 @@ Temperature Range: 28-30°C (auto)
         self.system_status_label = QLabel("Unknown")
         self.system_status_label.setFont(QFont("Arial", 10))
         self.system_status_label.setStyleSheet("QLabel { color: #6c757d; border: none; background: transparent; }")
-        layout.addWidget(self.system_status_label, row, 1, 1, 3)
+        layout.addWidget(self.system_status_label, row, 1, 1, 2)
+        
+        # Total current display
+        self.total_current_label = QLabel("Total: -- A")
+        self.total_current_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        self.total_current_label.setStyleSheet("QLabel { color: #495057; border: none; background: transparent; }")
+        layout.addWidget(self.total_current_label, row, 3, 1, 2)
         
         return data_frame
     
+    def toggle_heater_new(self, method_name):
+        """Toggle a specific heater using the correct method"""
+        try:
+            # Get the method from the heater client
+            if hasattr(self.heater_client, method_name):
+                method = getattr(self.heater_client, method_name)
+                success = method()
+                if success:
+                    self.logger.info(f"Successfully executed {method_name}")
+                    # Update display immediately
+                    self.update_display()
+                else:
+                    self.logger.warning(f"Failed to execute {method_name}")
+            else:
+                self.logger.error(f"Method {method_name} not found in heater client")
+                    
+        except Exception as e:
+            self.logger.error(f"Error executing {method_name}: {e}")
+    
     def toggle_heater(self, heater_key):
-        """Toggle a specific heater"""
+        """Legacy toggle method - deprecated"""
+        self.logger.warning(f"Using legacy toggle_heater method for {heater_key} - this may have incorrect mappings!")
         try:
             # Get the appropriate toggle method
             toggle_methods = {
@@ -413,7 +451,7 @@ Temperature Range: 28-30°C (auto)
             return
         
         try:
-            # Get current data
+            # Get current data (which will update telemetry)
             data = self.heater_client.get_current_data()
             
             # Update connection status
@@ -426,21 +464,52 @@ Temperature Range: 28-30°C (auto)
             
             # Update system status
             if data.system_online:
-                if data.last_command_success:
-                    self.system_status_label.setText("Online - Last command: Success")
+                if data.system_running:
+                    self.system_status_label.setText("Online & Running")
                     self.system_status_label.setStyleSheet("QLabel { color: #28a745; border: none; }")
                 else:
-                    self.system_status_label.setText(f"Online - Error: {data.last_error}")
+                    self.system_status_label.setText("Online but Stopped")
                     self.system_status_label.setStyleSheet("QLabel { color: #ffc107; border: none; }")
             else:
                 self.system_status_label.setText(f"Offline - {data.last_error}")
                 self.system_status_label.setStyleSheet("QLabel { color: #dc3545; border: none; }")
             
-            # Update status indicators (we don't have actual state feedback, so show unknown)
-            for key, indicator in self.status_indicators.items():
-                # Since the heater server only accepts toggle commands and doesn't provide status,
-                # we show unknown status (gray indicators)
-                indicator.set_status(None)
+            # Update total current
+            if data.total_current > 0:
+                current_color = "#dc3545" if data.total_current > 2.5 else "#28a745"  # Red if near 3A limit
+                self.total_current_label.setText(f"Total: {data.total_current:.2f} A")
+                self.total_current_label.setStyleSheet(f"QLabel {{ color: {current_color}; border: none; }}")
+            else:
+                self.total_current_label.setText("Total: -- A")
+                self.total_current_label.setStyleSheet("QLabel { color: #6c757d; border: none; }")
+            
+            # Update individual heater status indicators and telemetry
+            heater_data_map = {
+                'starcam': (data.starcam_state, data.starcam_temp, data.starcam_current),
+                'motor': (data.motor_state, data.motor_temp, data.motor_current),
+                'ethernet': (data.ethernet_state, data.ethernet_temp, data.ethernet_current),
+                'lockpin': (data.lockpin_state, data.lockpin_temp, data.lockpin_current),
+                'spare': (data.spare_state, data.spare_temp, data.spare_current)
+            }
+            
+            for key, (state, temp, current) in heater_data_map.items():
+                # Update status indicator
+                if key in self.status_indicators:
+                    self.status_indicators[key].set_status(state)
+                
+                # Update temperature display
+                if key in self.temp_labels:
+                    if temp > 0:
+                        self.temp_labels[key].setText(f"{temp:.1f}")
+                    else:
+                        self.temp_labels[key].setText("--")
+                
+                # Update current display  
+                if key in self.current_labels:
+                    if current > 0:
+                        self.current_labels[key].setText(f"{current:.2f}")
+                    else:
+                        self.current_labels[key].setText("--")
                 
         except Exception as e:
             self.logger.error(f"Error updating heater display: {e}")

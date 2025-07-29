@@ -16,23 +16,15 @@ class HeaterDataLogger(WidgetDataLogger):
         """Initialize heater system data logger
         
         Args:
-            session_manager: SessionManager instance
-            heater_widget: HeaterWidget instance
+            session_manager: Session manager for file handling
+            heater_widget: Reference to heater widget for data collection
         """
+        # Define CSV headers - updated for new data structure
         headers = [
-            'timestamp',
-            'datetime_utc',
-            'lockpin_state',
-            'starcamera_state',
-            'pv_state',
-            'motor_state',
-            'ethernet_state',
-            'lockpin_temp',
-            'starcamera_temp',
-            'pv_temp',
-            'motor_temp',
-            'ethernet_temp',
-            'valid'
+            'starcam_state', 'motor_state', 'ethernet_state', 'lockpin_state', 'spare_state',
+            'starcam_temp', 'motor_temp', 'ethernet_temp', 'lockpin_temp', 'spare_temp',
+            'starcam_current', 'motor_current', 'ethernet_current', 'lockpin_current', 'spare_current',
+            'total_current', 'system_running', 'valid'
         ]
         
         super().__init__(session_manager, 'heater_system', headers)
@@ -49,23 +41,31 @@ class HeaterDataLogger(WidgetDataLogger):
             if not hasattr(self.heater_widget, 'is_active') or not self.heater_widget.is_active:
                 return {}
                 
-            # Get current data from widget
-            current_data = self.heater_widget.current_data
-            
-            if current_data and current_data.valid:
-                return {
-                    'lockpin_state': self._bool_to_int(current_data.lockpin_state),
-                    'starcamera_state': self._bool_to_int(current_data.starcamera_state),
-                    'pv_state': self._bool_to_int(current_data.pv_state),
-                    'motor_state': self._bool_to_int(current_data.motor_state),
-                    'ethernet_state': self._bool_to_int(current_data.ethernet_state),
-                    'lockpin_temp': current_data.lockpin_temp,
-                    'starcamera_temp': current_data.starcamera_temp,
-                    'pv_temp': current_data.pv_temp,
-                    'motor_temp': current_data.motor_temp,
-                    'ethernet_temp': current_data.ethernet_temp,
-                    'valid': current_data.valid
-                }
+            # Get current data from widget's heater client
+            if hasattr(self.heater_widget, 'heater_client'):
+                current_data = self.heater_widget.heater_client.get_current_data()
+                
+                if current_data and current_data.valid:
+                    return {
+                        'starcam_state': self._bool_to_int(current_data.starcam_state),
+                        'motor_state': self._bool_to_int(current_data.motor_state),
+                        'ethernet_state': self._bool_to_int(current_data.ethernet_state),
+                        'lockpin_state': self._bool_to_int(current_data.lockpin_state),
+                        'spare_state': self._bool_to_int(current_data.spare_state),
+                        'starcam_temp': current_data.starcam_temp,
+                        'motor_temp': current_data.motor_temp,
+                        'ethernet_temp': current_data.ethernet_temp,
+                        'lockpin_temp': current_data.lockpin_temp,
+                        'spare_temp': current_data.spare_temp,
+                        'starcam_current': current_data.starcam_current,
+                        'motor_current': current_data.motor_current,
+                        'ethernet_current': current_data.ethernet_current,
+                        'lockpin_current': current_data.lockpin_current,
+                        'spare_current': current_data.spare_current,
+                        'total_current': current_data.total_current,
+                        'system_running': self._bool_to_int(current_data.system_running),
+                        'valid': current_data.valid
+                    }
             
             # No valid data when widget is inactive
             return {}
