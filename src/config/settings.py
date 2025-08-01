@@ -5,7 +5,7 @@ BVEX Ground Station Configuration Settings
 # GPS Server Configuration
 GPS_SERVER = {
     'host': '100.70.234.8',
-    'port': 8080,  # You'll need to verify this port
+    'port': 8082,  # General telemetry server on Saggitarius
     'request_message': 'GET_GPS',
     'timeout': 5.0,
     'update_interval': 1.0  # 1 second between requests (1 Hz)
