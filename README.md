@@ -111,6 +111,7 @@ The BVEX Ground Station now features a comprehensive per-widget data logging sys
 6. **Heater Logger** - Heater system relay states and temperatures
 7. **PBoB Logger** - Power distribution box relay states and currents
 8. **Ophiuchus Logger** - Integrated telescope telemetry
+9. **System Monitor Logger** - Flight computer CPU, memory, and storage metrics
 
 ### File Structure
 ```

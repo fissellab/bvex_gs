@@ -223,6 +223,13 @@ class NetworkTrafficWidget(QWidget):
                     rate = self.telescope_data_window.spectra_widget.get_data_rate_kbps()
                     if rate > 0:
                         client_rates['BCP Spectrometer'] = rate
+                
+                # VLBI Telemetry Widget
+                if (hasattr(self.telescope_data_window, 'vlbi_widget') and 
+                    self.telescope_data_window.vlbi_widget.is_vlbi_active()):
+                    rate = self.telescope_data_window.vlbi_widget.get_data_rate_kbps()
+                    if rate > 0:
+                        client_rates['VLBI Telemetry'] = rate
             
             # From Housekeeping Window
             if self.housekeeping_window:
@@ -244,6 +251,13 @@ class NetworkTrafficWidget(QWidget):
                     self.housekeeping_window.heater_widget.is_active):
                     # Heater requests are very small and infrequent, estimate ~0.05 KB/s when active
                     client_rates['Heater System'] = 0.05
+                
+                # System Monitor Widget
+                if (hasattr(self.housekeeping_window, 'system_monitor_widget') and 
+                    self.housekeeping_window.system_monitor_widget.is_monitoring_active()):
+                    rate = self.housekeeping_window.system_monitor_widget.get_data_rate_kbps()
+                    if rate > 0:
+                        client_rates['System Monitor'] = rate
                     
         except Exception as e:
             self.logger.error(f"Error collecting bandwidth data: {e}")

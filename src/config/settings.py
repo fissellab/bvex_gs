@@ -59,6 +59,30 @@ HEATER_TELEMETRY = {
     'update_interval': 2.0
 }
 
+# VLBI Telemetry Configuration
+VLBI_SERVER = {
+    'host': '100.70.234.8',  # Saggitarius system IP (same as GPS/PR59)
+    'port': 8082,  # Same telemetry port as GPS/PR59 (VLBI commands on same server)
+    'timeout': 5.0,
+    'update_interval': 1.0   # 1 second between requests
+}
+
+# System Monitor Configuration
+SYSTEM_MONITOR = {
+    'ophiuchus': {
+        'host': '100.85.84.122',  # Ophiuchus system IP
+        'port': 8002,  # Corrected port - same as OPH_SERVER
+        'timeout': 5.0,
+        'update_interval': 10.0   # 10 seconds between requests (system stats don't change rapidly)
+    },
+    'saggitarius': {
+        'host': '100.70.234.8',  # Saggitarius system IP (same as GPS/PR59)
+        'port': 8082,  # Same telemetry port as other widgets
+        'timeout': 5.0,
+        'update_interval': 10.0   # 10 seconds between requests
+    }
+}
+
 # GPS Data Processing
 GPS_PROCESSING = {
     'heading_offset': 0.0,  # degrees - constant offset to add to GPS heading

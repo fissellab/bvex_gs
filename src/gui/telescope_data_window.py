@@ -12,6 +12,7 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QIcon, QAction
 
 from src.gui.spectra_display_widget import SpectraDisplayWidget
+from src.gui.vlbi_telemetry_widget import VLBITelemetryWidget
 from src.config.settings import GUI
 
 
@@ -47,21 +48,32 @@ class TelescopeDataWindow(QMainWindow):
         central_widget.setStyleSheet("QWidget { background-color: white; }")
         self.setCentralWidget(central_widget)
         
-        # Use QGridLayout: 1 row, 1 column with widget centering
+        # Use QGridLayout: 1 row, 2 columns (spectrometer on left, VLBI on right)
         main_layout = QGridLayout(central_widget)
         main_layout.setContentsMargins(10, 10, 10, 10)
-        main_layout.setSpacing(10)
+        main_layout.setSpacing(15)
         
-        # Spectra display widget (much larger now) - Row 0, Column 0
+        # Spectra display widget - Row 0, Column 0 (left side, larger)
         self.spectra_widget = SpectraDisplayWidget()
-        self.spectra_widget.setMinimumSize(1200, 800)  # Much larger than before
-        self.spectra_widget.setMaximumSize(1600, 1000)
+        self.spectra_widget.setMinimumSize(900, 600)  # Reduced from 1200x800 to make room for VLBI
+        self.spectra_widget.setMaximumSize(1200, 800)  # Reduced from 1600x1000
         
-        main_layout.addWidget(self.spectra_widget, 0, 0, Qt.AlignmentFlag.AlignCenter)
+        main_layout.addWidget(self.spectra_widget, 0, 0)
+        
+        # VLBI telemetry widget - Row 0, Column 1 (right side, smaller)
+        self.vlbi_widget = VLBITelemetryWidget()
+        self.vlbi_widget.setMinimumSize(400, 300)
+        self.vlbi_widget.setMaximumSize(500, 400)
+        
+        main_layout.addWidget(self.vlbi_widget, 0, 1, Qt.AlignmentFlag.AlignTop)
+        
+        # Set column stretch factors (spectrometer gets more space)
+        main_layout.setColumnStretch(0, 3)  # Spectrometer: 75% width
+        main_layout.setColumnStretch(1, 1)  # VLBI: 25% width
         
         # Set window properties - adaptive sizing for multi-monitor setups
-        width, height = self.get_safe_window_size(0.70, 0.70)  # 70% width, 70% height for spectra focus
-        self.setMinimumSize(max(1000, width//2), max(700, height//2))  # Reasonable minimum
+        width, height = self.get_safe_window_size(0.85, 0.70)  # Increased width to 85% for both widgets
+        self.setMinimumSize(max(1300, width//2), max(700, height//2))  # Increased minimum width
         self.resize(width, height)
     
     def setup_menu_bar(self):
@@ -83,6 +95,19 @@ class TelescopeDataWindow(QMainWindow):
         refresh_spectra_action = QAction('&Refresh Spectra', self)
         refresh_spectra_action.triggered.connect(lambda: self.spectra_widget.trigger_fetch() if self.spectra_widget.is_spectrometer_active() else None)
         spectrometer_menu.addAction(refresh_spectra_action)
+        
+        # VLBI menu
+        vlbi_menu = menubar.addMenu('&VLBI')
+        
+        # Start/Stop VLBI monitoring
+        toggle_vlbi_action = QAction('&Toggle VLBI Monitor', self)
+        toggle_vlbi_action.triggered.connect(lambda: self.vlbi_widget.toggle_state())
+        vlbi_menu.addAction(toggle_vlbi_action)
+        
+        # Force refresh VLBI data
+        refresh_vlbi_action = QAction('&Refresh VLBI Data', self)
+        refresh_vlbi_action.triggered.connect(lambda: self.vlbi_widget.trigger_fetch() if self.vlbi_widget.is_vlbi_active() else None)
+        vlbi_menu.addAction(refresh_vlbi_action)
     
     def setup_status_bar(self):
         """Create status bar for telescope data window"""
@@ -98,6 +123,10 @@ class TelescopeDataWindow(QMainWindow):
             # Spectra widget cleanup
             if hasattr(self, 'spectra_widget'):
                 self.spectra_widget.cleanup()
+            
+            # VLBI widget cleanup
+            if hasattr(self, 'vlbi_widget'):
+                self.vlbi_widget.cleanup()
             
             self.logger.info("Telescope data window cleanup completed")
             

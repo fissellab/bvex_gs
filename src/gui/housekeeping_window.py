@@ -17,6 +17,7 @@ from src.gui.pbob_widget import PBoBWidget
 from src.gui.pr59_widget import PR59Widget
 from src.gui.heater_widget import HeaterWidget
 from src.gui.network_traffic_widget import NetworkTrafficWidget
+from src.gui.system_monitor_widget import SystemMonitorWidget
 
 
 class HousekeepingWindow(QMainWindow):
@@ -57,73 +58,85 @@ class HousekeepingWindow(QMainWindow):
             return 1200, 800
     
     def setup_ui(self):
-        """Setup the housekeeping window UI layout"""
+        """Setup the housekeeping window UI layout with clean 2-column vertical arrangement"""
         self.setWindowTitle("BVEX Ground Station - Housekeeping")
         
         central_widget = QWidget()
         central_widget.setStyleSheet("QWidget { background-color: white; }")
         self.setCentralWidget(central_widget)
         
-        # Use QGridLayout: 3 rows, 2 columns (Data Logging + Network Traffic spans both | PBoB left, Heater right | PR59 left, empty right)
+        # Use QGridLayout: Clean 2-column layout to eliminate cramping and overlap
         main_layout = QGridLayout(central_widget)
-        main_layout.setContentsMargins(10, 10, 10, 10)
-        main_layout.setSpacing(15)
+        main_layout.setContentsMargins(20, 20, 20, 20)  # Generous margins
+        main_layout.setSpacing(25)  # Increased spacing to prevent overlap
         
-        # Row 0: Data logging panel and Network Traffic Monitor side by side
-        self.setup_top_control_panels(main_layout)
+        # Create widgets first
+        self.setup_all_widgets()
         
-        # PBoB (Power Distribution Box) Widget - Row 1, Column 0 (left side)
+        # COLUMN 1 (Left): Data logging, System Monitor, PBoB (vertically stacked)
+        # Row 0, Column 0: Data logging panel (compact, fixed height)
+        self.setup_compact_data_logging_panel_standalone()
+        main_layout.addWidget(self.data_logging_panel, 0, 0, 1, 1)
+        
+        # Row 1, Column 0: System Monitor Widget (needs substantial space)
+        main_layout.addWidget(self.system_monitor_widget, 1, 0, 1, 1)
+        
+        # Row 2, Column 0: PBoB Widget (needs substantial space)
+        main_layout.addWidget(self.pbob_widget, 2, 0, 1, 1)
+        
+        # COLUMN 2 (Right): Network Traffic, PR59, Heater (vertically stacked)
+        # Row 0, Column 1: Network Traffic Widget (compact, fixed height)
+        main_layout.addWidget(self.network_traffic_widget, 0, 1, 1, 1)
+        
+        # Row 1, Column 1: PR59 Widget (needs full height - minimum 350px)
+        main_layout.addWidget(self.pr59_widget, 1, 1, 1, 1)
+        
+        # Row 2, Column 1: Heater Widget (needs adequate height - minimum 280px)
+        main_layout.addWidget(self.heater_widget, 2, 1, 1, 1)
+        
+        # Set equal column stretch for balanced 2-column layout
+        main_layout.setColumnStretch(0, 1)  # Left column 
+        main_layout.setColumnStretch(1, 1)  # Right column
+        
+        # Set row stretch to respect widget minimum sizes and prevent squishing
+        main_layout.setRowStretch(0, 0)  # Top row - compact (data logging & network traffic)
+        main_layout.setRowStretch(1, 3)  # Middle row - PR59 needs more space (350px min)
+        main_layout.setRowStretch(2, 2)  # Bottom row - Heater needs adequate space (280px min)
+        
+        # Set window properties for clean 2-column layout with adequate height
+        width, height = self.get_safe_window_size(0.80, 0.85)  # Increased height for proper widget spacing
+        self.setMinimumSize(max(1200, width//2), max(1000, height//2))  # Increased minimum height to prevent squishing
+        self.resize(width, height)
+            
+    def setup_all_widgets(self):
+        """Create all widgets used in the housekeeping window"""
+        # System Monitor Widget
+        self.system_monitor_widget = SystemMonitorWidget(parent=self)
+        
+        # PBoB Widget
         self.pbob_widget = PBoBWidget(parent=self, oph_client=None)
-        main_layout.addWidget(self.pbob_widget, 1, 0,3,2,alignment=Qt.AlignmentFlag.AlignTop)
         
-        # Heater System Widget - Row 1, Column 1 (right side, beside PBoB)
-        self.heater_widget = HeaterWidget(
-            parent=self,
-            server_ip=HEATER_SERVER['host'],
-            server_port=HEATER_SERVER['port']
-        )
-        main_layout.addWidget(self.heater_widget, 0, 2,2,2,alignment=Qt.AlignmentFlag.AlignTop)
-        
-        # PR59 Temperature Controller Widget - Row 2, Column 0 (left side, undisturbed)
+        # PR59 Widget
         self.pr59_widget = PR59Widget(
             parent=self, 
             server_ip=PR59_SERVER['host'], 
             server_port=PR59_SERVER['port']
         )
-        main_layout.addWidget(self.pr59_widget, 2, 2,2,2,alignment=Qt.AlignmentFlag.AlignTop)
         
-        # Set column stretch to distribute space evenly between columns
-        #main_layout.setColumnStretch(0, 1)  # Left column gets equal space
-        #main_layout.setColumnStretch(1, 1)  # Right column gets equal space
+        # Heater Widget
+        self.heater_widget = HeaterWidget(
+            parent=self,
+            server_ip=HEATER_SERVER['host'],
+            server_port=HEATER_SERVER['port']
+        )
         
-        # Set row stretch to push widgets to top (row 3 stretches)
-        #main_layout.setRowStretch(3, 1)
-        
-        # Set window properties - adaptive sizing for multi-monitor setups
-        width, height = self.get_safe_window_size(0.75, 0.65)  # 75% width, 65% height for housekeeping
-        self.setMinimumSize(max(1100, width//2), max(600, height//2))  # Reasonable minimum
-        self.resize(width, height)
-            
-    def setup_top_control_panels(self, main_layout):
-        """Setup the top row with data logging and network traffic panels"""
-        # Create container for top control panels
-        #top_controls_widget = QWidget()
-        #top_controls_layout = QHBoxLayout(top_controls_widget)
-        #top_controls_layout.setContentsMargins(0, 0, 0, 0)
-        #top_controls_layout.setSpacing(15)
-        
-        # Data logging panel (left side)
-        self.setup_compact_data_logging_panel_standalone()
-        main_layout.addWidget(self.data_logging_panel,0,0,1,1)
-        
-        # Network Traffic Monitor (right side)
+        # Network Traffic Widget
         self.network_traffic_widget = NetworkTrafficWidget(
             parent=self,
             pointing_window=self.pointing_window,
             telescope_data_window=self.telescope_data_window,
             housekeeping_window=self
         )
-        main_layout.addWidget(self.network_traffic_widget,0,1,1,1)
     
     def setup_compact_data_logging_panel_standalone(self):
         """Setup the compact data logging control panel as a standalone widget"""
@@ -202,6 +215,7 @@ class HousekeepingWindow(QMainWindow):
             from src.data.loggers.pr59_logger import PR59DataLogger
             from src.data.loggers.heater_logger import HeaterDataLogger
             from src.data.loggers.ophiuchus_logger import OphiuchusDataLogger
+            from src.data.loggers.system_monitor_logger import SystemMonitorDataLogger
 
             # Initialize orchestrator
             self.data_logging_orchestrator = DataLoggingOrchestrator()
@@ -267,6 +281,13 @@ class HousekeepingWindow(QMainWindow):
                 self.pbob_widget
             )
             self.data_logging_orchestrator.register_logger('pbob', pbob_logger)
+            
+            # Register System Monitor logger
+            system_monitor_logger = SystemMonitorDataLogger(
+                self.data_logging_orchestrator.session_manager,
+                self.system_monitor_widget
+            )
+            self.data_logging_orchestrator.register_logger('system_monitor', system_monitor_logger)
             
             self.logger.info("Data logging orchestrator initialized successfully")
             
@@ -427,6 +448,10 @@ class HousekeepingWindow(QMainWindow):
             # Update file label
             if hasattr(self, 'data_logging_file_label'):
                 self.data_logging_file_label.setText("No log file")
+        
+        # Update system monitor widget logging indicator
+        if hasattr(self, 'system_monitor_widget') and self.system_monitor_widget:
+            self.system_monitor_widget.set_data_logging_active(is_active)
     
     def show_log_file_location(self):
         """Show the current session location"""
@@ -485,6 +510,11 @@ class HousekeepingWindow(QMainWindow):
             if hasattr(self, 'network_traffic_widget') and self.network_traffic_widget:
                 self.network_traffic_widget.cleanup()
                 self.logger.info("Network traffic widget cleaned up during shutdown")
+            
+            # System monitor widget cleanup
+            if hasattr(self, 'system_monitor_widget') and self.system_monitor_widget:
+                self.system_monitor_widget.cleanup()
+                self.logger.info("System monitor widget cleaned up during shutdown")
             
             # The PBOB widget handles its own unregistration from shared manager
             # No need to manage the shared Oph client directly
