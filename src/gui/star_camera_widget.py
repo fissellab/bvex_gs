@@ -707,6 +707,11 @@ class StarCameraWidget(QWidget):
             pil_image = Image.open(io.BytesIO(star_image.image_data))
             self.logger.info(f"PIL image opened: mode={pil_image.mode}, size={pil_image.size}")
             
+            #This part may need more work but for now it will do for thresholding 
+            threshold = int(np.max(np.asarray(pil_image))*0.95) #set threshold
+            img_val = np.where(np.asarray(pil_image)<threshold,np.asarray(pil_image),threshold)
+            pil_image = Image.fromarray(img_val)
+            
             # Convert PIL image to bytes and load as QPixmap directly - NO ENHANCEMENT
             img_buffer = io.BytesIO()
             pil_image.save(img_buffer, format='PNG')

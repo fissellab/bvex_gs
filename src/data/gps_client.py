@@ -111,6 +111,8 @@ class GPSClient:
                 lon=self.gps_data.lon,
                 alt=self.gps_data.alt,
                 head=self.gps_data.head,
+                speed=self.gps_data.speed,
+                sats=self.gps_data.sats,
                 timestamp=self.gps_data.timestamp,
                 valid=self.gps_data.valid
             )
@@ -140,9 +142,11 @@ class GPSClient:
                     if self._parse_gps_data(response):
                         with self.data_lock:
                             self.gps_data.timestamp = time.time()
-                            self.gps_data.valid = True
+                            # Note: validity is now set in _parse_gps_data based on whether we have real coordinates
                     else:
                         self.logger.warning(f"Failed to parse GPS data: {response}")
+                        with self.data_lock:
+                            self.gps_data.valid = False
                 else:
                     # When paused, mark data as invalid
                     with self.data_lock:
@@ -185,6 +189,9 @@ class GPSClient:
                 sats_str = parts[5].split(':')[1]
             else:
                 return False
+            
+            # Check if we have any real GPS data (not all N/A)
+            has_valid_data = not all(x == 'N/A' for x in [lat_str, lon_str, alt_str, head_str])
             
             # Parse values, keeping current values if N/A
             try:
@@ -234,11 +241,14 @@ class GPSClient:
                 self.gps_data.head = head
                 self.gps_data.speed = speed
                 self.gps_data.sats = sats
+                # Mark data as valid only if we have at least some real GPS coordinates
+                # When all values are N/A, the data should be considered invalid
+                self.gps_data.valid = has_valid_data
             
             # Only log N/A warnings occasionally to avoid spam
             if any(x == 'N/A' for x in [lat_str, lon_str, alt_str]):
                 if not hasattr(self, '_last_na_warning') or time.time() - self._last_na_warning > 10:
-                    # self.logger.warning(f"GPS data contains N/A values: {data_string}")
+                    self.logger.warning(f"GPS data contains N/A values: {data_string}")
                     self._last_na_warning = time.time()
             
             return True
