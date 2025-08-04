@@ -222,10 +222,10 @@ class HousekeepingWindow(QMainWindow):
             
             # Register loggers for available widgets
             if self.pointing_window:
-                if hasattr(self.pointing_window, 'gps_display_widget'):
+                if hasattr(self.pointing_window, 'gps_widget'):
                     gps_logger = GPSDataLogger(
                         self.data_logging_orchestrator.session_manager,
-                        self.pointing_window.gps_display_widget
+                        self.pointing_window.gps_widget
                     )
                     self.data_logging_orchestrator.register_logger('gps', gps_logger)
                 

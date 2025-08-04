@@ -19,6 +19,8 @@ class GPSData:
     lon: float = 0.0
     alt: float = 0.0
     head: float = 0.0
+    speed: float = 0.0  # GPS speed in m/s
+    sats: int = 0       # Number of satellites
     timestamp: Optional[float] = None
     valid: bool = False
 
@@ -158,19 +160,31 @@ class GPSClient:
             time.sleep(GPS_SERVER['update_interval'])
     
     def _parse_gps_data(self, data_string: str) -> bool:
-        """Parse GPS data string in format: gps_lat:XX,gps_lon:XX,gps_alt:XX,gps_head:XX"""
+        """Parse GPS data string in format: gps_lat:XX,gps_lon:XX,gps_alt:XX,gps_head:XX,gps_speed:XX,gps_sats:XX"""
         try:
-            # Expected format: "gps_lat:44.224372,gps_lon:-76.498007,gps_alt:100.0,gps_head:270.0"
-            # But sometimes we get: "gps_lat:N/A,gps_lon:N/A,gps_alt:N/A,gps_head:52.0"
+            # Expected format: "gps_lat:44.224372,gps_lon:-76.498007,gps_alt:100.0,gps_head:270.0,gps_speed:2.571,gps_sats:8"
+            # But sometimes we get: "gps_lat:N/A,gps_lon:N/A,gps_alt:N/A,gps_head:52.0,gps_speed:N/A,gps_sats:N/A"
             parts = data_string.split(',')
-            if len(parts) != 4:
-                return False
             
-            # Extract values, handling N/A cases
-            lat_str = parts[0].split(':')[1]
-            lon_str = parts[1].split(':')[1]
-            alt_str = parts[2].split(':')[1]
-            head_str = parts[3].split(':')[1]
+            # Handle both old format (4 parts) and new format (6 parts)
+            if len(parts) == 4:
+                # Old format - only lat, lon, alt, head
+                lat_str = parts[0].split(':')[1]
+                lon_str = parts[1].split(':')[1]
+                alt_str = parts[2].split(':')[1]
+                head_str = parts[3].split(':')[1]
+                speed_str = 'N/A'  # Default values for missing fields
+                sats_str = 'N/A'
+            elif len(parts) == 6:
+                # New format - includes speed and sats
+                lat_str = parts[0].split(':')[1]
+                lon_str = parts[1].split(':')[1]
+                alt_str = parts[2].split(':')[1]
+                head_str = parts[3].split(':')[1]
+                speed_str = parts[4].split(':')[1]
+                sats_str = parts[5].split(':')[1]
+            else:
+                return False
             
             # Parse values, keeping current values if N/A
             try:
@@ -192,6 +206,16 @@ class GPSClient:
                 head = float(head_str) if head_str != 'N/A' else self.gps_data.head
             except ValueError:
                 head = self.gps_data.head
+                
+            try:
+                speed = float(speed_str) if speed_str != 'N/A' else self.gps_data.speed
+            except ValueError:
+                speed = self.gps_data.speed
+                
+            try:
+                sats = int(sats_str) if sats_str != 'N/A' else self.gps_data.sats
+            except ValueError:
+                sats = self.gps_data.sats
             
             # Only apply offsets if we got actual numeric values
             if lat_str != 'N/A':
@@ -208,6 +232,8 @@ class GPSClient:
                 self.gps_data.lon = lon
                 self.gps_data.alt = alt
                 self.gps_data.head = head
+                self.gps_data.speed = speed
+                self.gps_data.sats = sats
             
             # Only log N/A warnings occasionally to avoid spam
             if any(x == 'N/A' for x in [lat_str, lon_str, alt_str]):

@@ -1,7 +1,7 @@
 """
 GPS Data Logger for BVEX Ground Station
 
-Logs GPS coordinates, altitude, heading, and metadata from GPS widget.
+Logs GPS coordinates, altitude, heading, speed, satellite count, and metadata from GPS widget.
 """
 
 from typing import Dict, Any, Optional
@@ -27,6 +27,8 @@ class GPSDataLogger(WidgetDataLogger):
             'lon',
             'alt',
             'head',
+            'speed',
+            'sats',
             'valid',
             'update_rate_hz'
         ]
@@ -53,6 +55,8 @@ class GPSDataLogger(WidgetDataLogger):
                 'lon': gps_data.lon if gps_data.valid else 0.0,
                 'alt': gps_data.alt if gps_data.valid else 0.0,
                 'head': gps_data.head if gps_data.valid else 0.0,
+                'speed': gps_data.speed if gps_data.valid else 0.0,
+                'sats': gps_data.sats if gps_data.valid else 0,
                 'valid': gps_data.valid
             }
             

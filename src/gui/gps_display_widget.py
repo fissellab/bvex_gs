@@ -84,8 +84,8 @@ class GPSDisplayWidget(QWidget):
         """)
         
         self.container_layout = QVBoxLayout(self.container)
-        self.container_layout.setSpacing(2)
-        self.container_layout.setContentsMargins(4, 4, 4, 4)
+        self.container_layout.setSpacing(3)
+        self.container_layout.setContentsMargins(5, 2, 5, 3)
         
         # Initially show static display
         self.setup_static_display()
@@ -252,184 +252,55 @@ class GPSDisplayWidget(QWidget):
         return header
     
     def _create_data_section(self):
-        """Create clean data section with Position and Orientation side by side"""
+        """Create clean data section with compact 6-field layout inspired by motor widget"""
         data_frame = QFrame()
         data_frame.setFrameStyle(QFrame.Shape.NoFrame)
         data_frame.setStyleSheet("QFrame { border: none; background-color: transparent; }")
         
-        # Use QGridLayout: 1 row, 3 columns (Position | Separator | Orientation)
-        main_layout = QGridLayout(data_frame)
-        main_layout.setSpacing(6)
-        main_layout.setContentsMargins(0, 0, 0, 0)
+        # Use a clean grid layout with better spacing like motor controller
+        layout = QGridLayout(data_frame)
+        layout.setSpacing(8)  # Better spacing for cleaner look
+        layout.setContentsMargins(8, 4, 8, 4)
         
-        # Position section (left side) - column 0
-        position_section = self._create_position_section()
-        main_layout.addWidget(position_section, 0, 0)
+        # Create all field labels with motor widget style
+        self.field_labels = {}
         
-        # Vertical separator line - column 1
-        separator = QFrame()
-        separator.setFrameShape(QFrame.Shape.VLine)
-        separator.setFrameShadow(QFrame.Shadow.Sunken)
-        separator.setStyleSheet("QFrame { color: #dee2e6; }")
-        main_layout.addWidget(separator, 0, 1)
+        # GPS fields arranged in 3 rows, 4 columns (label-value pairs)
+        fields = [
+            ("lat", "Latitude", "°", 0, 0),
+            ("lon", "Longitude", "°", 0, 2),
+            ("alt", "Altitude", "m", 1, 0),
+            ("head", "Heading", "°", 1, 2),
+            ("speed", "Speed", "m/s", 2, 0),
+            ("sats", "Satellites", "", 2, 2),
+        ]
         
-        # Orientation section (right side) - column 2
-        orientation_section = self._create_orientation_section()
-        main_layout.addWidget(orientation_section, 0, 2)
+        for field_key, field_name, unit, row, col in fields:
+            # Label (clean style like motor controller)
+            label = QLabel(f"{field_name}:")
+            label.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+            label.setStyleSheet("color: #495057; border: none; background: transparent;")
+            label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            
+            # Value (clean text style like motor controller, no boxes)
+            value_label = QLabel("--")
+            if unit:
+                value_label.setText(f"-- {unit}")
+            value_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+            value_label.setStyleSheet("color: #212529; border: none; background: transparent;")
+            value_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+            value_label.setMinimumWidth(60)
+            
+            # Store reference to value label
+            self.field_labels[field_key] = value_label
+            
+            # Add to grid
+            layout.addWidget(label, row, col)
+            layout.addWidget(value_label, row, col + 1)
         
         return data_frame
     
-    def _create_position_section(self):
-        """Create clean Position section"""
-        section = QFrame()
-        section.setFrameStyle(QFrame.Shape.NoFrame)
-        section.setStyleSheet("QFrame { border: none; background-color: transparent; }")
-        
-        layout = QVBoxLayout(section)
-        layout.setSpacing(2)
-        layout.setContentsMargins(0, 0, 0, 0)
-        
-        # Section header
-        header = QLabel("Position")
-        header_font = QFont()
-        header_font.setPointSize(12)
-        header_font.setBold(True)
-        header.setFont(header_font)
-        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header.setStyleSheet("""
-            QLabel {
-                color: #495057;
-                border: none;
-                border-bottom: 1px solid #dee2e6;
-                padding-bottom: 1px;
-                margin-bottom: 2px;
-            }
-        """)
-        layout.addWidget(header)
-        
-        # Latitude
-        lat_layout = QVBoxLayout()
-        lat_layout.setSpacing(1)
-        
-        lat_label = QLabel("Latitude:")
-        lat_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lat_label_font = QFont()
-        lat_label_font.setPointSize(10)
-        lat_label.setFont(lat_label_font)
-        lat_label.setStyleSheet("color: #6c757d;")
-        
-        self.lat_value = QLabel("--")
-        self.lat_value.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lat_value_font = QFont()
-        lat_value_font.setPointSize(12)
-        lat_value_font.setBold(True)
-        self.lat_value.setFont(lat_value_font)
-        self.lat_value.setStyleSheet("color: #212529;")
-        
-        lat_layout.addWidget(lat_label)
-        lat_layout.addWidget(self.lat_value)
-        layout.addLayout(lat_layout)
-        
-        # Longitude
-        lon_layout = QVBoxLayout()
-        lon_layout.setSpacing(1)
-        
-        lon_label = QLabel("Longitude:")
-        lon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lon_label_font = QFont()
-        lon_label_font.setPointSize(10)
-        lon_label.setFont(lon_label_font)
-        lon_label.setStyleSheet("color: #6c757d;")
-        
-        self.lon_value = QLabel("--")
-        self.lon_value.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lon_value_font = QFont()
-        lon_value_font.setPointSize(12)
-        lon_value_font.setBold(True)
-        self.lon_value.setFont(lon_value_font)
-        self.lon_value.setStyleSheet("color: #212529;")
-        
-        lon_layout.addWidget(lon_label)
-        lon_layout.addWidget(self.lon_value)
-        layout.addLayout(lon_layout)
-        
-        return section
-    
-    def _create_orientation_section(self):
-        """Create clean Orientation section"""
-        section = QFrame()
-        section.setFrameStyle(QFrame.Shape.NoFrame)
-        section.setStyleSheet("QFrame { border: none; background-color: transparent; }")
-        
-        layout = QVBoxLayout(section)
-        layout.setSpacing(2)
-        layout.setContentsMargins(0, 0, 0, 0)
-        
-        # Section header
-        header = QLabel("Orientation")
-        header_font = QFont()
-        header_font.setPointSize(12)
-        header_font.setBold(True)
-        header.setFont(header_font)
-        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header.setStyleSheet("""
-            QLabel {
-                color: #495057;
-                border: none;
-                border-bottom: 1px solid #dee2e6;
-                padding-bottom: 1px;
-                margin-bottom: 2px;
-            }
-        """)
-        layout.addWidget(header)
-        
-        # Altitude
-        alt_layout = QVBoxLayout()
-        alt_layout.setSpacing(1)
-        
-        alt_label = QLabel("Altitude:")
-        alt_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        alt_label_font = QFont()
-        alt_label_font.setPointSize(10)
-        alt_label.setFont(alt_label_font)
-        alt_label.setStyleSheet("color: #6c757d;")
-        
-        self.alt_value = QLabel("-- m")
-        self.alt_value.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        alt_value_font = QFont()
-        alt_value_font.setPointSize(12)
-        alt_value_font.setBold(True)
-        self.alt_value.setFont(alt_value_font)
-        self.alt_value.setStyleSheet("color: #212529;")
-        
-        alt_layout.addWidget(alt_label)
-        alt_layout.addWidget(self.alt_value)
-        layout.addLayout(alt_layout)
-        
-        # Heading
-        head_layout = QVBoxLayout()
-        head_layout.setSpacing(1)
-        
-        head_label = QLabel("Heading:")
-        head_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        head_label_font = QFont()
-        head_label_font.setPointSize(10)
-        head_label.setFont(head_label_font)
-        head_label.setStyleSheet("color: #6c757d;")
-        
-        self.head_value = QLabel("--")
-        self.head_value.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        head_value_font = QFont()
-        head_value_font.setPointSize(12)
-        head_value_font.setBold(True)
-        self.head_value.setFont(head_value_font)
-        self.head_value.setStyleSheet("color: #212529;")
-        
-        head_layout.addWidget(head_label)
-        head_layout.addWidget(self.head_value)
-        layout.addLayout(head_layout)
-        
-        return section
+
     
     def _update_status_display(self, connected: bool):
         """Update the connection status display"""
@@ -443,31 +314,34 @@ class GPSDisplayWidget(QWidget):
             self.status_label.setStyleSheet("color: #212529;")
     
     def _format_coordinate(self, value: float, is_longitude: bool = False) -> str:
-        """Format coordinate values with appropriate precision - simplified for clean display"""
+        """Format coordinate values with appropriate precision"""
         if not hasattr(self, 'last_gps_data') or not self.last_gps_data.valid:
             return "--"
-        
-        # Simplified format without direction indicator for cleaner look
-        return f"{abs(value):.3f}"
+        return f"{value:.3f}"
     
     def _format_altitude(self, value: float) -> str:
         """Format altitude value"""
         if not hasattr(self, 'last_gps_data') or not self.last_gps_data.valid:
-            return "-- m"
-        return f"{value:.2f} m"
+            return "--"
+        return f"{value:.1f}"
     
     def _format_heading(self, value: float) -> str:
-        """Format heading value with cardinal direction"""
+        """Format heading value"""
         if not hasattr(self, 'last_gps_data') or not self.last_gps_data.valid:
             return "--"
-        
-        # Convert to cardinal directions
-        directions = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
-                     "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
-        index = int((value + 11.25) / 22.5) % 16
-        cardinal = directions[index]
-        
-        return f"{value:.2f} ({cardinal})"
+        return f"{value:.1f}"
+    
+    def _format_speed(self, value: float) -> str:
+        """Format GPS speed value"""
+        if not hasattr(self, 'last_gps_data') or not self.last_gps_data.valid:
+            return "--"
+        return f"{value:.2f}"
+    
+    def _format_satellites(self, value: int) -> str:
+        """Format satellite count"""
+        if not hasattr(self, 'last_gps_data') or not self.last_gps_data.valid:
+            return "--"
+        return f"{value}"
     
     def update_gps_from_client(self):
         """Update GPS data from our own client"""
@@ -481,11 +355,14 @@ class GPSDisplayWidget(QWidget):
         # Update status
         self._update_status_display(gps_data.valid)
         
-        # Update coordinate values
-        self.lat_value.setText(self._format_coordinate(gps_data.lat, False))
-        self.lon_value.setText(self._format_coordinate(gps_data.lon, True))
-        self.alt_value.setText(self._format_altitude(gps_data.alt))
-        self.head_value.setText(self._format_heading(gps_data.head))
+        # Update all field values using the new compact layout
+        if hasattr(self, 'field_labels'):
+            self.field_labels['lat'].setText(f"{self._format_coordinate(gps_data.lat)} °")
+            self.field_labels['lon'].setText(f"{self._format_coordinate(gps_data.lon)} °")
+            self.field_labels['alt'].setText(f"{self._format_altitude(gps_data.alt)} m")
+            self.field_labels['head'].setText(f"{self._format_heading(gps_data.head)} °")
+            self.field_labels['speed'].setText(f"{self._format_speed(gps_data.speed)} m/s")
+            self.field_labels['sats'].setText(f"{self._format_satellites(gps_data.sats)}")
         
         # Force widget refresh
         self.update()
