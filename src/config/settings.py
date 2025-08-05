@@ -123,4 +123,12 @@ CELESTIAL_OBJECTS = {
         '3C 84': {'ra': '03h19m48.2s','dec':'41d30m42.1s'}
     }
 } 
+
+# Star Camera Display Configuration
+STAR_CAMERA_DISPLAY = {
+    'contrast_enhancement': True,      # Enable contrast enhancement by default
+    'low_percentile': 1.0,           # Lower percentile for contrast stretching
+    'high_percentile': 99.0,         # Upper percentile for contrast stretching
+    'enhancement_warning_threshold': 0.1  # Warn if enhancement makes little difference
+}
  

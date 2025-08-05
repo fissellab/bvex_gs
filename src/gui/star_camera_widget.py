@@ -5,7 +5,7 @@ Displays images from the star camera downlink server
 
 import numpy as np
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
-                             QFrame, QScrollArea, QSizePolicy, QGridLayout)
+                             QFrame, QScrollArea, QSizePolicy, QGridLayout, QCheckBox, QSlider)
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QObject, QThread
 from PyQt6.QtGui import QFont, QPixmap, QImage
 from PIL import Image
@@ -17,7 +17,7 @@ import time
 
 from src.data.star_camera_client import StarCameraClient, StarCameraImage
 from src.data.Oph_client import OphClient, OphData
-from src.config.settings import STAR_CAMERA
+from src.config.settings import STAR_CAMERA, STAR_CAMERA_DISPLAY
 
 
 class StarCameraWorker(QObject):
@@ -98,6 +98,16 @@ class StarCameraWidget(QWidget):
         self.update_times = deque(maxlen=10)
         
         
+        # Contrast enhancement settings
+        self.contrast_enhancement_enabled = STAR_CAMERA_DISPLAY['contrast_enhancement']
+        self.low_percentile = STAR_CAMERA_DISPLAY['low_percentile']
+        self.high_percentile = STAR_CAMERA_DISPLAY['high_percentile']
+        
+        # Slider debounce timer
+        self.slider_update_timer = QTimer()
+        self.slider_update_timer.setSingleShot(True)
+        self.slider_update_timer.timeout.connect(self.apply_slider_changes)
+        
         self.setup_ui()
         self.setup_worker_thread()
         
@@ -145,12 +155,143 @@ class StarCameraWidget(QWidget):
                 background-color: #218838;
             }
         """)
+        
+        # Contrast enhancement toggle
+        self.contrast_checkbox = QCheckBox("Enhance Contrast")
+        self.contrast_checkbox.setChecked(self.contrast_enhancement_enabled)
+        self.contrast_checkbox.setFont(QFont("Arial", 10))
+        self.contrast_checkbox.setStyleSheet("""
+            QCheckBox {
+                color: #495057;
+                spacing: 5px;
+            }
+            QCheckBox::indicator {
+                width: 16px;
+                height: 16px;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #28a745;
+                border: 1px solid #28a745;
+                border-radius: 3px;
+            }
+            QCheckBox::indicator:unchecked {
+                background-color: white;
+                border: 1px solid #6c757d;
+                border-radius: 3px;
+            }
+        """)
+        self.contrast_checkbox.stateChanged.connect(self.toggle_contrast_enhancement)
+        
+        # Main control layout
         control_layout.setSpacing(10)
         control_layout.addWidget(self.control_status_label)
         control_layout.addStretch()
+        control_layout.addWidget(self.contrast_checkbox)
         control_layout.addWidget(self.toggle_button)
         
+        # Enhancement settings section
+        self.enhancement_container = QFrame()
+        self.enhancement_container.setFrameStyle(QFrame.Shape.Box)
+        self.enhancement_container.setStyleSheet("""
+            QFrame {
+                border: 1px solid #cccccc;
+                border-radius: 4px;
+                background-color: #f8f9fa;
+            }
+        """)
+        
+        enhancement_layout = QVBoxLayout(self.enhancement_container)
+        enhancement_layout.setSpacing(8)
+        enhancement_layout.setContentsMargins(10, 10, 10, 10)
+        
+        # Section header
+        header_label = QLabel("Contrast Enhancement Settings")
+        header_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        header_label.setStyleSheet("QLabel { color: #495057; }")
+        enhancement_layout.addWidget(header_label)
+        
+        # Slider controls container
+        slider_container = QHBoxLayout()
+        slider_container.setSpacing(15)
+        slider_container.setContentsMargins(5, 5, 5, 5)
+        
+        # Low percentile slider with proper labeling
+        low_group = QVBoxLayout()
+        low_group.setSpacing(2)
+        
+        low_label = QLabel("Lower Percentile (Dark Areas)")
+        low_label.setFont(QFont("Arial", 9))
+        low_label.setStyleSheet("QLabel { color: #6c757d; }")
+        low_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        low_slider_layout = QHBoxLayout()
+        low_slider_layout.setSpacing(5)
+        
+        self.low_slider = QSlider(Qt.Orientation.Horizontal)
+        self.low_slider.setRange(0, 20)
+        self.low_slider.setValue(int(self.low_percentile))
+        self.low_slider.setFixedWidth(120)
+        self.low_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self.low_slider.setTickInterval(5)
+        self.low_slider.setToolTip("Lower percentile for enhancing dark areas (0-20%)")
+        
+        self.low_value_label = QLabel(f"{int(self.low_percentile)}%")
+        self.low_value_label.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        self.low_value_label.setFixedWidth(35)
+        self.low_value_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        low_slider_layout.addWidget(self.low_slider)
+        low_slider_layout.addWidget(self.low_value_label)
+        
+        low_group.addWidget(low_label)
+        low_group.addLayout(low_slider_layout)
+        
+        # High percentile slider with proper labeling
+        high_group = QVBoxLayout()
+        high_group.setSpacing(2)
+        
+        high_label = QLabel("Upper Percentile (Bright Areas)")
+        high_label.setFont(QFont("Arial", 9))
+        high_label.setStyleSheet("QLabel { color: #6c757d; }")
+        high_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        high_slider_layout = QHBoxLayout()
+        high_slider_layout.setSpacing(5)
+        
+        self.high_slider = QSlider(Qt.Orientation.Horizontal)
+        self.high_slider.setRange(80, 100)
+        self.high_slider.setValue(int(self.high_percentile))
+        self.high_slider.setFixedWidth(120)
+        self.high_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self.high_slider.setTickInterval(5)
+        self.high_slider.setToolTip("Upper percentile for enhancing bright areas (80-100%)")
+        
+        self.high_value_label = QLabel(f"{int(self.high_percentile)}%")
+        self.high_value_label.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        self.high_value_label.setFixedWidth(35)
+        self.high_value_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        high_slider_layout.addWidget(self.high_slider)
+        high_slider_layout.addWidget(self.high_value_label)
+        
+        high_group.addWidget(high_label)
+        high_group.addLayout(high_slider_layout)
+        
+        slider_container.addLayout(low_group)
+        slider_container.addSpacing(20)
+        slider_container.addLayout(high_group)
+        
+        enhancement_layout.addLayout(slider_container)
+        
+        # Connect slider signals
+        self.low_slider.valueChanged.connect(self.on_low_slider_changed)
+        self.high_slider.valueChanged.connect(self.on_high_slider_changed)
+        
+        # Initially hide enhancement controls when disabled
+        self.update_slider_visibility()
+        
         main_layout.addLayout(control_layout)
+        main_layout.addWidget(self.enhancement_container)
         
         # Create the main container
         self.container = QFrame()
@@ -216,6 +357,53 @@ class StarCameraWidget(QWidget):
             # Start timers
             self.start_update_timers()
     
+    def toggle_contrast_enhancement(self, state):
+        """Toggle contrast enhancement on/off"""
+        self.contrast_enhancement_enabled = (state == 2)  # Qt.Checked = 2
+        self.logger.info(f"Contrast enhancement {'enabled' if self.contrast_enhancement_enabled else 'disabled'}")
+        
+        # Update slider visibility
+        self.update_slider_visibility()
+        
+        # Refresh current image if available
+        if self.current_image and self.current_image.valid and self.is_active:
+            self.display_image(self.current_image)
+    
+    def update_slider_visibility(self):
+        """Update visibility of enhancement controls based on enhancement state"""
+        self.enhancement_container.setVisible(self.contrast_enhancement_enabled)
+    
+    def on_low_slider_changed(self, value):
+        """Handle low percentile slider changes with debouncing"""
+        self.low_value_label.setText(f"{value}%")
+        self.low_percentile = float(value)
+        
+        # Debounce slider updates
+        self.slider_update_timer.start(200)  # 200ms delay
+    
+    def on_high_slider_changed(self, value):
+        """Handle high percentile slider changes with debouncing"""
+        self.high_value_label.setText(f"{value}%")
+        self.high_percentile = float(value)
+        
+        # Debounce slider updates
+        self.slider_update_timer.start(200)  # 200ms delay
+    
+    def apply_slider_changes(self):
+        """Apply slider changes to the current image"""
+        # Validate percentile values
+        if self.low_percentile >= self.high_percentile:
+            self.logger.warning(f"Invalid percentile range: {self.low_percentile}% >= {self.high_percentile}%, adjusting")
+            # Auto-adjust to maintain valid range
+            if self.low_percentile >= self.high_percentile:
+                self.low_percentile = max(0, self.high_percentile - 1)
+                self.low_slider.setValue(int(self.low_percentile))
+                return
+            
+        if self.contrast_enhancement_enabled and self.current_image and self.current_image.valid and self.is_active:
+            self.logger.info(f"Applying contrast enhancement with low={self.low_percentile}%, high={self.high_percentile}%")
+            self.display_image(self.current_image)
+
     def stop_star_camera(self):
         """Stop star camera updates and show static display"""
         if self.is_active:
@@ -698,21 +886,117 @@ class StarCameraWidget(QWidget):
         self.current_status = status
         self.update_status_labels()
     
-    def display_image(self, star_image: StarCameraImage):
-        """Display the star camera image - RAW, no processing"""
+    def enhance_contrast(self, pil_image, low_percentile=None, high_percentile=None):
+        """Apply contrast enhancement to PIL image using percentile-based stretching"""
         try:
-            self.logger.info(f"Displaying raw image: {len(star_image.image_data)} bytes, {star_image.width}x{star_image.height}")
+            # Use dynamic values from sliders if not provided
+            if low_percentile is None:
+                low_percentile = self.low_percentile
+            if high_percentile is None:
+                high_percentile = self.high_percentile
+                
+            # Validate percentile values
+            if low_percentile >= high_percentile:
+                self.logger.warning(f"Invalid percentile values: low={low_percentile} >= high={high_percentile}, using defaults")
+                low_percentile = 1.0
+                high_percentile = 99.0
+                
+            # Convert PIL image to numpy array
+            img_array = np.array(pil_image)
             
-            # Convert image data to PIL Image - NO PROCESSING
+            # Handle edge cases
+            if img_array.size == 0:
+                self.logger.warning("Empty image array, returning original")
+                return pil_image
+                
+            # Check for uniform images (all same value)
+            if np.all(img_array == img_array.flat[0]):
+                self.logger.info("Uniform image detected, no enhancement applied")
+                return pil_image
+            
+            # Handle different image modes
+            if pil_image.mode == 'L':
+                # Grayscale image
+                try:
+                    # Calculate percentiles
+                    vmin = np.percentile(img_array, low_percentile)
+                    vmax = np.percentile(img_array, high_percentile)
+                    
+                    # Handle edge cases where vmin == vmax
+                    if abs(vmax - vmin) < 1e-6:
+                        self.logger.warning("vmin equals vmax, no enhancement applied")
+                        return pil_image
+                    
+                    # Apply contrast stretching with bounds checking
+                    stretched = np.clip((img_array.astype(np.float32) - vmin) / (vmax - vmin) * 255, 0, 255)
+                    enhanced_array = stretched.astype(np.uint8)
+                    
+                    return Image.fromarray(enhanced_array, mode='L')
+                    
+                except Exception as e:
+                    self.logger.warning(f"Grayscale enhancement failed: {e}, using original")
+                    return pil_image
+                
+            elif pil_image.mode == 'RGB':
+                # RGB image
+                try:
+                    # Convert to grayscale for percentile calculation (more robust)
+                    gray = np.dot(img_array[...,:3], [0.2989, 0.5870, 0.1140])
+                    vmin = np.percentile(gray, low_percentile)
+                    vmax = np.percentile(gray, high_percentile)
+                    
+                    # Handle edge cases where vmin == vmax
+                    if abs(vmax - vmin) < 1e-6:
+                        self.logger.warning("vmin equals vmax for RGB image, no enhancement applied")
+                        return pil_image
+                    
+                    # Apply same stretching to all channels
+                    stretched = np.clip((img_array.astype(np.float32) - vmin) / (vmax - vmin) * 255, 0, 255)
+                    enhanced_array = stretched.astype(np.uint8)
+                    
+                    return Image.fromarray(enhanced_array, mode='RGB')
+                    
+                except Exception as e:
+                    self.logger.warning(f"RGB enhancement failed: {e}, using original")
+                    return pil_image
+            
+            else:
+                # Unsupported mode, return original
+                self.logger.info(f"Unsupported image mode: {pil_image.mode}, returning original")
+                return pil_image
+                
+        except Exception as e:
+            self.logger.warning(f"Contrast enhancement failed: {e}, using original image")
+            return pil_image
+
+    def display_image(self, star_image: StarCameraImage):
+        """Display the star camera image with optional contrast enhancement"""
+        try:
+            self.logger.info(f"Displaying image: {len(star_image.image_data)} bytes, {star_image.width}x{star_image.height}")
+            
+            # Convert image data to PIL Image
             pil_image = Image.open(io.BytesIO(star_image.image_data))
             self.logger.info(f"PIL image opened: mode={pil_image.mode}, size={pil_image.size}")
             
-            # Convert PIL image to bytes and load as QPixmap directly - NO ENHANCEMENT
+            # Apply contrast enhancement if enabled
+            if self.contrast_enhancement_enabled:
+                enhanced_image = self.enhance_contrast(
+                    pil_image, 
+                    self.low_percentile, 
+                    self.high_percentile
+                )
+                display_image = enhanced_image
+                self.logger.info("Contrast enhancement applied")
+            else:
+                display_image = pil_image
+                self.logger.info("Using original image (contrast enhancement disabled)")
+            
+            # Convert enhanced image to bytes and load as QPixmap
             img_buffer = io.BytesIO()
-            pil_image.save(img_buffer, format='PNG')
+            display_image.save(img_buffer, format='PNG')
             img_buffer.seek(0)
             
-            # Load as QPixmap directly
+            # Load as QPixmap
             pixmap = QPixmap()
             if pixmap.loadFromData(img_buffer.getvalue()):
                 self.logger.info(f"QPixmap loaded: {pixmap.width()}x{pixmap.height()}")
@@ -724,11 +1008,11 @@ class StarCameraWidget(QWidget):
                     Qt.TransformationMode.SmoothTransformation
                 )
                 
-                # Display the raw image
+                # Display the image
                 self.image_label.setPixmap(scaled_pixmap)
                 self.image_label.setText("")
                 self.download_progress_label.setText("Download: Complete")
-                self.logger.info("Raw image display successful")
+                self.logger.info("Image display successful")
                 
             else:
                 self.logger.error("Failed to load image as QPixmap")
