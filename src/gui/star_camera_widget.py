@@ -988,10 +988,13 @@ class StarCameraWidget(QWidget):
                 display_image = enhanced_image
                 self.logger.info("Contrast enhancement applied")
             else:
-                display_image = pil_image
-                self.logger.info("Using original image (contrast enhancement disabled)")
+                # Apply basic thresholding as fallback when enhancement is disabled
+                threshold = int(np.max(np.asarray(pil_image))*0.95)
+                img_val = np.where(np.asarray(pil_image)<threshold,np.asarray(pil_image),threshold)
+                display_image = Image.fromarray(img_val)
+                self.logger.info("Using basic thresholding (contrast enhancement disabled)")
             
-            # Convert enhanced image to bytes and load as QPixmap
+            # Convert processed image to bytes and load as QPixmap
             img_buffer = io.BytesIO()
             display_image.save(img_buffer, format='PNG')
             img_buffer.seek(0)

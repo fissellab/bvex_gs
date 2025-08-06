@@ -473,13 +473,14 @@ class MainWindow(QMainWindow):
         else:
             self.data_rate_label.setText(f"Data Rate: {total_rate_kbps:.1f} kB/s")
         
-        # Update GPS status
+        # Update GPS status - GPS widget manages its own client now
         if not self.gps_widget.is_gps_active():
             gps_status_text = "GPS: Off"
         else:
-            gps_data = self.gps_client.get_gps_data()
-            if gps_data.valid:
-                gps_status_text = f"GPS: Connected ({gps_data.lat:.4f}, {gps_data.lon:.4f})"
+            # Get GPS data from the widget's own GPS client
+            gps_coords = self.gps_widget.get_current_coordinates()
+            if gps_coords:
+                gps_status_text = f"GPS: Connected ({gps_coords[0]:.4f}, {gps_coords[1]:.4f})"
             else:
                 gps_status_text = "GPS: Disconnected"
         self.gps_status_label.setText(gps_status_text)

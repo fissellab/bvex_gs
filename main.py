@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import QApplication
 from src.gui.pointing_window import PointingWindow
 from src.gui.telescope_data_window import TelescopeDataWindow  
 from src.gui.housekeeping_window import HousekeepingWindow
-from src.data.gps_client import GPSClient
+# GPS client removed - GPS widget manages its own client
 # Shared manager removed - widgets use independent OphClients
 
 
@@ -110,9 +110,7 @@ def main():
     cleanup_old_logs('logs')
     
     try:
-        # Create GPS client
-        logger.info("Creating GPS client...")
-        gps_client = GPSClient()
+        # GPS client removed - GPS widget manages its own client now
         
         # Create the three windows (widgets use independent OphClients)
         logger.info("Creating application windows...")
@@ -149,10 +147,8 @@ def main():
         
         # Cleanup on exit
         logger.info("Application shutting down...")
-        if gps_client:
-            gps_client.cleanup()
         
-        # Cleanup shared manager
+        # GPS client removed - GPS widget handles its own cleanup
         # Widgets cleanup their own OphClients
         logger.info("✅ All clients cleaned up successfully")
             
