@@ -329,7 +329,7 @@ class GPSDisplayWidget(QWidget):
         """Format heading value"""
         if not hasattr(self, 'last_gps_data') or not self.last_gps_data.valid:
             return "--"
-        return f"{value:.1f}"
+        return f"{value:.1f} °"
     
     def _format_speed(self, value: float) -> str:
         """Format GPS speed value"""
@@ -360,7 +360,7 @@ class GPSDisplayWidget(QWidget):
             self.field_labels['lat'].setText(f"{self._format_coordinate(gps_data.lat)} °")
             self.field_labels['lon'].setText(f"{self._format_coordinate(gps_data.lon)} °")
             self.field_labels['alt'].setText(f"{self._format_altitude(gps_data.alt)} m")
-            self.field_labels['head'].setText(f"{self._format_heading(gps_data.head)} °")
+            self.field_labels['head'].setText(f"{self._format_heading(gps_data.head)}")
             self.field_labels['speed'].setText(f"{self._format_speed(gps_data.speed)} m/s")
             self.field_labels['sats'].setText(f"{self._format_satellites(gps_data.sats)}")
         

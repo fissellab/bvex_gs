@@ -111,6 +111,8 @@ class GPSClient:
                 lon=self.gps_data.lon,
                 alt=self.gps_data.alt,
                 head=self.gps_data.head,
+                speed=self.gps_data.speed,
+                sats=self.gps_data.sats,
                 timestamp=self.gps_data.timestamp,
                 valid=self.gps_data.valid
             )
@@ -164,26 +166,29 @@ class GPSClient:
         try:
             # Expected format: "gps_lat:44.224372,gps_lon:-76.498007,gps_alt:100.0,gps_head:270.0,gps_speed:2.571,gps_sats:8"
             # But sometimes we get: "gps_lat:N/A,gps_lon:N/A,gps_alt:N/A,gps_head:52.0,gps_speed:N/A,gps_sats:N/A"
-            parts = data_string.split(',')
+            # Strip whitespace and newlines that the server might add
+            clean_data = data_string.strip()
+            parts = clean_data.split(',')
             
             # Handle both old format (4 parts) and new format (6 parts)
             if len(parts) == 4:
                 # Old format - only lat, lon, alt, head
-                lat_str = parts[0].split(':')[1]
-                lon_str = parts[1].split(':')[1]
-                alt_str = parts[2].split(':')[1]
-                head_str = parts[3].split(':')[1]
+                lat_str = parts[0].split(':')[1].strip()
+                lon_str = parts[1].split(':')[1].strip()
+                alt_str = parts[2].split(':')[1].strip()
+                head_str = parts[3].split(':')[1].strip()
                 speed_str = 'N/A'  # Default values for missing fields
                 sats_str = 'N/A'
             elif len(parts) == 6:
                 # New format - includes speed and sats
-                lat_str = parts[0].split(':')[1]
-                lon_str = parts[1].split(':')[1]
-                alt_str = parts[2].split(':')[1]
-                head_str = parts[3].split(':')[1]
-                speed_str = parts[4].split(':')[1]
-                sats_str = parts[5].split(':')[1]
+                lat_str = parts[0].split(':')[1].strip()
+                lon_str = parts[1].split(':')[1].strip()
+                alt_str = parts[2].split(':')[1].strip()
+                head_str = parts[3].split(':')[1].strip()
+                speed_str = parts[4].split(':')[1].strip()
+                sats_str = parts[5].split(':')[1].strip()
             else:
+                self.logger.error(f"GPS Parsing - Unexpected format with {len(parts)} parts")
                 return False
             
             # Parse values, keeping current values if N/A
