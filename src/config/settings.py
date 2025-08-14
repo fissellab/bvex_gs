@@ -61,8 +61,8 @@ HEATER_TELEMETRY = {
 
 # VLBI Telemetry Configuration
 VLBI_SERVER = {
-    'host': '100.70.234.8',  # Saggitarius system IP (same as GPS/PR59)
-    'port': 8082,  # Same telemetry port as GPS/PR59 (VLBI commands on same server)
+    'host': '100.70.234.8',  # Saggitarius telemetry server IP (Tailscale network)
+    'port': 8082,  # Telemetry server port (handles both VLBI and Aquila backend data)
     'timeout': 5.0,
     'update_interval': 1.0   # 1 second between requests
 }

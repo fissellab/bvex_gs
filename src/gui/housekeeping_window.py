@@ -260,6 +260,15 @@ class HousekeepingWindow(QMainWindow):
                         self.telescope_data_window.spectra_widget
                     )
                     self.data_logging_orchestrator.register_logger('spectrometer', spectrometer_logger)
+                
+                # Register backend status logger
+                if hasattr(self.telescope_data_window, 'backend_widget'):
+                    from src.data.loggers.backend_logger import BackendDataLogger
+                    backend_logger = BackendDataLogger(
+                        self.data_logging_orchestrator.session_manager,
+                        self.telescope_data_window.backend_widget
+                    )
+                    self.data_logging_orchestrator.register_logger('backend_status', backend_logger)
             
             # Register household loggers
             pr59_logger = PR59DataLogger(
