@@ -33,7 +33,7 @@ class TICCWorker(QObject):
 
 
 class TICCPlotWidget(QWidget):
-    """Widget for plotting TICC drift over time"""
+    """Widget for plotting TICC drift rate over time"""
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -46,8 +46,8 @@ class TICCPlotWidget(QWidget):
         # Create axis
         self.ax = self.figure.add_subplot(111)
         self.ax.set_xlabel('Time (minutes ago)', fontsize=9)
-        self.ax.set_ylabel('Drift (seconds)', fontsize=9)
-        self.ax.set_title('TICC PPS Drift (GPS - OCXO)', fontsize=10, fontweight='bold')
+        self.ax.set_ylabel('Drift Rate (ns/s)', fontsize=9)
+        self.ax.set_title('TICC PPS Drift Rate (GPS - OCXO)', fontsize=9, fontweight='bold')
         self.ax.grid(True, alpha=0.3)
         self.ax.tick_params(labelsize=8)
         
@@ -55,6 +55,8 @@ class TICCPlotWidget(QWidget):
         self.max_points = 600  # 10 minutes at 1Hz
         self.timestamps = deque(maxlen=self.max_points)
         self.intervals = deque(maxlen=self.max_points)
+        self.drift_rates = deque(maxlen=self.max_points)  # Store calculated drift rates
+        self.latest_drift_rate = 0.0  # Store the most recent drift rate for legend
         
         # Layout
         layout = QVBoxLayout(self)
@@ -67,53 +69,98 @@ class TICCPlotWidget(QWidget):
         # Initialize empty plot
         self.line, = self.ax.plot([], [], 'b-', linewidth=1.5, markersize=2)
         self.ax.set_xlim(0, 10)  # 10 minutes
-        self.ax.set_ylim(-1e-6, 1e-6)  # Default range in seconds
+        self.ax.set_ylim(-1, 1)  # Default range in ns/s for drift rate
+        
+        # Initialize legend (will be updated with latest drift rate)
+        self.legend = None
         
         self.canvas.draw()
     
     def add_data_point(self, timestamp: float, interval: float):
-        """Add a new data point to the plot"""
+        """Add a new data point and calculate drift rate"""
         current_time = dt.datetime.now().timestamp()
         
         # Store data
         self.timestamps.append(current_time)
         self.intervals.append(interval)
         
+        # Calculate drift rate (rate of change of drift)
+        drift_rate = 0.0
+        if len(self.timestamps) >= 2:
+            # Calculate drift rate using the last two points
+            time_diff = self.timestamps[-1] - self.timestamps[-2]
+            interval_diff = self.intervals[-1] - self.intervals[-2]
+            
+            if time_diff > 0:  # Avoid division by zero
+                drift_rate = interval_diff / time_diff  # seconds/second
+        
+        # Store drift rate
+        self.drift_rates.append(drift_rate)
+        self.latest_drift_rate = drift_rate
+        
         # Update plot if we have data
-        if len(self.timestamps) > 1:
-            # Convert timestamps to minutes ago
-            times_ago = [(current_time - t) / 60.0 for t in self.timestamps]
+        if len(self.timestamps) > 1 and len(self.drift_rates) > 0:
+            # Convert timestamps to minutes ago (for x-axis)
+            times_ago = [(current_time - t) / 60.0 for t in self.timestamps if len(self.drift_rates) > 0]
+            
+            # We need to align drift rates with timestamps
+            # Since drift rate requires 2 points, the first drift rate corresponds to the second timestamp
+            if len(times_ago) > len(self.drift_rates):
+                times_ago = times_ago[1:]  # Skip first timestamp since no drift rate for it
+            
             times_ago.reverse()  # Reverse so oldest is on left
-            intervals_list = list(self.intervals)
-            intervals_list.reverse()
+            drift_rates_list = list(self.drift_rates)
+            drift_rates_list.reverse()
+            
+            # Convert drift rates to nanoseconds per second for display
+            drift_rates_ns_list = [dr * 1e9 for dr in drift_rates_list]  # Convert s/s to ns/s
             
             # Update line data
-            self.line.set_data(times_ago, intervals_list)
+            self.line.set_data(times_ago, drift_rates_ns_list)
             
             # Auto-scale axes
             if times_ago:
                 self.ax.set_xlim(0, max(10, max(times_ago) * 1.1))
             
-            if intervals_list:
-                interval_range = max(intervals_list) - min(intervals_list)
-                if interval_range > 0:
-                    margin = interval_range * 0.1
-                    self.ax.set_ylim(min(intervals_list) - margin, max(intervals_list) + margin)
+            if drift_rates_ns_list:
+                drift_rate_range = max(drift_rates_ns_list) - min(drift_rates_ns_list)
+                if drift_rate_range > 0:
+                    margin = drift_rate_range * 0.1
+                    self.ax.set_ylim(min(drift_rates_ns_list) - margin, max(drift_rates_ns_list) + margin)
                 else:
                     # If all values are the same, create a small range around the value
-                    value = intervals_list[0]
-                    margin = abs(value) * 0.1 if value != 0 else 1e-9
+                    value = drift_rates_ns_list[0]
+                    margin = abs(value) * 0.1 if value != 0 else 1e-3
                     self.ax.set_ylim(value - margin, value + margin)
             
+            # Update legend with latest drift rate value
+            self._update_legend()
+            
             self.canvas.draw_idle()
+    
+    def _update_legend(self):
+        """Update the legend with the latest drift rate value"""
+        if self.legend:
+            self.legend.remove()
+        
+        # Convert to nanoseconds per second and format for display
+        drift_rate_ns = self.latest_drift_rate * 1e9  # Convert s/s to ns/s
+        rate_text = f"Latest: {drift_rate_ns:.3f} ns/s"
+        
+        self.legend = self.ax.legend([rate_text], loc='upper right', fontsize=8)
     
     def clear_plot(self):
         """Clear the plot data"""
         self.timestamps.clear()
         self.intervals.clear()
+        self.drift_rates.clear()
+        self.latest_drift_rate = 0.0
         self.line.set_data([], [])
+        if self.legend:
+            self.legend.remove()
+            self.legend = None
         self.ax.set_xlim(0, 10)
-        self.ax.set_ylim(-1e-6, 1e-6)
+        self.ax.set_ylim(-1, 1)
         self.canvas.draw()
 
 
@@ -364,22 +411,6 @@ class TICCWidget(QWidget):
         self.measurement_count_label.setStyleSheet("QLabel { color: black; }")
         layout.addWidget(self.measurement_count_label, 1, 3)
         
-        # Last update
-        updated_label_text = QLabel("Updated:")
-        updated_label_text.setStyleSheet("QLabel { color: black; }")
-        layout.addWidget(updated_label_text, 2, 0)
-        self.last_update_label = QLabel("Never")
-        self.last_update_label.setStyleSheet("QLabel { color: black; }")
-        layout.addWidget(self.last_update_label, 2, 1)
-        
-        # Update rate
-        rate_label_text = QLabel("Rate:")
-        rate_label_text.setStyleSheet("QLabel { color: black; }")
-        layout.addWidget(rate_label_text, 2, 2)
-        self.update_rate_label = QLabel("0.0 Hz")
-        self.update_rate_label.setStyleSheet("QLabel { color: black; }")
-        layout.addWidget(self.update_rate_label, 2, 3)
-        
         return data_frame
     
     def _update_status_display(self, connected):
@@ -528,24 +559,6 @@ class TICCWidget(QWidget):
         
         # Update measurement count
         self.measurement_count_label.setText(f"{self.current_data.measurement_count:,}")
-        
-        # Update last update time
-        if self.current_data.timestamp > 0:
-            try:
-                timestamp = dt.datetime.fromtimestamp(self.current_data.timestamp)
-                time_diff = dt.datetime.now() - timestamp
-                if time_diff.total_seconds() < 60:
-                    self.last_update_label.setText("Just now")
-                else:
-                    minutes_ago = int(time_diff.total_seconds() // 60)
-                    self.last_update_label.setText(f"{minutes_ago}m ago")
-            except:
-                self.last_update_label.setText("Recently")
-        else:
-            self.last_update_label.setText("Unknown")
-        
-        # Calculate and display update rate
-        self.calculate_update_rate()
     
     def update_display_error(self):
         """Update display when there's an error or no data"""
@@ -557,28 +570,8 @@ class TICCWidget(QWidget):
         self.logging_status_label.setText("Unknown")
         self.logging_status_label.setStyleSheet("QLabel { color: #666666; }")
         self.measurement_count_label.setText("N/A")
-        self.last_update_label.setText("Error")
-        self.update_rate_label.setText("0.0 Hz")
     
-    def calculate_update_rate(self):
-        """Calculate and display current update rate"""
-        if len(self.update_times) < 2:
-            self.update_rate_label.setText("0.0 Hz")
-            return
-        
-        # Calculate rate from recent updates
-        now = dt.datetime.now()
-        recent_updates = [t for t in self.update_times if (now - t).total_seconds() < 10]
-        
-        if len(recent_updates) >= 2:
-            time_span = (recent_updates[-1] - recent_updates[0]).total_seconds()
-            if time_span > 0:
-                rate = (len(recent_updates) - 1) / time_span
-                self.update_rate_label.setText(f"{rate:.1f} Hz")
-            else:
-                self.update_rate_label.setText("0.0 Hz")
-        else:
-            self.update_rate_label.setText("0.0 Hz")
+
     
     def on_frequency_changed(self):
         """Handle frequency change"""

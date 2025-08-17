@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame, QSizePolicy, QComboBox, QSlider, QGridLayout
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame, QSizePolicy, QComboBox, QSlider, QGridLayout, QCheckBox
 from PyQt6.QtCore import QTimer, Qt, pyqtSignal, QObject, QThread
 from PyQt6.QtGui import QFont
 import datetime as dt
@@ -62,6 +62,14 @@ class SpectraDisplayWidget(QWidget):
         self.integration_start_time = None  # Track when integration period started
         self.integrated_plot_times = deque(maxlen=100)  # For the actual plot points
         self.integrated_plot_values = deque(maxlen=100)  # For the actual plot points
+        
+        # Satellite power detection (21.0-21.3 GHz)
+        self.satellite_power_enabled = False
+        self.satellite_power_accumulator = []  # Temporary storage for satellite power values
+        self.satellite_integrated_plot_times = deque(maxlen=100)  # For satellite power plot points
+        self.satellite_integrated_plot_values = deque(maxlen=100)  # For satellite power plot points
+        self.satellite_freq_start_idx = 0    # Bin index for 21.0 GHz
+        self.satellite_freq_end_idx = 312    # Bin index for ~21.3 GHz
         
         # Create frequency axis exactly matching read_latest_data.py
         fs = 3932.16 / 2
@@ -126,6 +134,9 @@ class SpectraDisplayWidget(QWidget):
         self.integrated_plot_times.clear()
         self.integrated_plot_values.clear()
         self.power_accumulator.clear()
+        self.satellite_power_accumulator.clear()
+        self.satellite_integrated_plot_times.clear()
+        self.satellite_integrated_plot_values.clear()
         
         self.logger.info("Spectra display widget cleaned up")
 
@@ -209,6 +220,12 @@ class SpectraDisplayWidget(QWidget):
         self.figure.patch.set_facecolor('white')
         self.ax_spectrum, self.ax_power = self.figure.subplots(2, 1, gridspec_kw={'height_ratios': [3, 1]})
         
+        # Create secondary y-axis for satellite power (initially hidden)
+        self.ax_satellite = self.ax_power.twinx()
+        self.ax_satellite.set_ylabel('Satellite Power (dB)', fontsize=10, color='blue')
+        self.ax_satellite.tick_params(axis='y', labelcolor='blue')
+        self.ax_satellite.set_visible(False)  # Initially hidden
+        
         self.canvas = FigureCanvas(self.figure)
         self.canvas.setMinimumHeight(400) # Increased height for two plots
         
@@ -237,6 +254,17 @@ class SpectraDisplayWidget(QWidget):
         self.integration_value_label.setFont(QFont("Arial", 10))
         self.integration_value_label.setMinimumWidth(60)
         integration_layout.addWidget(self.integration_value_label)
+        
+        # Add separator
+        integration_layout.addSpacing(30)
+        
+        # Satellite power checkbox
+        self.satellite_power_checkbox = QCheckBox("Satellite Power")
+        self.satellite_power_checkbox.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        self.satellite_power_checkbox.setStyleSheet("QCheckBox { color: #0066cc; }")
+        self.satellite_power_checkbox.stateChanged.connect(self.on_satellite_power_toggled)
+        self.satellite_power_checkbox.setToolTip("Show integrated power for 21.0-21.3 GHz satellite band")
+        integration_layout.addWidget(self.satellite_power_checkbox)
         
         integration_layout.addStretch()
         
@@ -498,6 +526,30 @@ class SpectraDisplayWidget(QWidget):
             integrated_power = np.sum(raw_data)
             integrated_power_db = 10 * np.log10(np.maximum(integrated_power, floor_value))
             
+            # Satellite power calculation (21.0-21.3 GHz frequency bins) with baseline subtraction
+            # Always calculate satellite power for STANDARD data, but only use it if checkbox is enabled
+            if len(raw_data) >= self.satellite_freq_end_idx:
+                # Calculate median baseline excluding the satellite band (bins 0-312)
+                # Use bins 313-2047 for baseline calculation
+                baseline_bins = raw_data[self.satellite_freq_end_idx+1:]  # Bins after satellite band
+                if len(baseline_bins) > 10:  # Ensure we have enough bins for meaningful baseline
+                    baseline_median = np.median(baseline_bins)
+                    
+                    # Apply baseline subtraction to satellite band only
+                    satellite_band_corrected = raw_data[self.satellite_freq_start_idx:self.satellite_freq_end_idx+1] - baseline_median
+                    
+                    # Sum the baseline-corrected satellite band (ensuring positive values)
+                    satellite_power_linear = np.sum(np.maximum(satellite_band_corrected, floor_value))
+                    satellite_power_db = 10 * np.log10(np.maximum(satellite_power_linear, floor_value))
+                    
+                    self.logger.debug(f"Satellite power: baseline_median={baseline_median:.3e}, corrected_power={satellite_power_db:.2f} dB")
+                else:
+                    # Fallback if not enough baseline bins
+                    satellite_power_linear = np.sum(raw_data[self.satellite_freq_start_idx:self.satellite_freq_end_idx+1])
+                    satellite_power_db = 10 * np.log10(np.maximum(satellite_power_linear, floor_value))
+            else:
+                satellite_power_db = None
+            
         elif self.spectrum_data.type == '120KHZ':
             # 120KHZ data is already in dB format (baseline-subtracted) - use directly
             spectrum_db = raw_data.copy()
@@ -511,6 +563,9 @@ class SpectraDisplayWidget(QWidget):
             else:
                 # Fallback if no baseline info
                 integrated_power_db = np.sum(raw_data)  # Simple sum of dB values
+            
+            # No satellite power detection for 120KHZ mode
+            satellite_power_db = None
                 
         else:
             self.logger.warning(f"Unknown spectrum type: {self.spectrum_data.type}")
@@ -522,7 +577,7 @@ class SpectraDisplayWidget(QWidget):
         self.power_values.append(integrated_power_db)
         
         # Handle power integration for plot
-        self.handle_power_integration(integrated_power_db, current_time)
+        self.handle_power_integration(integrated_power_db, satellite_power_db, current_time)
         
         # --- Plotting ---
         self.ax_spectrum.clear()
@@ -600,6 +655,9 @@ class SpectraDisplayWidget(QWidget):
             self.ax_spectrum.set_ylim(y_min - padding, y_max + padding)
 
         # Plot integrated power - simplified approach for better visibility
+        plot_values_for_scaling = []
+        satellite_plot_values_for_scaling = []
+        
         if self.integrated_plot_times:
             # Filter to show only recent data (last 5 minutes maximum)
             current_time = dt.datetime.now()
@@ -619,7 +677,7 @@ class SpectraDisplayWidget(QWidget):
             if recent_times:
                 # Use simple x-axis indexing for recent data only
                 x_indices = list(range(len(recent_times)))
-                self.ax_power.plot(x_indices, recent_values, 'r-', linewidth=1.5)
+                self.ax_power.plot(x_indices, recent_values, 'r-', linewidth=1.5, label='Total Power')
                 
                 # Show evenly spaced time labels across the recent data range
                 if len(recent_times) > 1:
@@ -635,11 +693,63 @@ class SpectraDisplayWidget(QWidget):
                 
                 # Use recent values for Y-axis scaling
                 plot_values_for_scaling = recent_values
-            else:
-                # No recent data to plot
-                plot_values_for_scaling = []
+        
+        # Clear and prepare satellite axis
+        self.ax_satellite.clear()
+        #self.ax_satellite.set_ylabel('Satellite Power (dB)', fontsize=10, color='blue')
+        self.ax_satellite.tick_params(axis='y', labelcolor='blue')
+        
+        # Plot satellite power on secondary y-axis if enabled and data is available
+        satellite_plot_values_for_scaling = []
+        if self.satellite_power_enabled and self.satellite_integrated_plot_times:
+            # Show the satellite axis
+            self.ax_satellite.set_visible(True)
+            
+            # Filter satellite data to match the exact same time points as main power data
+            current_time = dt.datetime.now()
+            time_cutoff = current_time - dt.timedelta(minutes=5)
+            
+            # Find satellite data points that correspond to the same time window as main power
+            recent_satellite_values = []
+            
+            # Match satellite data to main power data time points
+            for i, main_time_point in enumerate(recent_times if recent_times else []):
+                # Find the closest satellite data point to this main power time point
+                closest_satellite_idx = None
+                min_time_diff = float('inf')
+                
+                for j, sat_time_point in enumerate(self.satellite_integrated_plot_times):
+                    if sat_time_point >= time_cutoff:  # Only consider recent satellite data
+                        time_diff = abs((sat_time_point - main_time_point).total_seconds())
+                        if time_diff < min_time_diff:
+                            min_time_diff = time_diff
+                            closest_satellite_idx = j
+                
+                # Only use satellite data if it's within 30 seconds of the main power data point
+                if closest_satellite_idx is not None and min_time_diff <= 30:
+                    recent_satellite_values.append(self.satellite_integrated_plot_values[closest_satellite_idx])
+                else:
+                    recent_satellite_values.append(None)  # No matching satellite data
+            
+            # Only plot if we have satellite data and it matches main power data length
+            if recent_satellite_values and recent_times and len(recent_satellite_values) == len(recent_times):
+                # Use the exact same x-axis as main power plot
+                # Only plot points where we have valid satellite data
+                valid_indices = []
+                valid_satellite_values = []
+                for i, sat_val in enumerate(recent_satellite_values):
+                    if sat_val is not None:
+                        valid_indices.append(i)
+                        valid_satellite_values.append(sat_val)
+                
+                if valid_indices and valid_satellite_values:
+                    self.ax_satellite.plot(valid_indices, valid_satellite_values, 'b-', 
+                                         linewidth=2, alpha=0.8, label='Satellite Power (21.0-21.3 GHz)')
+                
+                satellite_plot_values_for_scaling = valid_satellite_values
         else:
-            plot_values_for_scaling = []
+            # Hide the satellite axis when not in use
+            self.ax_satellite.set_visible(False)
         
         self.ax_power.set_title(f"Integrated Power ({self.integration_time_sec:.1f}s integration)", fontsize=12)
         self.ax_power.set_xlabel("Time", fontsize=10)
@@ -658,6 +768,23 @@ class SpectraDisplayWidget(QWidget):
             else:
                 padding = 0.1  # Minimal padding for flat signals
             self.ax_power.set_ylim(p_min - padding, p_max + padding)
+        
+        # Dynamic Y-axis for satellite power if enabled
+        if self.satellite_power_enabled and satellite_plot_values_for_scaling:
+            s_min, s_max = np.min(satellite_plot_values_for_scaling), np.max(satellite_plot_values_for_scaling)
+            s_range = s_max - s_min
+            if s_range > 0.01:  # If there's meaningful variation
+                s_padding = 0.05 * s_range  # Smaller padding to show changes better
+            else:
+                s_padding = 0.1  # Minimal padding for flat signals
+            self.ax_satellite.set_ylim(s_min - s_padding, s_max + s_padding)
+        
+        # Add legend if satellite power is shown
+        if self.satellite_power_enabled and satellite_plot_values_for_scaling:
+            # Combine legends from both axes
+            lines1, labels1 = self.ax_power.get_legend_handles_labels()
+            lines2, labels2 = self.ax_satellite.get_legend_handles_labels()
+            self.ax_power.legend(lines1 + lines2, labels1 + labels2, loc='upper right', fontsize=9)
             
         self.canvas.draw()
     
@@ -691,26 +818,44 @@ class SpectraDisplayWidget(QWidget):
         # Clear all plot data when integration time changes since old data is no longer relevant
         self.clear_integration_plot_data()
     
+    def on_satellite_power_toggled(self, state):
+        """Handle satellite power checkbox toggle"""
+        self.satellite_power_enabled = (state == Qt.CheckState.Checked.value)
+        self.logger.info(f"Satellite power detection {'enabled' if self.satellite_power_enabled else 'disabled'}")
+        
+        # Clear satellite power data when toggling to start fresh
+        self.satellite_integrated_plot_times.clear()
+        self.satellite_integrated_plot_values.clear()
+        self.satellite_power_accumulator.clear()
+    
     def reset_integration(self):
         """Reset the integration accumulator and start time"""
         self.power_accumulator.clear()
+        self.satellite_power_accumulator.clear()
         self.integration_start_time = None
     
     def clear_integration_plot_data(self):
         """Clear the integrated plot data (used when settings change or restarting)"""
         self.integrated_plot_times.clear()
         self.integrated_plot_values.clear()
+        self.satellite_integrated_plot_times.clear()
+        self.satellite_integrated_plot_values.clear()
         self.reset_integration()
     
-    def handle_power_integration(self, integrated_power_db, current_time):
+    def handle_power_integration(self, integrated_power_db, satellite_power_db, current_time):
         """Handle integration of power values over the specified time period"""
         # Initialize integration period if needed
         if self.integration_start_time is None:
             self.integration_start_time = current_time
             self.power_accumulator.clear()
+            self.satellite_power_accumulator.clear()
         
         # Add current power reading to accumulator
         self.power_accumulator.append(integrated_power_db)
+        
+        # Add satellite power reading to accumulator if available and enabled
+        if self.satellite_power_enabled and satellite_power_db is not None:
+            self.satellite_power_accumulator.append(satellite_power_db)
         
         # Check if integration period is complete
         time_elapsed = (current_time - self.integration_start_time).total_seconds()
@@ -725,6 +870,12 @@ class SpectraDisplayWidget(QWidget):
                 self.integrated_plot_times.append(current_time)
                 self.integrated_plot_values.append(averaged_power)
                 
+                # Handle satellite power integration if enabled and data is available
+                if self.satellite_power_enabled and self.satellite_power_accumulator:
+                    averaged_satellite_power = np.mean(self.satellite_power_accumulator)
+                    self.satellite_integrated_plot_times.append(current_time)
+                    self.satellite_integrated_plot_values.append(averaged_satellite_power)
+                
                 # Periodically clean old data to prevent memory bloat
                 self.clean_old_plot_data(current_time)
                 
@@ -738,4 +889,9 @@ class SpectraDisplayWidget(QWidget):
         # Remove old entries from the beginning of the deques
         while self.integrated_plot_times and self.integrated_plot_times[0] < time_cutoff:
             self.integrated_plot_times.popleft()
-            self.integrated_plot_values.popleft() 
+            self.integrated_plot_values.popleft()
+        
+        # Also clean satellite power data
+        while self.satellite_integrated_plot_times and self.satellite_integrated_plot_times[0] < time_cutoff:
+            self.satellite_integrated_plot_times.popleft()
+            self.satellite_integrated_plot_values.popleft() 

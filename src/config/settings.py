@@ -100,9 +100,9 @@ GPS_PROCESSING = {
 
 # Default Observatory Location (Kingston, ON area)
 OBSERVATORY = {
-    'latitude': 44.224372,   # degrees
-    'longitude': -76.498007, # degrees
-    'elevation': 100.0       # meters
+    'latitude': 48.4758,   # degrees
+    'longitude': -81.3305, # degrees
+    'elevation': 295.0       # meters
 }
 
 # GUI Configuration
