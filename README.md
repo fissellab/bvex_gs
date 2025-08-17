@@ -1,384 +1,378 @@
 # BVEX Ground Station
 
-Professional ground station GUI software for the Balloon-borne VLBI Experiment (BVEX). This application provides a comprehensive real-time monitoring and control interface for BVEX operations.
+Professional ground station software for the Balloon-borne VLBI Experiment (BVEX). A comprehensive PyQt6-based multi-window application providing real-time monitoring and control of balloon-borne astronomical instruments during flight operations.
 
-## Current Status
+## System Overview
 
-The BVEX Ground Station is a fully functional PyQt6-based application that integrates multiple data sources and display systems. The software provides real-time visualization of astronomical data, GPS telemetry, spectrometer measurements, and star camera images in a professional four-panel interface.
+The BVEX Ground Station represents a complete operational platform for balloon-based radio astronomy, featuring a distributed three-window architecture optimized for field operations. The system integrates multiple data sources, provides real-time scientific visualization, and maintains comprehensive data logging for post-flight analysis.
 
-## Core Features
+### Key Capabilities
 
-### Real-time Sky Chart Display
-- Interactive polar coordinate sky chart with celestial object tracking
-- Live coordinate grid display (RA/Dec lines with hour/degree annotations)
-- Solar system object visualization (Sun, Moon, planets with distinct markers)
-- Observation target tracking (W49N radio source)
-- User-controlled on/off toggle with static and animated modes
-- Location-aware calculations using GPS coordinates when available
-- Automatic time-based updates every second during active mode
+- **Multi-instrument telemetry acquisition** (10+ concurrent data streams)
+- **Real-time scientific visualization** with professional-grade displays
+- **Comprehensive data logging** with timestamped session management
+- **Distributed window architecture** for optimal screen utilization
+- **Automated installation** with Ubuntu 24.04 LTS optimization
+- **Network-resilient operation** with automatic reconnection
 
-### GPS Telemetry System
-- Real-time GPS data acquisition via UDP client
-- Thread-safe data processing with automatic error handling
-- Live display of latitude, longitude, altitude, and heading
-- Coordinate system conversion and offset corrections
-- Connection status monitoring with visual indicators
-- Configurable update rates and timeout handling
-- Support for N/A value handling from GPS server
+## Architecture
 
-### BCP Spectrometer Integration
-- Dual-mode spectrometer support (Standard 2048-point and High-resolution 120kHz)
-- Real-time spectrum visualization with frequency axis calibration
-- Integrated power monitoring with time-series plotting
-- Automatic spectrometer type detection and switching
-- Data rate monitoring and connection status display
-- Thread-safe UDP communication with rate limiting
-- Error handling for connection failures and data corruption
+### Multi-Window Design (v2.0+)
 
-### Star Camera Image Display
-- Real-time star camera image acquisition via UDP downlink protocol
-- JPEG image compression and decompression with quality control
-- Bandwidth-limited image updates (every 10 seconds at ~200 kB/s)
-- Image metadata display (dimensions, compression quality, detected stars)
-- Server status monitoring (queue size, bandwidth usage, transmission status)
-- Thread-safe image downloading with progress tracking
-- Automatic image scaling and display with scroll support
+The application employs a **three-window architecture** that maximizes operational efficiency:
 
-### Professional User Interface
-- Four-panel layout optimized for operational use
-- Individual component control (GPS, Sky Chart, Spectrometer, Star Camera)
-- Real-time status indicators and connection monitoring
-- Resizable interface with minimum size constraints
-- Menu system with connection controls and refresh options
-- Status bar with permanent connection status displays
+1. **Pointing Window** - Telescope pointing operations and celestial navigation
+2. **Telescope Data Window** - Scientific instrument monitoring and data acquisition  
+3. **Housekeeping Window** - System monitoring, data logging, and environmental controls
 
-### Network Communication
-- Robust UDP client implementations for multiple data sources
-- Configurable server addresses and ports
-- Automatic reconnection and error recovery
-- Thread-safe data handling with proper synchronization
-- Timeout handling and connection status reporting
+Each window operates independently with dedicated network connections and can be positioned across multiple monitors for optimal workflow.
 
-## Project Architecture
+### Data Sources & Network Configuration
 
-```
-bvex_gs/
-├── src/
-│   ├── config/
-│   │   ├── settings.py          # Centralized configuration management
-│   │   └── __init__.py
-│   ├── data/
-│   │   ├── gps_client.py        # GPS UDP client with threading
-│   │   ├── bcp_spectrometer_client.py  # Spectrometer UDP client
-│   │   ├── star_camera_client.py    # Star camera UDP client
-│   │   └── __init__.py
-│   └── gui/
-│       ├── main_window.py       # Main application window
-│       ├── sky_chart_widget.py  # Astronomical sky chart display
-│       ├── gps_display_widget.py    # GPS data visualization
-│       ├── spectra_display_widget.py # Spectrometer data display
-│       ├── star_camera_widget.py    # Star camera image display
-│       └── __init__.py
-├── main.py                      # Application entry point
-├── requirements.txt             # Python dependencies
-├── bvex_pointing.py            # Legacy tkinter implementation (reference)
-├── gps_server.c                # GPS server C implementation
-├── gps_server.h                # GPS data structure definitions
-├── BCP_CLIENT_GUIDE.md         # Comprehensive spectrometer client guide
-└── README.md                   # This documentation
-```
+| System | IP Address | Port | Description |
+|--------|------------|------|-------------|
+| **GPS Telemetry** | 100.70.234.8 | 8080 | Real-time GPS coordinates and heading |
+| **BCP Spectrometer** | 100.70.234.8 | 8081 | Dual-mode radio spectrometer data |
+| **General Telemetry** | 100.70.234.8 | 8082 | PR59, VLBI, and Aquila backend data |
+| **Star Camera** | 100.85.84.122 | 8001 | Star field imaging with JPEG compression |
+| **BCP Housekeeping** | 100.85.84.122 | 8002 | Environmental sensors and system status |
+| **Heater Control** | 172.20.4.178 | 8006 | LabJack T7 heater system interface |
+
+### Core System Components
+
+#### Data Acquisition Layer (`src/data/`)
+
+**Primary Network Clients:**
+- `gps_client.py` - GPS telemetry with coordinate offset corrections
+- `bcp_spectrometer_client.py` - Dual-mode radio spectrometer (2048-point standard + 120kHz high-resolution)
+- `star_camera_client.py` - Star camera images via UDP with bandwidth management
+- `pr59_client.py` - Temperature controller for PR59 calibration system
+- `heater_client.py` - LabJack T7-based heater system control
+- `housekeeping_client.py` - BCP environmental monitoring (10+ temperature sensors)
+- `system_monitor_client.py` - Flight computer health metrics (CPU, memory, storage)
+- `ticc_client.py` - Timing instrument correlation data
+- `vlbi_client.py` - VLBI backend telemetry and status
+- `aquila_client.py` - Aquila backend data acquisition
+
+**Data Management:**
+- `session_manager.py` - Timestamped session creation and cleanup
+- `data_logging_orchestrator.py` - Centralized logging control across all instruments
+- `widget_data_logger.py` - Per-widget data logging with CSV output
+- `image_data_logger.py` - Star camera image archival with thumbnail generation
+
+#### User Interface Layer (`src/gui/`)
+
+**Pointing Window Components:**
+- `sky_chart_widget.py` - Real-time polar coordinate sky chart with celestial object tracking
+- `star_camera_widget.py` - Live star camera display with contrast enhancement
+- `gps_display_widget.py` - GPS coordinates with configurable offset corrections
+- `motor_controller_widget.py` - Telescope pointing and scanning control
+- `scanning_operations_widget.py` - Automated observation modes and raster scans
+
+**Telescope Data Window Components:**
+- `spectra_display_widget.py` - Real-time spectrum visualization with frequency calibration
+- `vlbi_telemetry_widget.py` - VLBI backend status and correlation data
+- `ticc_widget.py` - Timing instrument control and monitoring
+- `backend_status_widget.py` - Aquila backend system health and performance
+
+**Housekeeping Window Components:**
+- `housekeeping_widget.py` - BCP environmental sensors and system status
+- `pr59_widget.py` - Temperature controller interface and monitoring
+- `heater_widget.py` - Heater system control with relay status
+- `pbob_widget.py` - Power distribution box monitoring and control
+- `system_monitor_widget.py` - Flight computer resource monitoring
+- `network_traffic_widget.py` - Network connectivity and bandwidth monitoring
 
 ## Data Logging System
 
-### Overview
-The BVEX Ground Station now features a comprehensive per-widget data logging system that replaces the previous monolithic CSV logger. This system provides timestamped session directories and widget-specific data logging with automatic cleanup.
+### Session-Based Architecture
 
-### Key Features
-- **Timestamped Session Directories**: `data/YYYY-MM-DD_HH-MM-SS_session/`
-- **Per-widget Data Logging**: Each instrument has its own dedicated logger
-- **Complete Spectra Logging**: Full 2048-point spectrometer data with timestamps
-- **Image Saving**: Star camera images saved as JPEG at 100% quality
-- **PBoB Logging**: Power distribution box relay states and current measurements
-- **Single Toggle Control**: One button in HousekeepingWindow controls all logging
-- **Active State Checking**: Only logs data when widgets are turned ON
+The system implements a comprehensive **per-widget data logging system** with automatic session management:
 
-### Supported Loggers
-1. **GPS Data Logger** - Position and telemetry data
-2. **Spectrometer Logger** - Complete 2048-point spectra with timestamps
-3. **Star Camera Logger** - Image metadata and actual image files
-4. **Motor Controller Logger** - Motor positions and status
-5. **PR59 Logger** - Temperature controller data
-6. **Heater Logger** - Heater system relay states and temperatures
-7. **PBoB Logger** - Power distribution box relay states and currents
-8. **Ophiuchus Logger** - Integrated telescope telemetry
-9. **System Monitor Logger** - Flight computer CPU, memory, and storage metrics
-
-### File Structure
+**Session Structure:**
 ```
 data/
-└── 2025-07-27_00-01-47_session/
-    ├── gps_data.csv
-    ├── spectrometer_data.csv
-    ├── star_camera_data.csv
-    ├── motor_controller_data.csv
-    ├── pr59_temperature_data.csv
-    ├── heater_system_data.csv
-    ├── pbob_data.csv
-    ├── ophiuchus_data.csv
-    └── star_camera/
-        ├── image_20250727_000100.jpg
-        ├── image_20250727_000110.jpg
-        └── thumbnails/
+└── 2025-08-16_14-30-45_session/
+    ├── gps_data.csv                    # GPS telemetry
+    ├── spectrometer_data.csv          # Complete 2048-point spectra
+    ├── star_camera_data.csv           # Image metadata and timestamps
+    ├── motor_controller_data.csv      # Telescope positions and status
+    ├── pr59_temperature_data.csv      # PR59 temperature readings
+    ├── heater_system_data.csv         # Heater states and temperatures
+    ├── pbob_data.csv                  # Power distribution data
+    ├── ophiuchus_data.csv             # Integrated system telemetry
+    ├── system_monitor_data.csv        # Computer health metrics
+    └── star_camera_images/
+        ├── image_20250816_143045.jpg  # Full-resolution star images
+        ├── image_20250816_143055.jpg
+        └── thumbnails/                # Quick-look thumbnails
 ```
 
-### Usage
-- **Start Logging**: Toggle "Start Data Logging" in HousekeepingWindow
-- **Session Management**: Automatic creation and cleanup of old sessions
-- **Data Access**: All files accessible via session directory or through UI
+**Logging Control:**
+- **Single-toggle activation** via HousekeepingWindow
+- **Per-widget activation** - only logs when instruments are enabled
+- **Automatic cleanup** - sessions older than 30 days removed
+- **Real-time monitoring** - logging status visible in GUI
 
-## Technical Specifications
+**Supported Data Types:**
+1. **GPS Data** - Position, altitude, heading, and quality metrics
+2. **Spectrometer Data** - Full 2048-point spectra with timestamps and calibration
+3. **Star Camera** - JPEG images (100% quality) with metadata and thumbnails
+4. **Motor Controller** - Azimuth/elevation positions and movement status
+5. **PR59 Temperature** - 8-channel temperature readings with alarm states
+6. **Heater System** - Relay states, temperatures, and control commands
+7. **PBoB Power** - Relay states, current measurements, and voltage monitoring
+8. **Ophiuchus Telemetry** - Integrated system health and environmental data
+9. **System Monitor** - CPU usage, memory consumption, and disk space
+10. **BCP Housekeeping** - Environmental sensors, pressure readings, and system alerts
 
-### Dependencies
-- **PyQt6 >= 6.4.0**: Modern GUI framework with native look and feel
-- **matplotlib >= 3.6.0**: Scientific plotting for sky charts and spectra
-- **numpy >= 1.24.0**: Numerical computations and data processing
-- **astropy >= 5.2.0**: Astronomical calculations and coordinate transformations
-- **Pillow >= 9.0.0**: Image processing for star camera JPEG handling
-
-### Network Configuration
-- **GPS Server**: UDP communication on configurable IP/port (default: 100.70.234.8:8080)
-- **BCP Spectrometer**: UDP communication on configurable IP/port (default: 100.70.234.8:8081)
-- **Star Camera**: UDP communication on configurable IP/port (default: 100.70.234.8:8001)
-- **PBoB System**: UDP communication via Ophiuchus server (default: 100.85.84.122:8002)
-- **Protocol**: Custom message formats with error handling and validation
-
-### Data Processing
-- **GPS Data**: Real-time parsing with coordinate offsets and heading corrections
-- **Astronomical Calculations**: Astropy-based coordinate transformations and ephemeris data
-- **Spectrum Analysis**: Frequency domain processing with power integration
-- **Time Synchronization**: UTC-based timing for all astronomical calculations
-- **Data Logging**: Real-time collection and storage of all instrument data
-
-## Installation and Setup
+## Installation & Setup
 
 ### Prerequisites
-- **Python 3.8 or higher** (Python 3.9+ recommended)
-- **pip package manager** (usually included with Python)
+- **Python 3.8+** (Python 3.9+ recommended)
 - **Network connectivity** to BVEX flight systems
+- **Ubuntu 24.04 LTS** (optimized) or equivalent Linux distribution
+- **Multi-monitor setup** recommended for optimal workflow
 
-### Quick Setup (Recommended)
+### Automated Setup (Ubuntu 24.04 LTS - Highly Recommended)
 
-We **highly recommend** using a virtual environment to avoid dependency conflicts with your system Python packages.
-
-#### Option 1: Automated Setup (Easiest)
+The automated setup script provides complete system configuration optimized for Ubuntu 24.04 LTS:
 
 ```bash
 # Clone repository
 git clone [repository-url]
 cd bvex_gs
 
-# Run automated setup script
+# Make setup script executable
+chmod +x setup.sh
+
+# Run automated setup
 ./setup.sh
 ```
 
-The automated script will:
-- ✅ Check Python version compatibility
-- ✅ Create a virtual environment (`venv/`)
-- ✅ Install all dependencies automatically
-- ✅ Provide clear next steps
+**Setup Script Features:**
+- ✅ **System detection** - Ubuntu 24.04 LTS optimization
+- ✅ **Dependency installation** - Qt6, PyQt6, scientific libraries
+- ✅ **Virtual environment** - Isolated `bvex_gs_env` creation
+- ✅ **Qt6 configuration** - Platform-specific optimizations
+- ✅ **Network testing** - Connectivity validation
+- ✅ **Installation verification** - Comprehensive testing
 
-#### Option 2: Manual Setup
+### Manual Setup (Cross-Platform)
+
+For non-Ubuntu systems or custom configurations:
 
 ```bash
-# Clone repository
-git clone [repository-url]
-cd bvex_gs
-
 # Create virtual environment
 python3 -m venv bvex_gs_env
 
-# Activate virtual environment
-source bvex_gs_env/bin/activate
-
-# Upgrade pip
-pip install --upgrade pip
+# Activate environment
+source bvex_gs_env/bin/activate  # Linux/Mac
+# or
+bvex_gs_env\Scripts\activate     # Windows
 
 # Install dependencies
 pip install -r requirements.txt
 
-# Run application
+# Launch application
 python main.py
 ```
 
-### Daily Usage
-
-After initial setup, to run the application:
+### Daily Operation
 
 ```bash
-cd bvex_gs
-source bvex_gs_env/bin/activate  # Activate virtual environment
-python main.py            # Run application
-deactivate                # When done (optional)
+# Activate environment
+source bvex_gs_env/bin/activate
+
+# Launch multi-window interface
+python main.py
+
+# Three windows will automatically open and position:
+# 1. Pointing Window (left monitor/position)
+# 2. Telescope Data Window (center/right)  
+# 3. Housekeeping Window (far right/data station)
 ```
 
+## Configuration
 
-### Virtual Environment Management
+### Network Settings (`src/config/settings.py`)
 
-**Check if virtual environment is active:**
-- Your terminal prompt should show `(venv)` at the beginning
-- Run `which python` - it should point to the venv directory
-
-**Deactivate virtual environment:**
-```bash
-deactivate
-```
-
-**Remove virtual environment (if needed):**
-```bash
-rm -rf venv
-```
-
-**Recreate virtual environment:**
-```bash
-# Just run the setup script again
-./setup.sh
-```
-
-### Configuration
-
-Key configuration parameters in `src/config/settings.py`:
+Key configuration parameters can be modified for different deployment scenarios:
 
 ```python
-# GPS Server Configuration
+# GPS Configuration
 GPS_SERVER = {
     'host': '100.70.234.8',
     'port': 8080,
-    'update_interval': 0.05  # 50ms between requests
+    'update_interval': 1.0,  # 1 Hz updates
+    'timeout': 5.0
 }
 
-# BCP Spectrometer Configuration
-BCP_SPECTROMETER = {
-    'host': '100.70.234.8',
-    'port': 8081,
-    'update_interval': 1.0   # 1 Hz updates
-}
-
-# Star Camera Configuration
-STAR_CAMERA = {
-    'host': '100.70.234.8',
-    'port': 8001,
-    'update_interval': 10.0  # 10 second intervals due to bandwidth limits
-}
-
-# Observatory Location (Kingston, ON area)
+# Observatory Location (Kingston, ON)
 OBSERVATORY = {
     'latitude': 44.224372,
     'longitude': -76.498007,
     'elevation': 100.0
 }
+
+# Star Camera Settings
+STAR_CAMERA = {
+    'host': '100.85.84.122',
+    'port': 8001,
+    'update_interval': 10.0,  # 10 seconds for bandwidth management
+    'timeout': 10.0
+}
 ```
+
+### GUI Configuration
+- **Window positioning** - Automatic across available screens
+- **Update intervals** - Configurable per instrument
+- **Display quality** - Optimized for scientific visualization
+- **Network timeouts** - Robust error handling
 
 ## Operational Usage
 
-### Starting the Application
-1. Ensure network connectivity to flight systems
-2. Launch with `python main.py`
-3. Use File menu to connect GPS
-4. Activate Sky Chart and Spectrometer as needed
+### Starting the System
+1. **Network verification** - Ensure connectivity to all BVEX systems
+2. **Environment activation** - `source bvex_gs_env/bin/activate`
+3. **Application launch** - `python main.py`
+4. **Window arrangement** - Position across monitors as desired
+5. **Instrument activation** - Use individual window controls
+6. **Data logging** - Enable via HousekeepingWindow toggle
 
 ### Interface Controls
-- **Sky Chart Toggle**: Turn on/off real-time astronomical display
-- **GPS Connection**: Manual connect/disconnect with automatic retry
-- **Spectrometer Toggle**: Activate spectrum acquisition and display
-- **Star Camera Toggle**: Activate image acquisition every 10 seconds
-- **Status Monitoring**: Real-time connection and data rate indicators
 
-### Data Formats
+**Pointing Window:**
+- **Sky Chart** - Real-time celestial display with object tracking
+- **Star Camera** - Live imagery with 10-second updates
+- **GPS Display** - Coordinate monitoring with offset correction
+- **Motor Control** - Manual and automated telescope pointing
+- **Scanning Operations** - Programmed observation patterns
 
-**GPS Data Format:**
-```
-gps_lat:44.224372,gps_lon:-76.498007,gps_alt:100.0,gps_head:270.0
-```
+**Telescope Data Window:**
+- **Spectrometer** - Real-time spectrum acquisition and display
+- **VLBI Telemetry** - Backend correlation and timing data
+- **TICC Interface** - Timing system control and monitoring
+- **Backend Status** - Aquila system health indicators
 
-**Spectrometer Data Formats:**
-- Standard: `SPECTRA_STD:timestamp:1673123456.789,points:2048,data:1.234,5.678,...`
-- High-res: `SPECTRA_120KHZ:timestamp:1673123456.789,points:167,freq_start:22.225,freq_end:22.245,baseline:-45.2,data:1.234,5.678,...`
+**Housekeeping Window:**
+- **Data Logging Control** - Single toggle for all instruments
+- **Environmental Monitoring** - BCP temperature and pressure sensors
+- **PR59 Temperature** - 8-channel calibration system monitoring
+- **Heater Control** - LabJack T7 relay and temperature management
+- **Power Distribution** - PBoB relay states and current monitoring
+- **System Health** - Flight computer resource utilization
+- **Network Status** - Connectivity and bandwidth monitoring
 
-## Development Status
+### Data Access
 
-### Completed Features
-- Full GUI implementation with professional layout
-- Complete GPS telemetry integration
-- BCP spectrometer data acquisition and visualization
-- Real-time astronomical calculations and display
-- Robust network communication with error handling
-- Comprehensive configuration management
-- Thread-safe data processing
+**Real-time Display:**
+- Live widget updates with configurable refresh rates
+- Color-coded status indicators for quick assessment
+- Warning/alarm states with visual alerts
+- Network connectivity status for all instruments
 
-### Architecture Highlights
-- Modular design with clear separation of concerns
-- Thread-safe implementation for real-time data handling
-- Configurable parameters for different deployment scenarios
-- Professional Qt-based interface suitable for operational use
-- Comprehensive error handling and logging throughout
-
-### Extension Points
-- Additional telemetry data sources can be integrated via similar client patterns
-- New visualization widgets can be added to the main window layout
-- Configuration system supports easy addition of new parameters
-- Logging system provides debugging and operational monitoring
+**Logged Data:**
+- **CSV exports** for all instrument data with timestamps
+- **Image archives** with full-resolution star camera data
+- **Session directories** organized by date/time
+- **Thumbnail generation** for quick image review
+- **Automated cleanup** maintaining 30-day retention
 
 ## Troubleshooting
 
 ### Common Installation Issues
 
-**1. Python Version Problems:**
+**Qt6 Display Problems:**
 ```bash
-# Check your Python version
-python3 --version
+# Ensure system packages are installed
+sudo apt update
+sudo apt install qt6-base-dev libqt6gui6 libqt6widgets6
 
-# If version is < 3.8, install newer Python
+# Force X11 platform (if Wayland issues)
+export QT_QPA_PLATFORM=xcb
 ```
 
-**2. Virtual Environment Activation Issues:**
+**Network Connectivity:**
 ```bash
-# If activation fails, try:
-python3 -m venv --clear bvex_gs_env
-source bvex_gs_env/bin/activate
+# Test individual connections
+telnet 100.70.234.8 8080    # GPS
+telnet 100.85.84.122 8001   # Star camera
+ping 100.70.234.8          # General connectivity
 ```
 
-**3. Permission Errors:**
+**Virtual Environment Issues:**
 ```bash
-# If setup.sh won't run
-chmod +x setup.sh
+# Recreate environment if corrupted
+rm -rf bvex_gs_env
 ./setup.sh
+
+# Verify activation
+which python  # Should show bvex_gs_env path
 ```
 
-**4. PyQt6 Installation Issues:**
+**Python Version Problems:**
 ```bash
-# If PyQt6 fails to install, try:
-pip install --upgrade pip setuptools wheel
-pip install PyQt6
+# Check version
+python3 --version  # Must be 3.8+
+
+# Ubuntu 24.04 users: ensure system Python
+sudo apt install python3 python3-venv python3-pip
 ```
 
-**5. "Module not found" errors:**
-- Make sure virtual environment is activated (you should see `(venv)` in your prompt)
-- Re-run the setup script to ensure all dependencies are installed
+### Runtime Issues
 
-### Common Runtime Issues
-1. **GPS Connection Failures**: Verify network connectivity and server IP/port configuration
-2. **Spectrometer Data Issues**: Check spectrometer server status and request rate limits  
-3. **Sky Chart Performance**: Adjust update intervals for system performance
-4. **Star Camera Connection**: Verify Ophiuchus server is running on 100.85.84.122:8002
-5. **Display Issues**: Ensure proper PyQt6 installation and graphics drivers
+**Connection Failures:**
+1. **Verify IP addresses** in `src/config/settings.py`
+2. **Check firewall settings** on local system
+3. **Confirm server status** on BVEX flight systems
+4. **Review network logs** in application log files
+
+**Display Issues:**
+1. **Multi-monitor setup** - Windows auto-position across screens
+2. **Resolution problems** - Use `QT_AUTO_SCREEN_SCALE_FACTOR=1`
+3. **Wayland compatibility** - Force X11 with `QT_QPA_PLATFORM=xcb`
+
+**Data Logging Problems:**
+1. **Disk space** - Ensure adequate storage for session data
+2. **Permissions** - Verify write access to `data/` directory
+3. **Session cleanup** - Automatic 30-day retention
+4. **Logger activation** - Check individual widget toggle states
 
 ### Debug Information
-- Application logging provides detailed operational information
-- Status bar displays real-time connection status
-- Individual component toggles allow isolation of issues
-- Configuration file allows adjustment of timeouts and retry parameters
 
-## Support
+**Log Files:**
+- **Application logs**: `logs/bvex_ground_station_*.log`
+- **Detailed debugging**: All levels logged with timestamps
+- **Error tracking**: Console shows warnings and errors
+- **Network diagnostics**: Connection status and retry attempts
 
-This software is developed for the BVEX (Balloon-borne VLBI Experiment) project. The system provides real-time ground station capabilities for balloon-borne radio astronomy operations. 
- 
+**Configuration Files:**
+- **Main settings**: `src/config/settings.py`
+- **Network parameters**: Configurable IP addresses and ports
+- **GUI preferences**: Window sizes and update intervals
+- **Celestial objects**: Observable targets and coordinates
+
+**Support Resources:**
+- **Client guides**: `docs/` directory with protocol specifications
+- **Network troubleshooting**: Built-in connectivity monitoring
+- **Performance metrics**: Real-time system resource display
+- **Community support**: BVEX team technical assistance
+
+## Development & Extension
+
+### Architecture Benefits
+- **Modular design** - Easy addition of new instruments
+- **Thread-safe implementation** - Concurrent data acquisition
+- **Network resilience** - Automatic reconnection and error handling
+- **Scalable logging** - Per-widget data management
+- **Professional GUI** - Qt6-based interface suitable for field use
+
+### Extension Points
+- **New instruments** - Add via standardized client patterns
+- **Custom displays** - New widgets integrate seamlessly
+- **Data formats** - Extensible logging system
+- **Network protocols** - UDP-based with error handling
+- **Configuration system** - Centralized parameter management
+
+This system represents a complete operational platform for balloon-borne radio astronomy, providing the BVEX team with professional-grade monitoring and control capabilities throughout flight operations.

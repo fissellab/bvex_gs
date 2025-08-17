@@ -67,6 +67,14 @@ VLBI_SERVER = {
     'update_interval': 1.0   # 1 second between requests
 }
 
+# BCP Housekeeping Configuration
+BCP_HOUSEKEEPING = {
+    'host': '100.85.84.122',  # BCP Ophiuchus system IP (same as OPH_SERVER)
+    'port': 8002,  # BCP housekeeping port as specified in HOUSEKEEPING_CLIENT_GUIDE.md
+    'timeout': 1.0,
+    'update_interval': 2.0   # 2 seconds between requests (housekeeping data doesn't change rapidly)
+}
+
 # System Monitor Configuration
 SYSTEM_MONITOR = {
     'ophiuchus': {

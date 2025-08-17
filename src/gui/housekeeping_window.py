@@ -12,12 +12,13 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QIcon, QAction
 
 from src.data.data_logging_orchestrator import DataLoggingOrchestrator
-from src.config.settings import GUI, PR59_SERVER, HEATER_SERVER
+from src.config.settings import GUI, PR59_SERVER, HEATER_SERVER, BCP_HOUSEKEEPING
 from src.gui.pbob_widget import PBoBWidget
 from src.gui.pr59_widget import PR59Widget
 from src.gui.heater_widget import HeaterWidget
 from src.gui.network_traffic_widget import NetworkTrafficWidget
 from src.gui.system_monitor_widget import SystemMonitorWidget
+from src.gui.housekeeping_widget import HousekeepingWidget
 
 
 class HousekeepingWindow(QMainWindow):
@@ -58,63 +59,70 @@ class HousekeepingWindow(QMainWindow):
             return 1200, 800
     
     def setup_ui(self):
-        """Setup the housekeeping window UI layout with clean 2-column vertical arrangement"""
+        """Setup the housekeeping window UI layout with 3x2 grid + corner data logging button"""
         self.setWindowTitle("BVEX Ground Station - Housekeeping")
         
         central_widget = QWidget()
         central_widget.setStyleSheet("QWidget { background-color: white; }")
         self.setCentralWidget(central_widget)
         
-        # Use QGridLayout: Clean 2-column layout to eliminate cramping and overlap
-        main_layout = QGridLayout(central_widget)
-        main_layout.setContentsMargins(20, 20, 20, 20)  # Generous margins
-        main_layout.setSpacing(25)  # Increased spacing to prevent overlap
+        # Main container layout
+        container_layout = QVBoxLayout(central_widget)
+        container_layout.setContentsMargins(10, 10, 10, 10)
+        container_layout.setSpacing(10)
         
         # Create widgets first
         self.setup_all_widgets()
         
-        # COLUMN 1 (Left): Data logging, System Monitor, PBoB (vertically stacked)
-        # Row 0, Column 0: Data logging panel (compact, fixed height)
-        self.setup_compact_data_logging_panel_standalone()
-        main_layout.addWidget(self.data_logging_panel, 0, 0, 1, 1)
+        # Add simple data logging button at top corner
+        self.setup_simple_data_logging_button()
+        top_bar = QHBoxLayout()
+        top_bar.addWidget(self.data_logging_button)
+        top_bar.addStretch()  # Push button to left corner
+        container_layout.addLayout(top_bar)
         
-        # Row 1, Column 0: System Monitor Widget (needs substantial space)
-        main_layout.addWidget(self.system_monitor_widget, 1, 0, 1, 1)
+        # Main 3x2 grid layout
+        main_layout = QGridLayout()
+        main_layout.setSpacing(15)
         
-        # Row 2, Column 0: PBoB Widget (needs substantial space)
-        main_layout.addWidget(self.pbob_widget, 2, 0, 1, 1)
+        # ROW 0: Network Traffic Widget + System Monitor Widget (compact)
+        main_layout.addWidget(self.network_traffic_widget, 0, 0, 1, 1)
+        main_layout.addWidget(self.system_monitor_widget, 0, 1, 1, 1)
         
-        # COLUMN 2 (Right): Network Traffic, PR59, Heater (vertically stacked)
-        # Row 0, Column 1: Network Traffic Widget (compact, fixed height)
-        main_layout.addWidget(self.network_traffic_widget, 0, 1, 1, 1)
+        # ROW 1: Housekeeping Widget + PBoB Widget
+        main_layout.addWidget(self.housekeeping_widget, 1, 0, 1, 1)
+        main_layout.addWidget(self.pbob_widget, 1, 1, 1, 1)
         
-        # Row 1, Column 1: PR59 Widget (needs full height - minimum 350px)
-        main_layout.addWidget(self.pr59_widget, 1, 1, 1, 1)
+        # ROW 2: Heater Widget + PR59 Widget
+        main_layout.addWidget(self.heater_widget, 2, 0, 1, 1)
+        main_layout.addWidget(self.pr59_widget, 2, 1, 1, 1)
         
-        # Row 2, Column 1: Heater Widget (needs adequate height - minimum 280px)
-        main_layout.addWidget(self.heater_widget, 2, 1, 1, 1)
+        # Set equal column stretch for 2-column layout
+        main_layout.setColumnStretch(0, 1)
+        main_layout.setColumnStretch(1, 1)
         
-        # Set equal column stretch for balanced 2-column layout
-        main_layout.setColumnStretch(0, 1)  # Left column 
-        main_layout.setColumnStretch(1, 1)  # Right column
+        # Set row stretch - equal for all 3 rows
+        main_layout.setRowStretch(0, 1)
+        main_layout.setRowStretch(1, 1)
+        main_layout.setRowStretch(2, 1)
         
-        # Set row stretch to respect widget minimum sizes and prevent squishing
-        main_layout.setRowStretch(0, 0)  # Top row - compact (data logging & network traffic)
-        main_layout.setRowStretch(1, 3)  # Middle row - PR59 needs more space (350px min)
-        main_layout.setRowStretch(2, 2)  # Bottom row - Heater needs adequate space (280px min)
+        container_layout.addLayout(main_layout)
         
-        # Set window properties for clean 2-column layout with adequate height
-        width, height = self.get_safe_window_size(0.80, 0.85)  # Increased height for proper widget spacing
-        self.setMinimumSize(max(1200, width//2), max(1000, height//2))  # Increased minimum height to prevent squishing
-        self.resize(width, height)
+        # Set window properties for 3x2 grid layout
+        width, height = self.get_safe_window_size(0.85, 0.90)  # Balanced dimensions
+        self.setMinimumSize(max(1200, int(width*0.7)), max(1000, int(height*0.8)))
+        self.resize(int(width*0.85), int(height*0.90))
             
     def setup_all_widgets(self):
         """Create all widgets used in the housekeeping window"""
-        # System Monitor Widget
+        # System Monitor Widget (made VERY compact to match network traffic footprint)
         self.system_monitor_widget = SystemMonitorWidget(parent=self)
+        self.system_monitor_widget.setMaximumWidth(350)  # Much more compact
+        self.system_monitor_widget.setMaximumHeight(150)  # Compact height like network traffic
         
-        # PBoB Widget
+        # PBoB Widget (made more compact)
         self.pbob_widget = PBoBWidget(parent=self, oph_client=None)
+        self.pbob_widget.setMaximumWidth(450)  # Make more compact
         
         # PR59 Widget
         self.pr59_widget = PR59Widget(
@@ -130,6 +138,13 @@ class HousekeepingWindow(QMainWindow):
             server_port=HEATER_SERVER['port']
         )
         
+        # NEW Housekeeping Widget
+        self.housekeeping_widget = HousekeepingWidget(
+            parent=self,
+            server_ip=BCP_HOUSEKEEPING['host'],
+            server_port=BCP_HOUSEKEEPING['port']
+        )
+        
         # Network Traffic Widget
         self.network_traffic_widget = NetworkTrafficWidget(
             parent=self,
@@ -138,72 +153,28 @@ class HousekeepingWindow(QMainWindow):
             housekeeping_window=self
         )
     
-    def setup_compact_data_logging_panel_standalone(self):
-        """Setup the compact data logging control panel as a standalone widget"""
-        # Create compact data logging panel frame
-        self.data_logging_panel = QFrame()
-        self.data_logging_panel.setFrameStyle(QFrame.Shape.StyledPanel)
-        self.data_logging_panel.setMinimumHeight(100)
-        self.data_logging_panel.setMaximumHeight(120)
-        self.data_logging_panel.setMinimumWidth(280)
-        self.data_logging_panel.setMaximumWidth(320)
-        self.data_logging_panel.setStyleSheet("""
-            QFrame {
-                background-color: #f8f9fa;
-                border: 2px solid #dee2e6;
-                border-radius: 8px;
-                margin: 5px;
-            }
-        """)
-        
-        # Layout for the data logging panel
-        panel_layout = QVBoxLayout(self.data_logging_panel)
-        panel_layout.setContentsMargins(10, 8, 10, 8)
-        panel_layout.setSpacing(6)
-        
-        # Title label
-        title_label = QLabel("📊 Data Logging")
-        title_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
-        title_label.setStyleSheet("QLabel { color: #495057; border: none; margin: 0px; }")
-        panel_layout.addWidget(title_label)
-        
-        # Button and status layout
-        button_layout = QHBoxLayout()
-        button_layout.setSpacing(10)
-        
-        # Toggle button
-        self.data_logging_toggle_button = QPushButton("Start Logging")
-        self.data_logging_toggle_button.setMinimumHeight(35)
-        self.data_logging_toggle_button.setMinimumWidth(110)
-        self.data_logging_toggle_button.clicked.connect(self.toggle_data_logging)
-        self.data_logging_toggle_button.setStyleSheet("""
+    def setup_simple_data_logging_button(self):
+        """Setup simple data logging button for corner placement"""
+        # Simple toggle button - no fancy panel
+        self.data_logging_button = QPushButton("Start Logging")
+        self.data_logging_button.setMinimumHeight(30)
+        self.data_logging_button.setMinimumWidth(120)
+        self.data_logging_button.setMaximumWidth(150)
+        self.data_logging_button.clicked.connect(self.toggle_data_logging)
+        self.data_logging_button.setStyleSheet("""
             QPushButton {
                 background-color: #28a745;
                 color: white;
                 border: none;
-                padding: 8px 16px;
+                padding: 6px 12px;
                 border-radius: 4px;
                 font-weight: bold;
+                font-size: 11px;
             }
             QPushButton:hover {
                 background-color: #218838;
             }
         """)
-        
-        # Status label
-        self.data_logging_status_label = QLabel("Status: Ready")
-        self.data_logging_status_label.setFont(QFont("Arial", 9))
-        self.data_logging_status_label.setStyleSheet("QLabel { color: #6c757d; border: none; }")
-        
-        button_layout.addWidget(self.data_logging_toggle_button)
-        button_layout.addWidget(self.data_logging_status_label)
-        panel_layout.addLayout(button_layout)
-        
-        # File info label (compact)
-        self.data_logging_file_label = QLabel("No log file")
-        self.data_logging_file_label.setFont(QFont("Arial", 9))
-        self.data_logging_file_label.setStyleSheet("QLabel { color: #868e96; border: none; margin: 0px; }")
-        panel_layout.addWidget(self.data_logging_file_label)
     
     def setup_data_logger(self):
         """Setup the new data logging orchestrator"""
@@ -216,6 +187,7 @@ class HousekeepingWindow(QMainWindow):
             from src.data.loggers.heater_logger import HeaterDataLogger
             from src.data.loggers.ophiuchus_logger import OphiuchusDataLogger
             from src.data.loggers.system_monitor_logger import SystemMonitorDataLogger
+            from src.data.loggers.housekeeping_logger import HousekeepingDataLogger
 
             # Initialize orchestrator
             self.data_logging_orchestrator = DataLoggingOrchestrator()
@@ -297,6 +269,13 @@ class HousekeepingWindow(QMainWindow):
                 self.system_monitor_widget
             )
             self.data_logging_orchestrator.register_logger('system_monitor', system_monitor_logger)
+            
+            # Register Housekeeping logger
+            housekeeping_logger = HousekeepingDataLogger(
+                self.data_logging_orchestrator.session_manager,
+                self.housekeeping_widget
+            )
+            self.data_logging_orchestrator.register_logger('bcp_housekeeping', housekeeping_logger)
             
             self.logger.info("Data logging orchestrator initialized successfully")
             
@@ -382,81 +361,51 @@ class HousekeepingWindow(QMainWindow):
             )
     
     def update_data_logging_ui(self, is_active: bool):
-        """Update both menu and visible UI elements for data logging state (adapted from main_window.py)"""
+        """Update menu and simple button for data logging state"""
         if is_active:
             # Update menu action
             self.toggle_logging_action.setText('&Stop Data Logging')
             self.toggle_logging_action.setChecked(True)
             
-            # Update visible button
-            if hasattr(self, 'data_logging_toggle_button'):
-                self.data_logging_toggle_button.setText("Stop Logging")
-                self.data_logging_toggle_button.setStyleSheet("""
+            # Update simple button
+            if hasattr(self, 'data_logging_button'):
+                self.data_logging_button.setText("Stop Logging")
+                self.data_logging_button.setStyleSheet("""
                     QPushButton {
                         background-color: #dc3545;
                         color: white;
                         border: none;
-                        padding: 10px 20px;
+                        padding: 6px 12px;
                         border-radius: 4px;
                         font-weight: bold;
-                        font-size: 12px;
+                        font-size: 11px;
                     }
                     QPushButton:hover {
                         background-color: #c82333;
                     }
-                    QPushButton:pressed {
-                        background-color: #bd2130;
-                    }
                 """)
-                
-            # Update status text
-            if hasattr(self, 'data_logging_status_label'):
-                self.data_logging_status_label.setText("Status: Active")
-                self.data_logging_status_label.setStyleSheet("QLabel { color: #28a745; border: none; margin: 0px; font-weight: bold; }")
-                
-            # Update file label
-            if hasattr(self, 'data_logging_file_label') and self.data_logging_orchestrator:
-                session_path = self.data_logging_orchestrator.get_session_path()
-                if session_path:
-                    session_name = os.path.basename(session_path)
-                    # Truncate filename if too long
-                    if len(session_name) > 20:
-                        session_name = session_name[:17] + "..."
-                    self.data_logging_file_label.setText(f"{session_name}")
         else:
             # Update menu action
             self.toggle_logging_action.setText('&Start Data Logging')
             self.toggle_logging_action.setChecked(False)
             
-            # Update visible button
-            if hasattr(self, 'data_logging_toggle_button'):
-                self.data_logging_toggle_button.setText("Start Logging")
-                self.data_logging_toggle_button.setStyleSheet("""
+            # Update simple button
+            if hasattr(self, 'data_logging_button'):
+                self.data_logging_button.setText("Start Logging")
+                self.data_logging_button.setStyleSheet("""
                     QPushButton {
                         background-color: #28a745;
                         color: white;
                         border: none;
-                        padding: 10px 20px;
+                        padding: 6px 12px;
                         border-radius: 4px;
                         font-weight: bold;
-                        font-size: 12px;
+                        font-size: 11px;
                     }
                     QPushButton:hover {
                         background-color: #218838;
                     }
-                    QPushButton:pressed {
-                        background-color: #1e7e34;
-                    }
                 """)
-                
-            # Update status text
-            if hasattr(self, 'data_logging_status_label'):
-                self.data_logging_status_label.setText("Status: Stopped")
-                self.data_logging_status_label.setStyleSheet("QLabel { color: #6c757d; border: none; margin: 0px; }")
-                
-            # Update file label
-            if hasattr(self, 'data_logging_file_label'):
-                self.data_logging_file_label.setText("No log file")
         
         # Update system monitor widget logging indicator
         if hasattr(self, 'system_monitor_widget') and self.system_monitor_widget:
@@ -524,6 +473,11 @@ class HousekeepingWindow(QMainWindow):
             if hasattr(self, 'system_monitor_widget') and self.system_monitor_widget:
                 self.system_monitor_widget.cleanup()
                 self.logger.info("System monitor widget cleaned up during shutdown")
+            
+            # Housekeeping widget cleanup
+            if hasattr(self, 'housekeeping_widget') and self.housekeeping_widget:
+                self.housekeeping_widget.cleanup()
+                self.logger.info("Housekeeping widget cleaned up during shutdown")
             
             # The PBOB widget handles its own unregistration from shared manager
             # No need to manage the shared Oph client directly
