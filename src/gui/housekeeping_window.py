@@ -86,25 +86,25 @@ class HousekeepingWindow(QMainWindow):
         main_layout.setSpacing(15)
         
         # ROW 0: Network Traffic Widget + System Monitor Widget (compact)
-        main_layout.addWidget(self.network_traffic_widget, 0, 0, 1, 1)
-        main_layout.addWidget(self.system_monitor_widget, 0, 1, 1, 1)
+        main_layout.addWidget(self.network_traffic_widget, 0, 0, 2, 2)
+        main_layout.addWidget(self.system_monitor_widget, 0, 4, 2, 4)
         
         # ROW 1: Housekeeping Widget + PBoB Widget
-        main_layout.addWidget(self.housekeeping_widget, 1, 0, 1, 1)
-        main_layout.addWidget(self.pbob_widget, 1, 1, 1, 1)
+        main_layout.addWidget(self.housekeeping_widget, 0, 2, 2, 2)
+        main_layout.addWidget(self.pbob_widget, 2, 4, 2, 4)
         
         # ROW 2: Heater Widget + PR59 Widget
-        main_layout.addWidget(self.heater_widget, 2, 0, 1, 1)
-        main_layout.addWidget(self.pr59_widget, 2, 1, 1, 1)
+        main_layout.addWidget(self.heater_widget, 4, 4, 2, 4)
+        main_layout.addWidget(self.pr59_widget, 2, 0, 4, 4)
         
         # Set equal column stretch for 2-column layout
-        main_layout.setColumnStretch(0, 1)
-        main_layout.setColumnStretch(1, 1)
+        #main_layout.setColumnStretch(0, 1)
+        #main_layout.setColumnStretch(1, 1)
         
         # Set row stretch - equal for all 3 rows
-        main_layout.setRowStretch(0, 1)
-        main_layout.setRowStretch(1, 1)
-        main_layout.setRowStretch(2, 1)
+        #main_layout.setRowStretch(0, 1)
+        #main_layout.setRowStretch(1, 1)
+        #main_layout.setRowStretch(2, 1)
         
         container_layout.addLayout(main_layout)
         
