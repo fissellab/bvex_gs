@@ -27,7 +27,7 @@ class SpectrumData:
 class BCPSpectrometerClient:
     """Client for BCP Spectrometer UDP Server"""
     
-    def __init__(self, server_ip: str = "100.70.234.8", server_port: int = 8081, timeout: float = 5.0):
+    def __init__(self, server_ip: str = "172.20.4.170", server_port: int = 8089, timeout: float = 5.0):
         self.server_ip = server_ip
         self.server_port = server_port
         self.timeout = timeout

@@ -12,6 +12,7 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QIcon, QAction
 from src.gui.sky_chart_widget import SkyChartWidget
 from src.gui.gps_display_widget import GPSDisplayWidget
+from src.gui.gyro_widget import GyroWidget
 from src.gui.star_camera_widget import StarCameraWidget
 from src.gui.motor_controller_widget import MotorControllerWidget
 from src.gui.scanning_operations_widget import ScanningOperationsWidget
@@ -73,19 +74,23 @@ class PointingWindow(QMainWindow):
         #self.sky_chart_widget.setGeometry(5,5,600,600)
         #self.sky_chart_widget.setMinimumSize(750, 500)  # Much larger - was 650x350
         #self.sky_chart_widget.setMaximumSize(900, 600)  # Much larger - was 750x400
-        left_layout.addWidget(self.sky_chart_widget,0,0,3,3)  
+        left_layout.addWidget(self.sky_chart_widget,0,0,3,2)  
         
         # GPS widget (compact - keep current good size)
         self.gps_widget = GPSDisplayWidget()
         #self.gps_widget.setMinimumHeight(220)  # Compact size
         #self.gps_widget.setMaximumHeight(250)  # Compact size
-        left_layout.addWidget(self.gps_widget, 3,0,3,1)
+        left_layout.addWidget(self.gps_widget, 3,0,2,1)
         
         # Motor Controller widget (adequate space for information)
         self.motor_controller_widget = MotorControllerWidget()
         #self.motor_controller_widget.setMinimumSize(450, 240)  # Keep good size for info
         #self.motor_controller_widget.setMaximumSize(500, 270)  # Keep good size for info
-        left_layout.addWidget(self.motor_controller_widget,3,1,3,2) 
+        left_layout.addWidget(self.motor_controller_widget,3,1,4,1)
+        
+        # Gyroscope widget (compact - positioned next to motor controller)
+        self.gyro_widget = GyroWidget()
+        left_layout.addWidget(self.gyro_widget, 5,0,1,1) 
         # Remove the stretch to prevent squishing
         # left_layout.addStretch()
         
@@ -166,6 +171,14 @@ class PointingWindow(QMainWindow):
         refresh_scanning_action = QAction('&Refresh Scanning Telemetry', self)
         refresh_scanning_action.triggered.connect(lambda: self.scanning_operations_widget.update_telemetry() if self.scanning_operations_widget.is_scanning_operations_active() else None)
         scanning_menu.addAction(refresh_scanning_action)
+        
+        # Gyroscope menu
+        gyro_menu = menubar.addMenu('&Gyroscope')
+        
+        # Force refresh gyroscope data
+        refresh_gyro_action = QAction('&Refresh Gyro Data', self)
+        refresh_gyro_action.triggered.connect(lambda: self.gyro_widget.update_gyro_display() if self.gyro_widget.is_gyro_active() else None)
+        gyro_menu.addAction(refresh_gyro_action)
     
     def setup_status_bar(self):
         """Create status bar for pointing window"""
@@ -216,6 +229,10 @@ class PointingWindow(QMainWindow):
             # Scanning operations widget cleanup
             if hasattr(self, 'scanning_operations_widget'):
                 self.scanning_operations_widget.stop_scanning_operations()
+            
+            # Gyroscope widget cleanup
+            if hasattr(self, 'gyro_widget'):
+                self.gyro_widget.cleanup()
             
             # Cleanup shared Oph client only if we own it
                     # Widgets now manage their own OphClients

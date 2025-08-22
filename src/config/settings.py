@@ -4,7 +4,7 @@ BVEX Ground Station Configuration Settings
 
 # GPS Server Configuration
 GPS_SERVER = {
-    'host': '100.70.234.8',
+    'host': '172.20.4.170',
     'port': 8082,  # General telemetry server on Saggitarius
     'request_message': 'GET_GPS',
     'timeout': 5.0,
@@ -13,7 +13,7 @@ GPS_SERVER = {
 
 # Ophiuchus Server Configuration
 OPH_SERVER = {
-    'host': '100.85.84.122',
+    'host': '172.20.4.171',
     'port': 8002,  # You'll need to verify this port
     'timeout': 1.0,  # Increased from 0.1s to 1.0s for more reliable connections
     'update_interval': 0.1  # Keep 10Hz base rate but with better timeout
@@ -22,14 +22,14 @@ OPH_SERVER = {
 # BCP Spectrometer Configuration
 BCP_SPECTROMETER = {
     'host': '100.70.234.8',  # Saggitarius system IP
-    'port': 8081,
+    'port': 8089,
     'timeout': 5.0,
     'update_interval': 1.0   # 1 second = 1 Hz updates
 }
 
 # Star Camera Configuration
 STAR_CAMERA = {
-    'host': '100.85.84.122',  # Star camera system IP - update this with correct IP
+    'host': '172.20.4.171',  # Star camera system IP - update this with correct IP
     'port': 8001,
     'timeout': 10.0,  # Longer timeout for image transfers
     'update_interval': 10.0   # 10 seconds between image requests due to bandwidth limits
@@ -37,7 +37,7 @@ STAR_CAMERA = {
 
 # PR59 Temperature Controller Configuration
 PR59_SERVER = {
-    'host': '100.70.234.8',  # BCP system IP (same as spectrometer)
+    'host': '172.20.4.170',  # BCP system IP (same as spectrometer)
     'port': 8082,
     'timeout': 2.0,
     'update_interval': 1.0   # 1 second between requests
@@ -61,7 +61,7 @@ HEATER_TELEMETRY = {
 
 # VLBI Telemetry Configuration
 VLBI_SERVER = {
-    'host': '100.70.234.8',  # Saggitarius telemetry server IP (Tailscale network)
+    'host': '172.20.4.170',  # Saggitarius telemetry server IP (Tailscale network)
     'port': 8082,  # Telemetry server port (handles both VLBI and Aquila backend data)
     'timeout': 5.0,
     'update_interval': 1.0   # 1 second between requests
@@ -69,7 +69,7 @@ VLBI_SERVER = {
 
 # BCP Housekeeping Configuration
 BCP_HOUSEKEEPING = {
-    'host': '100.85.84.122',  # BCP Ophiuchus system IP (same as OPH_SERVER)
+    'host': '172.20.4.171',  # BCP Ophiuchus system IP (same as OPH_SERVER)
     'port': 8002,  # BCP housekeeping port as specified in HOUSEKEEPING_CLIENT_GUIDE.md
     'timeout': 1.0,
     'update_interval': 2.0   # 2 seconds between requests (housekeeping data doesn't change rapidly)
@@ -78,13 +78,13 @@ BCP_HOUSEKEEPING = {
 # System Monitor Configuration
 SYSTEM_MONITOR = {
     'ophiuchus': {
-        'host': '100.85.84.122',  # Ophiuchus system IP
+        'host': '172.20.4.171',  # Ophiuchus system IP
         'port': 8002,  # Corrected port - same as OPH_SERVER
         'timeout': 5.0,
         'update_interval': 10.0   # 10 seconds between requests (system stats don't change rapidly)
     },
     'saggitarius': {
-        'host': '100.70.234.8',  # Saggitarius system IP (same as GPS/PR59)
+        'host': '172.20.4.170',  # Saggitarius system IP (same as GPS/PR59)
         'port': 8082,  # Same telemetry port as other widgets
         'timeout': 5.0,
         'update_interval': 10.0   # 10 seconds between requests
