@@ -188,6 +188,8 @@ class HousekeepingWindow(QMainWindow):
             from src.data.loggers.ophiuchus_logger import OphiuchusDataLogger
             from src.data.loggers.system_monitor_logger import SystemMonitorDataLogger
             from src.data.loggers.housekeeping_logger import HousekeepingDataLogger
+            from src.data.loggers.ticc_logger import TICCDataLogger
+            from src.data.loggers.gyro_logger import GyroDataLogger
 
             # Initialize orchestrator
             self.data_logging_orchestrator = DataLoggingOrchestrator()
@@ -224,6 +226,14 @@ class HousekeepingWindow(QMainWindow):
                         self.pointing_window.scanning_operations_widget
                     )
                     self.data_logging_orchestrator.register_logger('ophiuchus_scanning', scanning_logger)
+                
+                # Register Gyro logger
+                if hasattr(self.pointing_window, 'gyro_widget'):
+                    gyro_logger = GyroDataLogger(
+                        self.data_logging_orchestrator.session_manager,
+                        self.pointing_window.gyro_widget
+                    )
+                    self.data_logging_orchestrator.register_logger('gyro', gyro_logger)
             
             if self.telescope_data_window:
                 if hasattr(self.telescope_data_window, 'spectra_widget'):
@@ -241,6 +251,14 @@ class HousekeepingWindow(QMainWindow):
                         self.telescope_data_window.backend_widget
                     )
                     self.data_logging_orchestrator.register_logger('backend_status', backend_logger)
+                
+                # Register TICC logger
+                if hasattr(self.telescope_data_window, 'ticc_widget'):
+                    ticc_logger = TICCDataLogger(
+                        self.data_logging_orchestrator.session_manager,
+                        self.telescope_data_window.ticc_widget
+                    )
+                    self.data_logging_orchestrator.register_logger('ticc', ticc_logger)
             
             # Register household loggers
             pr59_logger = PR59DataLogger(
