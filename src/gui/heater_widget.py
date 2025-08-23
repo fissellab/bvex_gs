@@ -175,32 +175,38 @@ class HeaterWidget(QWidget):
     
     def stop_monitoring(self):
         """Stop heater telemetry monitoring"""
-        self.is_active = False
-        self.system_status_label.setText("Heater Telemetry: Ready")
-        self.system_status_label.setStyleSheet("QLabel { color: #6c757d; }")
-        self.toggle_button.setText("Start Monitoring")
-        self.toggle_button.setStyleSheet("""
-            QPushButton {
-                background-color: #007bff;
-                color: white;
-                border: none;
-                padding: 8px 16px;
-                border-radius: 4px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #0056b3;
-            }
-        """)
-        
-        # Stop update timer
-        if hasattr(self, 'update_timer'):
-            self.update_timer.stop()
-        
-        # Setup static display
-        self.setup_static_display()
-        
-        self.logger.info("Heater telemetry monitoring stopped")
+        try:
+            self.is_active = False
+            self.system_status_label.setText("Heater Telemetry: Ready")
+            self.system_status_label.setStyleSheet("QLabel { color: #6c757d; }")
+            self.toggle_button.setText("Start Monitoring")
+            self.toggle_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #007bff;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #0056b3;
+                }
+            """)
+            
+            # Stop update timer safely
+            if hasattr(self, 'update_timer') and self.update_timer:
+                self.update_timer.stop()
+                self.update_timer.deleteLater()
+                self.update_timer = None
+            
+            # Setup static display
+            self.setup_static_display()
+            
+            self.logger.info("Heater telemetry monitoring stopped successfully")
+            
+        except Exception as e:
+            self.logger.error(f"Error stopping heater monitoring: {e}")
     
     def setup_static_display(self):
         """Setup static display when widget is OFF"""
@@ -543,12 +549,37 @@ class HeaterWidget(QWidget):
     
     def cleanup(self):
         """Clean up resources when shutting down"""
-        if hasattr(self, 'update_timer'):
-            self.update_timer.stop()
-        
-        # Telemetry client doesn't need explicit cleanup
-        
-        self.logger.info("Heater widget cleaned up")
+        try:
+            self.logger.info("Starting heater widget cleanup...")
+            
+            # Stop monitoring gracefully
+            if self.is_active:
+                self.stop_monitoring()
+            
+            # Stop and clean up timer
+            if hasattr(self, 'update_timer') and self.update_timer:
+                self.update_timer.stop()
+                self.update_timer.deleteLater()
+                self.update_timer = None
+            
+            # Clear data structures
+            if hasattr(self, 'current_data'):
+                self.current_data = None
+            
+            # Clear UI references
+            if hasattr(self, 'status_indicators'):
+                self.status_indicators.clear()
+            if hasattr(self, 'temp_labels'):
+                self.temp_labels.clear()
+            if hasattr(self, 'current_labels'):
+                self.current_labels.clear()
+            
+            # Telemetry client doesn't need explicit cleanup
+            
+            self.logger.info("Heater widget cleanup completed successfully")
+            
+        except Exception as e:
+            self.logger.error(f"Error during heater widget cleanup: {e}")
 
 
 # Test the widget standalone

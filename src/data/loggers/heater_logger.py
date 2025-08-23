@@ -1,7 +1,8 @@
 """
 Heater System Data Logger for BVEX Ground Station
 
-Logs heater system relay states and temperature data.
+Logs heater system telemetry data including relay states, temperatures, and current consumption.
+Updated for display-only heater widget that uses telemetry interface.
 """
 
 from typing import Dict, Any, Optional
@@ -19,8 +20,9 @@ class HeaterDataLogger(WidgetDataLogger):
             session_manager: Session manager for file handling
             heater_widget: Reference to heater widget for data collection
         """
-        # Define CSV headers - updated for new data structure
+        # Define CSV headers for telemetry-based heater data
         headers = [
+            'timestamp', 'datetime_utc', 'update_rate_hz',
             'starcam_state', 'motor_state', 'ethernet_state', 'lockpin_state', 'spare_state',
             'starcam_temp', 'motor_temp', 'ethernet_temp', 'lockpin_temp', 'spare_temp',
             'starcam_current', 'motor_current', 'ethernet_current', 'lockpin_current', 'spare_current',
@@ -29,6 +31,33 @@ class HeaterDataLogger(WidgetDataLogger):
         
         super().__init__(session_manager, 'heater_system', headers)
         self.heater_widget = heater_widget
+        
+    def start_logging(self) -> bool:
+        """Start logging and automatically activate the heater widget
+        
+        Returns:
+            True if logging started successfully
+        """
+        # Try to automatically activate the widget
+        try:
+            if hasattr(self.heater_widget, 'start_monitoring'):
+                if not self.heater_widget.is_active:
+                    self.logger.info("Automatically activating heater widget for data logging")
+                    self.heater_widget.start_monitoring()
+        except Exception as e:
+            self.logger.warning(f"Could not automatically activate heater widget: {e}")
+            
+        return super().start_logging()
+    
+    def stop_logging(self) -> bool:
+        """Stop logging - widget remains active for user visibility
+        
+        Returns:
+            True if logging stopped successfully
+        """
+        # Don't automatically stop the widget to maintain user control
+        self.logger.info("Heater widget remains active after data logging stops")
+        return super().stop_logging()
         
     def collect_data(self) -> Dict[str, Any]:
         """Collect heater system data from widget when active
@@ -94,12 +123,13 @@ class HeaterDataLogger(WidgetDataLogger):
         """Update data rate based on widget settings"""
         try:
             # Get update interval from widget
-            if hasattr(self.heater_widget, 'update_timer'):
+            if hasattr(self.heater_widget, 'update_timer') and self.heater_widget.update_timer:
                 interval_ms = self.heater_widget.update_timer.interval()
-                rate_hz = 1000.0 / interval_ms if interval_ms > 0 else 1.0
-                super().update_data_rate(rate_hz)
+                rate_hz = 1000.0 / interval_ms if interval_ms > 0 else 0.5  # Default to 0.5 Hz
+                self.data_rate_hz = rate_hz
         except Exception as e:
             self.logger.error(f"Error updating heater system data rate: {e}")
+            self.data_rate_hz = 0.5  # Default fallback
             
     def log_current_data(self) -> bool:
         """Log current heater system data
