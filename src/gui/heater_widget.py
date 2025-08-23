@@ -204,14 +204,22 @@ class HeaterWidget(QWidget):
     
     def setup_static_display(self):
         """Setup static display when widget is OFF"""
+        # Ensure container_layout exists
+        if not hasattr(self, 'container_layout') or self.container_layout is None:
+            return
+            
         # Clear existing layout safely
         for i in reversed(range(self.container_layout.count())):
-            child = self.container_layout.itemAt(i).widget()
-            if child:
-                child.setParent(None)
+            item = self.container_layout.itemAt(i)
+            if item is not None:
+                widget = item.widget()
+                if widget is not None:
+                    widget.setParent(None)
+                else:
+                    self.container_layout.removeItem(item)
         
         # Static message like other widgets
-        static_label = QLabel("🔥 Heater System Telemetry")
+        static_label = QLabel("Heater System Telemetry")
         static_label.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         static_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         static_label.setStyleSheet("QLabel { color: #6c757d; padding: 20px; }")
@@ -227,9 +235,19 @@ class HeaterWidget(QWidget):
     
     def setup_telemetry_display(self):
         """Setup active heater telemetry display (read-only)"""
-        # Clear existing layout
+        # Ensure container_layout exists
+        if not hasattr(self, 'container_layout') or self.container_layout is None:
+            return
+            
+        # Clear existing layout safely
         for i in reversed(range(self.container_layout.count())):
-            self.container_layout.itemAt(i).widget().setParent(None)
+            item = self.container_layout.itemAt(i)
+            if item is not None:
+                widget = item.widget()
+                if widget is not None:
+                    widget.setParent(None)
+                else:
+                    self.container_layout.removeItem(item)
         
         # Status header
         self.status_header = self._create_status_header()
@@ -257,8 +275,8 @@ class HeaterWidget(QWidget):
         layout.setContentsMargins(5, 1, 5, 1)
         layout.setSpacing(5)
         
-        # Title with emoji like PR59 widget
-        title_label = QLabel("🔥 Heater System Telemetry")
+        # Title
+        title_label = QLabel("Heater System Telemetry")
         title_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
         title_label.setStyleSheet("QLabel { color: #495057; }")
         
