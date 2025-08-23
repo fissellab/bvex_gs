@@ -1,18 +1,19 @@
 """
 Heater System Widget for BVEX Ground Station
-Clean display and control of heater relay states and system status
+Read-only display of heater telemetry and system status according to HEATER_CLIENT_GUIDE.md
 """
 
 import sys
 import logging
+import time
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                              QFrame, QGridLayout, QApplication, QPushButton)
 from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtGui import QFont, QPainter, QColor
 from datetime import datetime
 
-from src.data.heater_client import HeaterClient, HeaterData
-from src.config.settings import HEATER_SERVER, HEATER_TELEMETRY
+from src.data.heater_client import HeaterTelemetryClient, HeaterData
+from src.config.settings import HEATER_TELEMETRY
 
 
 class StatusIndicator(QLabel):
@@ -47,18 +48,21 @@ class StatusIndicator(QLabel):
 
 
 class HeaterWidget(QWidget):
-    """Clean widget for displaying and controlling heater system"""
+    """Read-only widget for displaying heater telemetry and system status"""
     
     def __init__(self, parent=None, server_ip=None, server_port=None):
         super().__init__(parent)
         
         self.logger = logging.getLogger(__name__)
         
-        # Initialize heater client
-        self.heater_client = HeaterClient(
-            host=server_ip or HEATER_SERVER['host'],
-            port=server_port or HEATER_SERVER['port']
+        # Initialize telemetry client only (no control capabilities)
+        self.telemetry_client = HeaterTelemetryClient(
+            host=server_ip or HEATER_TELEMETRY['host'],
+            port=server_port or HEATER_TELEMETRY['port']
         )
+        
+        # Current data storage
+        self.current_data = HeaterData()
         
         # Control state - start OFF by default to save resources
         self.is_active = False
@@ -66,30 +70,30 @@ class HeaterWidget(QWidget):
         # Setup the UI
         self.setup_ui()
         
-        self.logger.info("Heater Widget initialized (OFF by default)")
+        self.logger.info("Heater Widget initialized (display-only mode)")
     
     def setup_ui(self):
-        """Initialize the clean user interface matching other widget styles"""
+        """Initialize the read-only telemetry display interface"""
         # Main layout
         main_layout = QVBoxLayout(self)
         main_layout.setSpacing(2)
         main_layout.setContentsMargins(2, 2, 2, 2)
         
-        # Control panel
-        control_layout = QHBoxLayout()
+        # Header panel (read-only status)
+        header_layout = QHBoxLayout()
         
-        # Status label
-        self.control_status_label = QLabel("Heater System: OFF")
-        self.control_status_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
-        self.control_status_label.setStyleSheet("QLabel { color: red; }")
+        # System status label
+        self.system_status_label = QLabel("Heater Telemetry: Ready")
+        self.system_status_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
+        self.system_status_label.setStyleSheet("QLabel { color: #28a745; }")
         
-        # Toggle button
-        self.toggle_button = QPushButton("Turn ON")
-        self.toggle_button.setMinimumWidth(100)
-        self.toggle_button.clicked.connect(self.toggle_state)
+        # Toggle button for widget activation (display only)
+        self.toggle_button = QPushButton("Start Monitoring")
+        self.toggle_button.setMinimumWidth(120)
+        self.toggle_button.clicked.connect(self.toggle_monitoring)
         self.toggle_button.setStyleSheet("""
             QPushButton {
-                background-color: #28a745;
+                background-color: #007bff;
                 color: white;
                 border: none;
                 padding: 8px 16px;
@@ -97,15 +101,15 @@ class HeaterWidget(QWidget):
                 font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #218838;
+                background-color: #0056b3;
             }
         """)
         
-        control_layout.addWidget(self.control_status_label)
-        control_layout.addStretch()
-        control_layout.addWidget(self.toggle_button)
+        header_layout.addWidget(self.system_status_label)
+        header_layout.addStretch()
+        header_layout.addWidget(self.toggle_button)
         
-        main_layout.addLayout(control_layout)
+        main_layout.addLayout(header_layout)
         
         # Create the main container with clean styling like other widgets
         self.container = QFrame()
@@ -128,23 +132,23 @@ class HeaterWidget(QWidget):
         
         main_layout.addWidget(self.container)
         
-        # Set proper size - similar to other housekeeping widgets
-        self.setMinimumSize(650, 280)
-        self.setMaximumSize(750, 320)
+        # Set proper size to match other widgets
+        self.setMinimumSize(600, 300)
+        self.setMaximumSize(800, 400)
     
-    def toggle_state(self):
-        """Toggle between active and inactive states"""
+    def toggle_monitoring(self):
+        """Toggle between monitoring on/off (display only)"""
         if self.is_active:
-            self.stop_heater_system()
+            self.stop_monitoring()
         else:
-            self.start_heater_system()
+            self.start_monitoring()
     
-    def start_heater_system(self):
-        """Start heater monitoring and control"""
+    def start_monitoring(self):
+        """Start heater telemetry monitoring (read-only)"""
         self.is_active = True
-        self.control_status_label.setText("Heater System: ON")
-        self.control_status_label.setStyleSheet("QLabel { color: green; }")
-        self.toggle_button.setText("Turn OFF")
+        self.system_status_label.setText("Heater Telemetry: Monitoring")
+        self.system_status_label.setStyleSheet("QLabel { color: #28a745; }")
+        self.toggle_button.setText("Stop Monitoring")
         self.toggle_button.setStyleSheet("""
             QPushButton {
                 background-color: #dc3545;
@@ -159,25 +163,25 @@ class HeaterWidget(QWidget):
             }
         """)
         
-        # Setup active display
-        self.setup_active_display()
+        # Setup active telemetry display
+        self.setup_telemetry_display()
         
         # Start update timer
         self.update_timer = QTimer()
         self.update_timer.timeout.connect(self.update_display)
         self.update_timer.start(2000)  # Update every 2 seconds
         
-        self.logger.info("Heater system widget activated")
+        self.logger.info("Heater telemetry monitoring started")
     
-    def stop_heater_system(self):
-        """Stop heater monitoring"""
+    def stop_monitoring(self):
+        """Stop heater telemetry monitoring"""
         self.is_active = False
-        self.control_status_label.setText("Heater System: OFF")
-        self.control_status_label.setStyleSheet("QLabel { color: red; }")
-        self.toggle_button.setText("Turn ON")
+        self.system_status_label.setText("Heater Telemetry: Ready")
+        self.system_status_label.setStyleSheet("QLabel { color: #6c757d; }")
+        self.toggle_button.setText("Start Monitoring")
         self.toggle_button.setStyleSheet("""
             QPushButton {
-                background-color: #28a745;
+                background-color: #007bff;
                 color: white;
                 border: none;
                 padding: 8px 16px;
@@ -185,7 +189,7 @@ class HeaterWidget(QWidget):
                 font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #218838;
+                background-color: #0056b3;
             }
         """)
         
@@ -196,24 +200,33 @@ class HeaterWidget(QWidget):
         # Setup static display
         self.setup_static_display()
         
-        self.logger.info("Heater system widget deactivated")
+        self.logger.info("Heater telemetry monitoring stopped")
     
     def setup_static_display(self):
         """Setup static display when widget is OFF"""
-        # Clear existing layout
+        # Clear existing layout safely
         for i in reversed(range(self.container_layout.count())):
-            self.container_layout.itemAt(i).widget().setParent(None)
+            child = self.container_layout.itemAt(i).widget()
+            if child:
+                child.setParent(None)
         
-        # Status header
-        self.status_header = self._create_status_header()
-        self.container_layout.addWidget(self.status_header)
+        # Static message like other widgets
+        static_label = QLabel("🔥 Heater System Telemetry")
+        static_label.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+        static_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        static_label.setStyleSheet("QLabel { color: #6c757d; padding: 20px; }")
         
-        # Static info section
-        info_section = self._create_static_info_section()
-        self.container_layout.addWidget(info_section)
+        info_label = QLabel("Start Monitoring to view heater telemetry\n\n• Temperature readings for all heaters\n• Current consumption tracking\n• ON/OFF status indicators\n• System current limit monitoring (3A)")
+        info_label.setFont(QFont("Arial", 11))
+        info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        info_label.setStyleSheet("QLabel { color: #868e96; line-height: 1.4; }")
+        
+        self.container_layout.addWidget(static_label)
+        self.container_layout.addWidget(info_label)
+        self.container_layout.addStretch()
     
-    def setup_active_display(self):
-        """Setup active heater control display with toggle buttons"""
+    def setup_telemetry_display(self):
+        """Setup active heater telemetry display (read-only)"""
         # Clear existing layout
         for i in reversed(range(self.container_layout.count())):
             self.container_layout.itemAt(i).widget().setParent(None)
@@ -222,115 +235,103 @@ class HeaterWidget(QWidget):
         self.status_header = self._create_status_header()
         self.container_layout.addWidget(self.status_header)
         
-        # Main data section
-        data_section = self._create_data_section()
-        self.container_layout.addWidget(data_section)
+        # Main telemetry section
+        telemetry_section = self._create_telemetry_section()
+        self.container_layout.addWidget(telemetry_section)
     
     def _create_status_header(self):
-        """Create the status header section"""
+        """Create clean connection status header like other widgets"""
         header = QFrame()
         header.setFrameStyle(QFrame.Shape.NoFrame)
-        header.setStyleSheet("QFrame { border: none; background-color: transparent; }")
+        header.setStyleSheet("""
+            QFrame {
+                border: none;
+                background-color: transparent;
+                border-bottom: 1px solid #dee2e6;
+                padding: 1px;
+                margin: 1px;
+            }
+        """)
         
         layout = QHBoxLayout(header)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8)
+        layout.setContentsMargins(5, 1, 5, 1)
+        layout.setSpacing(5)
         
-        # Title
-        title_label = QLabel("Heater System Control")
+        # Title with emoji like PR59 widget
+        title_label = QLabel("🔥 Heater System Telemetry")
         title_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
-        title_label.setStyleSheet("QLabel { color: #495057; border: none; }")
+        title_label.setStyleSheet("QLabel { color: #495057; }")
         
         # Connection status
         self.connection_status_label = QLabel("Disconnected")
-        self.connection_status_label.setFont(QFont("Arial", 10))
-        self.connection_status_label.setStyleSheet("QLabel { color: #dc3545; border: none; }")
+        self.connection_status_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        self.connection_status_label.setStyleSheet("QLabel { color: red; }")
+        
+        # Last update time like other widgets
+        self.last_update_label = QLabel("Last Update: Never")
+        self.last_update_label.setFont(QFont("Arial", 9))
+        self.last_update_label.setStyleSheet("QLabel { color: #6c757d; }")
         
         layout.addWidget(title_label)
         layout.addStretch()
+        layout.addWidget(QLabel("Status:"))
         layout.addWidget(self.connection_status_label)
+        layout.addStretch()
+        layout.addWidget(self.last_update_label)
         
         return header
     
-    def _create_static_info_section(self):
-        """Create static information section when OFF"""
-        info_frame = QFrame()
-        info_frame.setFrameStyle(QFrame.Shape.NoFrame)
-        info_frame.setStyleSheet("QFrame { border: none; background-color: transparent; }")
-        
-        layout = QVBoxLayout(info_frame)
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(8)
-        
-        # Info text - Updated to match guide specifications
-        info_text = QLabel("""
-Heater System Control (HEATER_CLIENT_GUIDE.md)
-
-Individual Heater Components:
-- Star Camera Heater (28-30°C auto)
-- Motor Heater (25-27°C auto)  
-- Ethernet Switch Heater (20-22°C auto)
-- Lock Pin Heater (15-17°C auto)
-- Spare/General Heater (Manual only)
-
-System Limits:
-• Total Current Limit: 3A
-• Priority-based control (coldest first)
-• Real-time telemetry monitoring
-        """.strip())
-        info_text.setFont(QFont("Arial", 10))
-        info_text.setStyleSheet("QLabel { color: #6c757d; border: none; }")
-        info_text.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
-        
-        layout.addWidget(info_text)
-        layout.addStretch()
-        
-        return info_frame
+    # Static info section method removed - using simplified static display like other widgets
     
-    def _create_data_section(self):
-        """Create the main data display section with heater controls"""
+    def _create_telemetry_section(self):
+        """Create the main telemetry display section (read-only)"""
         data_frame = QFrame()
         data_frame.setFrameStyle(QFrame.Shape.NoFrame)
         data_frame.setStyleSheet("QFrame { border: none; background-color: transparent; }")
         
-        # Use a grid layout for organized display
+        # Use a grid layout for organized display like other widgets
         layout = QGridLayout(data_frame)
-        layout.setSpacing(6)
-        layout.setContentsMargins(8, 4, 8, 4)
+        layout.setSpacing(8)
+        layout.setContentsMargins(10, 6, 10, 6)
         
-        # Create field labels and button storage
+        # Create field labels for telemetry display
         self.status_indicators = {}
-        self.toggle_buttons = {}
         self.temp_labels = {}
         self.current_labels = {}
         
-        # Headers
-        headers = ["Component", "Status", "Temp (°C)", "Current (A)", "Control"]
-        for col, header in enumerate(headers):
-            header_label = QLabel(f"{header}:")
-            header_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-            header_label.setStyleSheet("QLabel { color: #495057; border: none; background: transparent; }")
-            header_label.setAlignment(Qt.AlignmentFlag.AlignCenter if col > 0 else Qt.AlignmentFlag.AlignLeft)
-            header_label.setMinimumHeight(26)
-            layout.addWidget(header_label, 0, col)
+        # Section header
+        header_label = QLabel("Individual Heater Status:")
+        header_label.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+        header_label.setStyleSheet("QLabel { color: #495057; border: none; background: transparent; margin-top: 5px; }")
+        layout.addWidget(header_label, 0, 0, 1, 4)
         
-        # Heater definitions - CORRECTED according to guide
-        # Command -> Component mapping from guide
+        # Column headers (cleaner layout)
+        headers = ["Component", "Status", "Temp (°C)", "Current (A)"]
+        for col, header in enumerate(headers):
+            col_label = QLabel(header)
+            col_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+            col_label.setStyleSheet("QLabel { color: #6c757d; border: none; background: transparent; padding: 2px; }")
+            col_label.setAlignment(Qt.AlignmentFlag.AlignCenter if col > 0 else Qt.AlignmentFlag.AlignLeft)
+            col_label.setMinimumHeight(20)
+            layout.addWidget(col_label, 1, col)
+        
+        # Heater definitions according to guide (telemetry channels)
         heaters = [
-            ("Star Camera", "starcam", "Auto (28-30°C)", "toggle_starcam_auto"),
-            ("Motor", "motor", "Auto (25-27°C)", "toggle_motor_auto"),
-            ("Ethernet Switch", "ethernet", "Auto (20-22°C)", "toggle_ethernet_auto"),
-            ("Lock Pin", "lockpin", "Auto (15-17°C)", "toggle_lockpin_auto"),
-            ("Spare/General", "spare", "Manual Only", "toggle_spare_heater")
+            ("Star Camera", "starcam", "Auto (25-30°C)"),
+            ("Motor", "motor", "Auto (25-30°C)"),
+            ("Ethernet Switch", "ethernet", "Auto (25-30°C)"),
+            ("Lock Pin", "lockpin", "Auto (25-30°C)"),
+            ("Pressure Vessel", "spare", "Manual Only")
         ]
         
-        row = 1
-        for heater_name, heater_key, heater_type, method_name in heaters:
+        row = 2  # Start after header and column labels
+        for heater_name, heater_key, heater_type in heaters:
             # Component name
-            name_label = QLabel(f"{heater_name}:")
+            name_label = QLabel(f"{heater_name}")
             name_label.setFont(QFont("Arial", 10))
             name_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-            name_label.setStyleSheet("QLabel { color: #6c757d; border: none; background: transparent; }")
+            name_label.setStyleSheet("QLabel { color: #212529; border: none; background: transparent; padding: 3px; }")
+            name_label.setMinimumWidth(100)
             layout.addWidget(name_label, row, 0)
             
             # Status indicator
@@ -340,156 +341,106 @@ System Limits:
             
             # Temperature display
             temp_label = QLabel("--")
-            temp_label.setFont(QFont("Arial", 9))
+            temp_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
             temp_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            temp_label.setStyleSheet("QLabel { color: #6c757d; border: none; background: transparent; }")
+            temp_label.setStyleSheet("QLabel { color: #212529; border: none; background: transparent; padding: 3px; }")
+            temp_label.setMinimumWidth(70)
             layout.addWidget(temp_label, row, 2)
             self.temp_labels[heater_key] = temp_label
             
             # Current display
             current_label = QLabel("--")
-            current_label.setFont(QFont("Arial", 9))
+            current_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
             current_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            current_label.setStyleSheet("QLabel { color: #6c757d; border: none; background: transparent; }")
+            current_label.setStyleSheet("QLabel { color: #212529; border: none; background: transparent; padding: 3px; }")
+            current_label.setMinimumWidth(70)
             layout.addWidget(current_label, row, 3)
             self.current_labels[heater_key] = current_label
             
-            # Toggle button
-            toggle_btn = QPushButton("Toggle")
-            toggle_btn.setMinimumWidth(70)
-            toggle_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #007bff;
-                    color: white;
-                    border: none;
-                    padding: 4px 8px;
-                    border-radius: 3px;
-                    font-size: 9px;
-                    font-weight: bold;
-                }
-                QPushButton:hover {
-                    background-color: #0056b3;
-                }
-            """)
-            toggle_btn.clicked.connect(lambda checked, method=method_name: self.toggle_heater_new(method))
-            layout.addWidget(toggle_btn, row, 4, Qt.AlignmentFlag.AlignCenter)
-            self.toggle_buttons[heater_key] = toggle_btn
-            
             row += 1
         
-        # System status row
-        layout.addWidget(QLabel(""), row, 0)  # Spacer
+        # Add spacing
         row += 1
         
-        # System status
-        status_label = QLabel("System Status:")
-        status_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        status_label.setStyleSheet("QLabel { color: #495057; border: none; background: transparent; }")
-        status_label.setMinimumHeight(26)
-        layout.addWidget(status_label, row, 0)
+        # System status section header
+        system_header = QLabel("System Status:")
+        system_header.setFont(QFont("Arial", 11, QFont.Weight.Bold))
+        system_header.setStyleSheet("QLabel { color: #495057; border: none; background: transparent; margin-top: 8px; }")
+        layout.addWidget(system_header, row, 0, 1, 4)
+        row += 1
         
-        self.system_status_label = QLabel("Unknown")
-        self.system_status_label.setFont(QFont("Arial", 10))
-        self.system_status_label.setStyleSheet("QLabel { color: #6c757d; border: none; background: transparent; }")
-        layout.addWidget(self.system_status_label, row, 1, 1, 2)
+        # System running status
+        sys_status_label = QLabel("Running:")
+        sys_status_label.setFont(QFont("Arial", 10))
+        sys_status_label.setStyleSheet("QLabel { color: #6c757d; border: none; background: transparent; padding: 3px; }")
+        layout.addWidget(sys_status_label, row, 0)
+        
+        self.heater_system_status_label = QLabel("Unknown")
+        self.heater_system_status_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        self.heater_system_status_label.setStyleSheet("QLabel { color: #6c757d; border: none; background: transparent; padding: 3px; }")
+        layout.addWidget(self.heater_system_status_label, row, 1)
         
         # Total current display
-        self.total_current_label = QLabel("Total: -- A")
+        current_status_label = QLabel("Total Current:")
+        current_status_label.setFont(QFont("Arial", 10))
+        current_status_label.setStyleSheet("QLabel { color: #6c757d; border: none; background: transparent; padding: 3px; }")
+        layout.addWidget(current_status_label, row, 2)
+        
+        self.total_current_label = QLabel("-- A")
         self.total_current_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        self.total_current_label.setStyleSheet("QLabel { color: #495057; border: none; background: transparent; }")
-        layout.addWidget(self.total_current_label, row, 3, 1, 2)
+        self.total_current_label.setStyleSheet("QLabel { color: #495057; border: none; background: transparent; padding: 3px; }")
+        layout.addWidget(self.total_current_label, row, 3)
         
         return data_frame
     
-    def toggle_heater_new(self, method_name):
-        """Toggle a specific heater using the correct method"""
-        try:
-            # Get the method from the heater client
-            if hasattr(self.heater_client, method_name):
-                method = getattr(self.heater_client, method_name)
-                success = method()
-                if success:
-                    self.logger.info(f"Successfully executed {method_name}")
-                    # Update display immediately
-                    self.update_display()
-                else:
-                    self.logger.warning(f"Failed to execute {method_name}")
-            else:
-                self.logger.error(f"Method {method_name} not found in heater client")
-                    
-        except Exception as e:
-            self.logger.error(f"Error executing {method_name}: {e}")
-    
-    def toggle_heater(self, heater_key):
-        """Legacy toggle method - deprecated"""
-        self.logger.warning(f"Using legacy toggle_heater method for {heater_key} - this may have incorrect mappings!")
-        try:
-            # Get the appropriate toggle method
-            toggle_methods = {
-                'lockpin': self.heater_client.toggle_lockpin,
-                'starcamera': self.heater_client.toggle_starcamera,
-                'pv': self.heater_client.toggle_pv,
-                'motor': self.heater_client.toggle_motor,
-                'ethernet': self.heater_client.toggle_ethernet
-            }
-            
-            if heater_key in toggle_methods:
-                success = toggle_methods[heater_key]()
-                if success:
-                    self.logger.info(f"Successfully toggled {heater_key} heater")
-                    # Update display immediately
-                    self.update_display()
-                else:
-                    self.logger.warning(f"Failed to toggle {heater_key} heater")
-                    
-        except Exception as e:
-            self.logger.error(f"Error toggling {heater_key} heater: {e}")
+    # Toggle methods removed - widget is now display-only according to HEATER_CLIENT_GUIDE.md
+    # Heater control is handled via BCP command interface on port 8090, not through GUI
     
     def update_display(self):
-        """Update the display with current data"""
+        """Update the display with current telemetry data"""
         if not self.is_active:
             return
         
         try:
-            # Get current data (which will update telemetry)
-            data = self.heater_client.get_current_data()
+            # Get current telemetry data
+            self.update_telemetry_data()
             
-            # Update connection status
-            if self.heater_client.is_connected():
+            # Update connection status based on recent telemetry success
+            if self.current_data.valid:
                 self.connection_status_label.setText("Connected")
-                self.connection_status_label.setStyleSheet("QLabel { color: #28a745; border: none; }")
+                self.connection_status_label.setStyleSheet("QLabel { color: #28a745; }")
             else:
                 self.connection_status_label.setText("Disconnected")
-                self.connection_status_label.setStyleSheet("QLabel { color: #dc3545; border: none; }")
+                self.connection_status_label.setStyleSheet("QLabel { color: #dc3545; }")
             
-            # Update system status
-            if data.system_online:
-                if data.system_running:
-                    self.system_status_label.setText("Online & Running")
-                    self.system_status_label.setStyleSheet("QLabel { color: #28a745; border: none; }")
-                else:
-                    self.system_status_label.setText("Online but Stopped")
-                    self.system_status_label.setStyleSheet("QLabel { color: #ffc107; border: none; }")
+            # Update heater system running status
+            if self.current_data.system_running:
+                self.heater_system_status_label.setText("Yes")
+                self.heater_system_status_label.setStyleSheet("QLabel { color: #28a745; border: none; background: transparent; padding: 3px; }")
             else:
-                self.system_status_label.setText(f"Offline - {data.last_error}")
-                self.system_status_label.setStyleSheet("QLabel { color: #dc3545; border: none; }")
+                self.heater_system_status_label.setText("No")
+                self.heater_system_status_label.setStyleSheet("QLabel { color: #ffc107; border: none; background: transparent; padding: 3px; }")
             
             # Update total current
-            if data.total_current > 0:
-                current_color = "#dc3545" if data.total_current > 2.5 else "#28a745"  # Red if near 3A limit
-                self.total_current_label.setText(f"Total: {data.total_current:.2f} A")
-                self.total_current_label.setStyleSheet(f"QLabel {{ color: {current_color}; border: none; }}")
+            if self.current_data.total_current > 0:
+                current_color = "#dc3545" if self.current_data.total_current > 2.5 else "#28a745"  # Red if near 3A limit
+                self.total_current_label.setText(f"{self.current_data.total_current:.2f} A")
+                self.total_current_label.setStyleSheet(f"QLabel {{ color: {current_color}; border: none; background: transparent; padding: 3px; }}")
             else:
-                self.total_current_label.setText("Total: -- A")
-                self.total_current_label.setStyleSheet("QLabel { color: #6c757d; border: none; }")
+                self.total_current_label.setText("-- A")
+                self.total_current_label.setStyleSheet("QLabel { color: #6c757d; border: none; background: transparent; padding: 3px; }")
+            
+            # Update last update time
+            if hasattr(self, 'last_update_label'):
+                self.last_update_label.setText(f"Last Update: {datetime.now().strftime('%H:%M:%S')}")
             
             # Update individual heater status indicators and telemetry
             heater_data_map = {
-                'starcam': (data.starcam_state, data.starcam_temp, data.starcam_current),
-                'motor': (data.motor_state, data.motor_temp, data.motor_current),
-                'ethernet': (data.ethernet_state, data.ethernet_temp, data.ethernet_current),
-                'lockpin': (data.lockpin_state, data.lockpin_temp, data.lockpin_current),
-                'spare': (data.spare_state, data.spare_temp, data.spare_current)
+                'starcam': (self.current_data.starcam_state, self.current_data.starcam_temp, self.current_data.starcam_current),
+                'motor': (self.current_data.motor_state, self.current_data.motor_temp, self.current_data.motor_current),
+                'ethernet': (self.current_data.ethernet_state, self.current_data.ethernet_temp, self.current_data.ethernet_current),
+                'lockpin': (self.current_data.lockpin_state, self.current_data.lockpin_temp, self.current_data.lockpin_current),
+                'spare': (self.current_data.spare_state, self.current_data.spare_temp, self.current_data.spare_current)
             }
             
             for key, (state, temp, current) in heater_data_map.items():
@@ -514,13 +465,70 @@ System Limits:
         except Exception as e:
             self.logger.error(f"Error updating heater display: {e}")
     
+    def update_telemetry_data(self):
+        """Update heater data from telemetry system"""
+        try:
+            # Get comprehensive status from telemetry
+            status = self.telemetry_client.get_heater_status()
+            
+            # Update system status
+            self.current_data.system_running = status.get('running', '0') == '1'
+            
+            try:
+                self.current_data.total_current = float(status.get('total_current', '0'))
+            except (ValueError, TypeError):
+                self.current_data.total_current = 0.0
+            
+            # Update individual heater data
+            heaters_map = {
+                'starcam': 'starcam',
+                'motor': 'motor', 
+                'ethernet': 'ethernet',
+                'lockpin': 'lockpin',
+                'spare': 'spare'
+            }
+            
+            for heater_key, data_attr in heaters_map.items():
+                heater_data = status.get(heater_key, {})
+                
+                # Temperature
+                try:
+                    temp_val = float(heater_data.get('temp', '0'))
+                    setattr(self.current_data, f'{data_attr}_temp', temp_val)
+                except (ValueError, TypeError):
+                    setattr(self.current_data, f'{data_attr}_temp', 0.0)
+                
+                # Current
+                try:
+                    current_val = float(heater_data.get('current', '0'))
+                    setattr(self.current_data, f'{data_attr}_current', current_val)
+                except (ValueError, TypeError):
+                    setattr(self.current_data, f'{data_attr}_current', 0.0)
+                
+                # State
+                state_str = heater_data.get('state', '-1')
+                if state_str == '1':
+                    setattr(self.current_data, f'{data_attr}_state', True)
+                elif state_str == '0':
+                    setattr(self.current_data, f'{data_attr}_state', False)
+                else:
+                    setattr(self.current_data, f'{data_attr}_state', None)
+            
+            self.current_data.valid = True
+            self.current_data.timestamp = time.time()
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Error updating telemetry data: {e}")
+            self.current_data.valid = False
+            return False
+    
     def cleanup(self):
         """Clean up resources when shutting down"""
         if hasattr(self, 'update_timer'):
             self.update_timer.stop()
         
-        if hasattr(self, 'heater_client'):
-            self.heater_client.cleanup()
+        # Telemetry client doesn't need explicit cleanup
         
         self.logger.info("Heater widget cleaned up")
 

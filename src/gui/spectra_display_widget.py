@@ -78,7 +78,7 @@ class SpectraDisplayWidget(QWidget):
         df = fs / Nfft
         faxis = fbins * df + fs / 2
         # Don't flip the frequency axis - we want it ascending from ~20.96 to ~22.93 GHz
-        self.freq_ghz = faxis/1000 + 21  # Convert to GHz with 21 GHz offset
+        self.freq_ghz = faxis/1000 + 20.96608  # Convert to GHz with 21 GHz offset
         
         print(f"Frequency axis: {self.freq_ghz[0]:.5f} to {self.freq_ghz[-1]:.5f} GHz")
         

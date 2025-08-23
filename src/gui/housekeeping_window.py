@@ -12,7 +12,7 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QIcon, QAction
 
 from src.data.data_logging_orchestrator import DataLoggingOrchestrator
-from src.config.settings import GUI, PR59_SERVER, HEATER_SERVER, BCP_HOUSEKEEPING
+from src.config.settings import GUI, PR59_SERVER, HEATER_TELEMETRY, BCP_HOUSEKEEPING
 from src.gui.pbob_widget import PBoBWidget
 from src.gui.pr59_widget import PR59Widget
 from src.gui.heater_widget import HeaterWidget
@@ -131,11 +131,11 @@ class HousekeepingWindow(QMainWindow):
             server_port=PR59_SERVER['port']
         )
         
-        # Heater Widget
+        # Heater Widget (now uses telemetry server for read-only display)
         self.heater_widget = HeaterWidget(
             parent=self,
-            server_ip=HEATER_SERVER['host'],
-            server_port=HEATER_SERVER['port']
+            server_ip=HEATER_TELEMETRY['host'],
+            server_port=HEATER_TELEMETRY['port']
         )
         
         # NEW Housekeeping Widget

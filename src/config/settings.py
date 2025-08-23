@@ -21,7 +21,7 @@ OPH_SERVER = {
 
 # BCP Spectrometer Configuration
 BCP_SPECTROMETER = {
-    'host': '100.70.234.8',  # Saggitarius system IP
+    'host': '172.20.4.170',  # Saggitarius system IP
     'port': 8089,
     'timeout': 5.0,
     'update_interval': 1.0   # 1 second = 1 Hz updates
@@ -45,7 +45,7 @@ PR59_SERVER = {
 
 # Heater System Configuration
 HEATER_SERVER = {
-    'host': '172.20.4.178',  # LabJack T7 IP address as specified in the guide
+    'host': '172.20.4.170',  # LabJack T7 IP address as specified in the guide
     'port': 8006,
     'timeout': 2.0,  # 2 second timeout as suggested in the guide  
     'update_interval': 2.0   # 2 second between requests (relay toggles don't need frequent updates)
@@ -53,8 +53,8 @@ HEATER_SERVER = {
 
 # Heater Telemetry Configuration (new - from guide)
 HEATER_TELEMETRY = {
-    'host': 'localhost',  # Telemetry server host
-    'port': 8081,  # Telemetry server port as specified in guide
+    'host': '172.20.4.170',  # BCP Sag system (same as other telemetry)
+    'port': 8082,  # Telemetry server port as specified in guide
     'timeout': 2.0,
     'update_interval': 2.0
 }
