@@ -315,28 +315,30 @@ class HeaterWidget(QWidget):
         
         # Use a grid layout for organized display like other widgets
         layout = QGridLayout(data_frame)
-        layout.setSpacing(8)
-        layout.setContentsMargins(10, 6, 10, 6)
+        layout.setSpacing(6)
+        layout.setContentsMargins(10, 8, 10, 8)
+        layout.setVerticalSpacing(4)  # More space between rows
         
         # Create field labels for telemetry display
         self.status_indicators = {}
         self.temp_labels = {}
         self.current_labels = {}
+        self.temp_range_labels = {}
         
         # Section header
         header_label = QLabel("Individual Heater Status:")
         header_label.setFont(QFont("Arial", 11, QFont.Weight.Bold))
         header_label.setStyleSheet("QLabel { color: #495057; border: none; background: transparent; margin-top: 5px; }")
-        layout.addWidget(header_label, 0, 0, 1, 4)
+        layout.addWidget(header_label, 0, 0, 1, 5)
         
-        # Column headers (cleaner layout)
-        headers = ["Component", "Status", "Temp (°C)", "Current (A)"]
+        # Column headers (cleaner layout with temperature range)
+        headers = ["Component", "Status", "Temp (°C)", "Current (A)", "Range (°C)"]
         for col, header in enumerate(headers):
             col_label = QLabel(header)
-            col_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-            col_label.setStyleSheet("QLabel { color: #6c757d; border: none; background: transparent; padding: 2px; }")
+            col_label.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+            col_label.setStyleSheet("QLabel { color: #6c757d; border: none; background: transparent; padding: 1px; }")
             col_label.setAlignment(Qt.AlignmentFlag.AlignCenter if col > 0 else Qt.AlignmentFlag.AlignLeft)
-            col_label.setMinimumHeight(20)
+            col_label.setMinimumHeight(16)
             layout.addWidget(col_label, 1, col)
         
         # Heater definitions according to guide (telemetry channels)
@@ -352,10 +354,11 @@ class HeaterWidget(QWidget):
         for heater_name, heater_key, heater_type in heaters:
             # Component name
             name_label = QLabel(f"{heater_name}")
-            name_label.setFont(QFont("Arial", 10))
+            name_label.setFont(QFont("Arial", 9))
             name_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-            name_label.setStyleSheet("QLabel { color: #212529; border: none; background: transparent; padding: 3px; }")
+            name_label.setStyleSheet("QLabel { color: #212529; border: none; background: transparent; padding: 2px; }")
             name_label.setMinimumWidth(100)
+            name_label.setMinimumHeight(18)
             layout.addWidget(name_label, row, 0)
             
             # Status indicator
@@ -365,21 +368,33 @@ class HeaterWidget(QWidget):
             
             # Temperature display
             temp_label = QLabel("--")
-            temp_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+            temp_label.setFont(QFont("Arial", 9, QFont.Weight.Bold))
             temp_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            temp_label.setStyleSheet("QLabel { color: #212529; border: none; background: transparent; padding: 3px; }")
+            temp_label.setStyleSheet("QLabel { color: #212529; border: none; background: transparent; padding: 2px; }")
             temp_label.setMinimumWidth(70)
+            temp_label.setMinimumHeight(18)
             layout.addWidget(temp_label, row, 2)
             self.temp_labels[heater_key] = temp_label
             
             # Current display
             current_label = QLabel("--")
-            current_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+            current_label.setFont(QFont("Arial", 9, QFont.Weight.Bold))
             current_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            current_label.setStyleSheet("QLabel { color: #212529; border: none; background: transparent; padding: 3px; }")
+            current_label.setStyleSheet("QLabel { color: #212529; border: none; background: transparent; padding: 2px; }")
             current_label.setMinimumWidth(70)
+            current_label.setMinimumHeight(18)
             layout.addWidget(current_label, row, 3)
             self.current_labels[heater_key] = current_label
+            
+            # Temperature range display
+            temp_range_label = QLabel("--")
+            temp_range_label.setFont(QFont("Arial", 9))
+            temp_range_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            temp_range_label.setStyleSheet("QLabel { color: #495057; border: none; background: transparent; padding: 2px; }")
+            temp_range_label.setMinimumWidth(80)
+            temp_range_label.setMinimumHeight(18)
+            layout.addWidget(temp_range_label, row, 4)
+            self.temp_range_labels[heater_key] = temp_range_label
             
             row += 1
         
@@ -390,29 +405,33 @@ class HeaterWidget(QWidget):
         system_header = QLabel("System Status:")
         system_header.setFont(QFont("Arial", 11, QFont.Weight.Bold))
         system_header.setStyleSheet("QLabel { color: #495057; border: none; background: transparent; margin-top: 8px; }")
-        layout.addWidget(system_header, row, 0, 1, 4)
+        layout.addWidget(system_header, row, 0, 1, 5)
         row += 1
         
         # System running status
         sys_status_label = QLabel("Running:")
-        sys_status_label.setFont(QFont("Arial", 10))
-        sys_status_label.setStyleSheet("QLabel { color: #6c757d; border: none; background: transparent; padding: 3px; }")
+        sys_status_label.setFont(QFont("Arial", 9))
+        sys_status_label.setStyleSheet("QLabel { color: #6c757d; border: none; background: transparent; padding: 2px; }")
+        sys_status_label.setMinimumHeight(18)
         layout.addWidget(sys_status_label, row, 0)
         
         self.heater_system_status_label = QLabel("Unknown")
-        self.heater_system_status_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        self.heater_system_status_label.setStyleSheet("QLabel { color: #6c757d; border: none; background: transparent; padding: 3px; }")
+        self.heater_system_status_label.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        self.heater_system_status_label.setStyleSheet("QLabel { color: #6c757d; border: none; background: transparent; padding: 2px; }")
+        self.heater_system_status_label.setMinimumHeight(18)
         layout.addWidget(self.heater_system_status_label, row, 1)
         
         # Total current display
         current_status_label = QLabel("Total Current:")
-        current_status_label.setFont(QFont("Arial", 10))
-        current_status_label.setStyleSheet("QLabel { color: #6c757d; border: none; background: transparent; padding: 3px; }")
+        current_status_label.setFont(QFont("Arial", 9))
+        current_status_label.setStyleSheet("QLabel { color: #6c757d; border: none; background: transparent; padding: 2px; }")
+        current_status_label.setMinimumHeight(18)
         layout.addWidget(current_status_label, row, 2)
         
         self.total_current_label = QLabel("-- A")
-        self.total_current_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
-        self.total_current_label.setStyleSheet("QLabel { color: #495057; border: none; background: transparent; padding: 3px; }")
+        self.total_current_label.setFont(QFont("Arial", 9, QFont.Weight.Bold))
+        self.total_current_label.setStyleSheet("QLabel { color: #495057; border: none; background: transparent; padding: 2px; }")
+        self.total_current_label.setMinimumHeight(18)
         layout.addWidget(self.total_current_label, row, 3)
         
         return data_frame
@@ -486,6 +505,27 @@ class HeaterWidget(QWidget):
                     else:
                         self.current_labels[key].setText("--")
                 
+                # Update temperature range display
+                if key in self.temp_range_labels:
+                    if hasattr(self.current_data, f'{key}_temp_low') and hasattr(self.current_data, f'{key}_temp_high'):
+                        temp_low = getattr(self.current_data, f'{key}_temp_low', None)
+                        temp_high = getattr(self.current_data, f'{key}_temp_high', None)
+                        
+                        if temp_low is not None and temp_high is not None and temp_low > 0 and temp_high > 0:
+                            self.temp_range_labels[key].setText(f"{temp_low:.1f}-{temp_high:.1f}")
+                        else:
+                            # For manual-only heater (spare/PV) or if no range data
+                            if key == 'spare':
+                                self.temp_range_labels[key].setText("Manual")
+                            else:
+                                self.temp_range_labels[key].setText("--")
+                    else:
+                        # Fallback for heaters without range data
+                        if key == 'spare':
+                            self.temp_range_labels[key].setText("Manual")
+                        else:
+                            self.temp_range_labels[key].setText("--")
+                
         except Exception as e:
             self.logger.error(f"Error updating heater display: {e}")
     
@@ -512,6 +552,8 @@ class HeaterWidget(QWidget):
                 'spare': 'spare'
             }
             
+            auto_heaters = ['starcam', 'motor', 'ethernet', 'lockpin']  # Only these have temp ranges
+            
             for heater_key, data_attr in heaters_map.items():
                 heater_data = status.get(heater_key, {})
                 
@@ -537,6 +579,20 @@ class HeaterWidget(QWidget):
                     setattr(self.current_data, f'{data_attr}_state', False)
                 else:
                     setattr(self.current_data, f'{data_attr}_state', None)
+                
+                # Temperature ranges (only for automatic heaters)
+                if heater_key in auto_heaters:
+                    try:
+                        temp_low_val = float(heater_data.get('temp_low', '0'))
+                        setattr(self.current_data, f'{data_attr}_temp_low', temp_low_val)
+                    except (ValueError, TypeError):
+                        setattr(self.current_data, f'{data_attr}_temp_low', 0.0)
+                    
+                    try:
+                        temp_high_val = float(heater_data.get('temp_high', '0'))
+                        setattr(self.current_data, f'{data_attr}_temp_high', temp_high_val)
+                    except (ValueError, TypeError):
+                        setattr(self.current_data, f'{data_attr}_temp_high', 0.0)
             
             self.current_data.valid = True
             self.current_data.timestamp = time.time()
@@ -573,6 +629,8 @@ class HeaterWidget(QWidget):
                 self.temp_labels.clear()
             if hasattr(self, 'current_labels'):
                 self.current_labels.clear()
+            if hasattr(self, 'temp_range_labels'):
+                self.temp_range_labels.clear()
             
             # Telemetry client doesn't need explicit cleanup
             

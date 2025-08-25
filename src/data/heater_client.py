@@ -41,6 +41,17 @@ class HeaterData:
         self.lockpin_current = 0.0
         self.spare_current = 0.0
         
+        # Temperature ranges (°C) - only for automatic heaters
+        self.starcam_temp_low = 0.0
+        self.starcam_temp_high = 0.0
+        self.motor_temp_low = 0.0
+        self.motor_temp_high = 0.0
+        self.ethernet_temp_low = 0.0
+        self.ethernet_temp_high = 0.0
+        self.lockpin_temp_low = 0.0
+        self.lockpin_temp_high = 0.0
+        # Note: spare heater is manual-only, no temperature ranges
+        
         # System status
         self.total_current = 0.0
         self.system_running = False
@@ -88,12 +99,23 @@ class HeaterTelemetryClient:
         
         # Individual heater data - using guide naming convention
         heaters = ['starcam', 'motor', 'ethernet', 'lockpin', 'spare']
+        auto_heaters = ['starcam', 'motor', 'ethernet', 'lockpin']  # Only these have temp ranges
+        
         for heater in heaters:
             status[heater] = {
                 'temp': self.get_telemetry(f'heater_{heater}_temp'),
                 'current': self.get_telemetry(f'heater_{heater}_current'),
                 'state': self.get_telemetry(f'heater_{heater}_state')
             }
+            
+            # Add temperature range data for automatic heaters only
+            if heater in auto_heaters:
+                status[heater]['temp_low'] = self.get_telemetry(f'heater_{heater}_temp_low')
+                status[heater]['temp_high'] = self.get_telemetry(f'heater_{heater}_temp_high')
+            else:
+                # Spare/PV heater is manual-only, no temp ranges
+                status[heater]['temp_low'] = 'N/A'
+                status[heater]['temp_high'] = 'N/A'
         
         return status
 
@@ -243,6 +265,8 @@ class HeaterClient:
                 'spare': 'spare'
             }
             
+            auto_heaters = ['starcam', 'motor', 'ethernet', 'lockpin']  # Only these have temp ranges
+            
             for heater_key, data_attr in heaters_map.items():
                 heater_data = status.get(heater_key, {})
                 
@@ -268,6 +292,20 @@ class HeaterClient:
                     setattr(self.current_data, f'{data_attr}_state', False)
                 else:
                     setattr(self.current_data, f'{data_attr}_state', None)
+                
+                # Temperature ranges (only for automatic heaters)
+                if heater_key in auto_heaters:
+                    try:
+                        temp_low_val = float(heater_data.get('temp_low', '0'))
+                        setattr(self.current_data, f'{data_attr}_temp_low', temp_low_val)
+                    except (ValueError, TypeError):
+                        setattr(self.current_data, f'{data_attr}_temp_low', 0.0)
+                    
+                    try:
+                        temp_high_val = float(heater_data.get('temp_high', '0'))
+                        setattr(self.current_data, f'{data_attr}_temp_high', temp_high_val)
+                    except (ValueError, TypeError):
+                        setattr(self.current_data, f'{data_attr}_temp_high', 0.0)
             
             self.current_data.valid = True
             self.current_data.timestamp = time.time()

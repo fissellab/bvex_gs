@@ -87,11 +87,11 @@ class HousekeepingWindow(QMainWindow):
         
         # ROW 0: Network Traffic Widget + System Monitor Widget (compact)
         main_layout.addWidget(self.network_traffic_widget, 0, 0, 2, 2)
-        main_layout.addWidget(self.system_monitor_widget, 0, 4, 2, 4)
+        main_layout.addWidget(self.system_monitor_widget, 0, 2, 2, 2)
         
         # ROW 1: Housekeeping Widget + PBoB Widget
-        main_layout.addWidget(self.housekeeping_widget, 0, 2, 2, 2)
-        main_layout.addWidget(self.pbob_widget, 2, 4, 2, 4)
+        main_layout.addWidget(self.housekeeping_widget, 0, 4, 2, 4)
+        main_layout.addWidget(self.pbob_widget, 2, 4, 2, 4) 
         
         # ROW 2: Heater Widget + PR59 Widget
         main_layout.addWidget(self.heater_widget, 4, 4, 2, 4)

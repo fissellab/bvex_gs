@@ -445,6 +445,26 @@ class PR59Widget(QWidget):
         
         self.field_labels["status"] = status_value_label
         
+        row += 1  # Move to next row for fan status
+        
+        # Fan status field
+        fan_status_label = QLabel("Fan Status:")
+        fan_status_label.setFont(QFont("Arial", 10))
+        fan_status_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        fan_status_label.setStyleSheet("QLabel { color: #6c757d; border: none; background: transparent; }")
+        fan_status_label.setMaximumWidth(120)
+        layout.addWidget(fan_status_label, row, 0)
+        
+        # Fan status value label
+        fan_status_value_label = QLabel("N/A")
+        fan_status_value_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+        fan_status_value_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        fan_status_value_label.setStyleSheet("QLabel { color: #212529; border: none; background: transparent; }")
+        fan_status_value_label.setMinimumWidth(80)
+        layout.addWidget(fan_status_value_label, row, 1)
+        
+        self.field_labels["fan_status"] = fan_status_value_label
+        
         return data_frame
     
     def update_display(self):
@@ -492,6 +512,9 @@ class PR59Widget(QWidget):
                 self.status_indicator.set_status(data.running == 1)
                 self.field_labels["status"].setText(data.status)
                 
+                # Update fan status with color coding
+                self._update_fan_status_field(data.fan_status)
+                
             else:
                 # Check if server is responding (even if unauthorized)
                 if self.pr59_client.is_server_responding():
@@ -515,6 +538,10 @@ class PR59Widget(QWidget):
                 else:
                     self.field_labels["status"].setText("N/A")
                     self.field_labels["status"].setStyleSheet("QLabel { color: #6c757d; border: none; background: transparent; }")
+                
+                # Reset fan status when no data
+                self.field_labels["fan_status"].setText("N/A")
+                self.field_labels["fan_status"].setStyleSheet("QLabel { color: #6c757d; border: none; background: transparent; }")
                     
         except Exception as e:
             self.logger.error(f"Error updating PR59 display: {e}")
@@ -548,6 +575,28 @@ class PR59Widget(QWidget):
             label.setStyleSheet("QLabel { color: #ffc107; font-weight: bold; border: none; background: transparent; }")
         else:  # Normal values
             label.setStyleSheet("QLabel { color: #212529; border: none; background: transparent; }")
+    
+    def _update_fan_status_field(self, fan_status_value):
+        """Update fan status field with color coding based on updated guide values"""
+        label = self.field_labels["fan_status"]
+        label.setText(fan_status_value)
+        
+        # Color code based on fan status values from the updated guide
+        if fan_status_value == "automatic":
+            # Normal operation - green
+            label.setStyleSheet("QLabel { color: #28a745; font-weight: bold; border: none; background: transparent; }")
+        elif fan_status_value == "forced_on":
+            # Fan manually forced ON - blue/info color
+            label.setStyleSheet("QLabel { color: #17a2b8; font-weight: bold; border: none; background: transparent; }")
+        elif fan_status_value == "forced_off":
+            # Fan manually forced OFF - warning orange
+            label.setStyleSheet("QLabel { color: #ffc107; font-weight: bold; border: none; background: transparent; }")
+        elif fan_status_value == "N/A":
+            # PR59 not running or data unavailable - gray
+            label.setStyleSheet("QLabel { color: #6c757d; border: none; background: transparent; }")
+        else:
+            # Invalid/unknown status - show as error in red with the actual value
+            label.setStyleSheet("QLabel { color: #dc3545; font-weight: bold; border: none; background: transparent; }")
 
     def cleanup(self):
         """Clean up resources"""

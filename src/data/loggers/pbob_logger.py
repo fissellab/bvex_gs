@@ -35,8 +35,14 @@ class PBoBDataLogger(WidgetDataLogger):
             'mixer_current',
             'rfsoc_state',
             'rfsoc_current',
-            'backend_state',
-            'backend_current',
+            'timing_state',
+            'timing_current',
+            'heater_state',
+            'heater_current',
+            'position_state',
+            'position_current',
+            'housekeeping_state',
+            'housekeeping_current',
             'valid'
         ]
         
@@ -74,8 +80,14 @@ class PBoBDataLogger(WidgetDataLogger):
                         'mixer_current': data.mix_curr,
                         'rfsoc_state': data.rfsoc_state,
                         'rfsoc_current': data.rfsoc_curr,
-                        'backend_state': data.bkd_state,
-                        'backend_current': data.bkd_curr,
+                        'timing_state': data.timing_state,
+                        'timing_current': data.timing_curr,
+                        'heater_state': data.heat_state,
+                        'heater_current': data.heat_curr,
+                        'position_state': data.pos_state,
+                        'position_current': data.pos_curr,
+                        'housekeeping_state': data.hk_state,
+                        'housekeeping_current': data.hk_curr,
                         'valid': data.valid
                     }
             

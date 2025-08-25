@@ -361,7 +361,10 @@ class PBoBWidget(QWidget):
             ("LNA", "lna_state", "lna_curr"),
             ("Mixer", "mix_state", "mix_curr"),
             ("RF SoC", "rfsoc_state", "rfsoc_curr"),
-            ("Backend", "bkd_state","bkd_curr")
+            ("Timing Box", "timing_state", "timing_curr"),
+            ("Heaters", "heat_state", "heat_curr"),
+            ("Position Box", "pos_state", "pos_curr"),
+            ("Housekeeping", "hk_state", "hk_curr")
         ]
         
         # Headers
@@ -370,6 +373,7 @@ class PBoBWidget(QWidget):
             header_label = QLabel(f"{header}:")
             header_label.setFont(QFont("Arial", 10, QFont.Weight.Bold))
             header_label.setStyleSheet("QLabel { color: #495057; border: none; background: transparent; }")
+            header_label.setMinimumHeight(26)
             if col == 0:
                 header_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
             elif col == 1:
@@ -386,6 +390,7 @@ class PBoBWidget(QWidget):
             name_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
             name_label.setStyleSheet("QLabel { color: #6c757d; border: none; background: transparent; }")
             name_label.setMaximumWidth(120)  # Increased from 100 to accommodate wider widget
+            name_label.setMinimumHeight(26)
             layout.addWidget(name_label, row, 0)
             
             # Status circle - more compact without extra widget wrapper
@@ -398,6 +403,7 @@ class PBoBWidget(QWidget):
             current_label.setAlignment(Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter)
             current_label.setStyleSheet("QLabel { color: #212529; border: none; background: transparent; }")
             current_label.setMinimumWidth(80)
+            current_label.setMinimumHeight(26)
             layout.addWidget(current_label, row, 2)
             
             # Store references
@@ -438,7 +444,10 @@ class PBoBWidget(QWidget):
                     ("LNA", "lna_state", "lna_curr"),
                     ("Mixer", "mix_state", "mix_curr"),
                     ("RF SoC", "rfsoc_state", "rfsoc_curr"),
-                    ("Backend", "bkd_state","bkd_curr")
+                    ("Timing Box", "timing_state", "timing_curr"),
+                    ("Heaters", "heat_state", "heat_curr"),
+                    ("Position Box", "pos_state", "pos_curr"),
+                    ("Housekeeping", "hk_state", "hk_curr")
                 ]
                 
                 for name, state_field, current_field in subsystems:

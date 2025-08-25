@@ -125,8 +125,8 @@ class HousekeepingWidget(QWidget):
         main_layout.addWidget(self.container)
         
         self.setLayout(main_layout)
-        self.setMinimumWidth(320)  # More compact for 4-column layout
-        self.setMaximumWidth(400)  # More compact
+        self.setMinimumWidth(500)  # More compact for 4-column layout
+        self.setMaximumWidth(1000)  # More compact
         self.setMinimumHeight(280)  # More compact
     
     def setup_static_display(self):
@@ -193,7 +193,7 @@ class HousekeepingWidget(QWidget):
         status_font.setBold(True)
         self.status_label.setFont(status_font)
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
+        self.status_label.setMinimumWidth(500)
         # System status indicators (powered and running)
         powered_label = QLabel("Powered:")
         powered_label.setFont(QFont("Arial", 9, QFont.Weight.Bold))
@@ -242,8 +242,6 @@ class HousekeepingWidget(QWidget):
             ("NIC", "hk_nic_temp", "°C", 1, 4),
             ("RFSoC Chassis", "hk_rfsoc_chassis_temp", "°C", 2, 0),
             ("RFSoC Chip", "hk_rfsoc_chip_temp", "°C", 2, 2),
-            ("LNA1", "hk_lna1_temp", "°C", 2, 4),
-            ("LNA2", "hk_lna2_temp", "°C", 3, 0),
         ]
         
         # Add temperature fields
@@ -253,7 +251,7 @@ class HousekeepingWidget(QWidget):
             label.setFont(QFont("Arial", 8, QFont.Weight.Bold))
             label.setStyleSheet("color: #495057; border: none; background: transparent;")
             label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            
+            label.setMinimumWidth(100)
             # Value (clean text style like GPS, no boxes)
             value_label = QLabel(f"-- {unit}")
             value_label.setFont(QFont("Arial", 8, QFont.Weight.Bold))
@@ -279,8 +277,8 @@ class HousekeepingWidget(QWidget):
         self.pressure_value_label.setStyleSheet("color: #6c757d; border: none; background: transparent;")
         self.pressure_value_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         
-        layout.addWidget(pressure_label, 3, 2)
-        layout.addWidget(self.pressure_value_label, 3, 3)
+        layout.addWidget(pressure_label, 2,4)
+        layout.addWidget(self.pressure_value_label, 2, 5)
         
         # Add timestamp at bottom
         self.timestamp_label = QLabel("Last Update: Never")

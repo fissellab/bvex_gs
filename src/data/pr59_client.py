@@ -33,6 +33,7 @@ class PR59Data:
         # Status
         self.running = 0
         self.status = "N/A"
+        self.fan_status = "N/A"
 
 
 class PR59Client:
@@ -56,7 +57,8 @@ class PR59Client:
         self.channels = [
             "pr59_kp", "pr59_ki", "pr59_kd", "pr59_timestamp",
             "pr59_temp", "pr59_fet_temp", "pr59_current", 
-            "pr59_voltage", "pr59_power", "pr59_running", "pr59_status"
+            "pr59_voltage", "pr59_power", "pr59_running", "pr59_status",
+            "pr59_fan_status"
         ]
         
         self.logger.info(f"PR59 client initialized - Server: {server_ip}:{server_port}")
@@ -102,7 +104,13 @@ class PR59Client:
             
             for channel in self.channels:
                 value = self.get_telemetry(channel)
-                if value not in ["TIMEOUT", "N/A"] and not value.startswith("ERROR"):
+                
+                # Special handling for fan status - only these 4 values are valid per updated guide
+                if channel == "pr59_fan_status" and value in ["automatic", "forced_on", "forced_off", "N/A"]:
+                    data_dict[channel] = value
+                    any_valid = True
+                    self.logger.debug(f"Valid fan status received: {value}")
+                elif channel != "pr59_fan_status" and value not in ["TIMEOUT", "N/A"] and not value.startswith("ERROR"):
                     data_dict[channel] = value
                     any_valid = True
                 else:
@@ -114,6 +122,8 @@ class PR59Client:
                         self.logger.debug(f"Server returned UNAUTHORIZED for {channel}")
                     elif "ERROR" in value:
                         self.logger.debug(f"Server error for {channel}: {value}")
+                    elif channel == "pr59_fan_status":
+                        self.logger.debug(f"Invalid fan status response: '{value}' (expected: automatic, forced_on, forced_off, or N/A)")
             
             if any_valid:
                 # Update data object
@@ -170,6 +180,9 @@ class PR59Client:
                     self.current_data.running = 0
                 
                 self.current_data.status = str(data_dict.get("pr59_status", "N/A") or "N/A")
+                
+                # Fan status
+                self.current_data.fan_status = str(data_dict.get("pr59_fan_status", "N/A") or "N/A")
                 
                 self.last_update_time = current_time
                 self.logger.debug("PR59 telemetry updated successfully")
